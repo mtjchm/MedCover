@@ -24,15 +24,15 @@
 - Infrastructure costs should be kept low (volunteer/non-profit context)
 
 ## Functional Requirements
-Users administration:  
-    - app roles (authorization) - admin, coordinator, member, viewer  
+- Users administration:
+    - app roles (authorization) - admin, coordinator, member, viewer
     - credentials (unified model covering both medical qualifications and additional certifications — see AD07):
         - medical qualifications: Doctor, Nurse (SZP), First Aider (zdravotník), Trainee (zelenáč)
         - additional certifications: Driver, PSP training, KI training, humanitarian unit training, etc.
         - credentials shall support a hierarchy tree, allowing a holder of a higher-ranked credential to fill spots requiring a lower-ranked one (e.g. Doctor can fill a First Aider spot; KI-trained can fill a PSP spot)
         - credentials and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
     - member equipment — the user profile shall display organisation-owned items currently issued to the member (long-term dislocation, e.g. uniform, personal medikit). Managed via the equipment inventory model (see Equipment section).
-    - phone number, email  
+    - phone number, email
     - reporting/overview section:
         - **per-user**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history
         - **per Master Event**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, medical materials used, attendance summary
@@ -312,19 +312,11 @@ flowchart TD
 ### Event Lifecycle State Machine
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Draft : coordinator/admin creates
-    Draft --> Published : coordinator/admin publishes
-    Published --> AssignmentsOpen : auto at configured date/time (manual override allowed)
-    AssignmentsOpen --> AssignmentsClosed : auto when all spots filled (manual override allowed)
-    AssignmentsClosed --> AssignmentsOpen : manual re-open (coordinator/admin/RP)
-    AssignmentsClosed --> Completed : auto after Event end time
-    Draft --> Cancelled : coordinator/admin cancels
-    Published --> Cancelled : coordinator/admin cancels
-    AssignmentsOpen --> Cancelled : coordinator/admin cancels
-    AssignmentsClosed --> Cancelled : coordinator/admin cancels
-    Cancelled --> Draft : coordinator/admin restores
-    Completed --> [*]
+flowchart LR
+    S(( )) --> Draft --> Published --> AO[Assignments Open] --> AC[Assignments Closed] --> Completed --> E(( ))
+    AC -->|re-open| AO
+    Draft & Published & AO & AC -->|cancel| Cancelled
+    Cancelled -->|restore| Draft
 ```
 
 **Notes:**
