@@ -46,13 +46,26 @@ Users administration:
 - Event
     - Each Event shall have
         - lifecycle statuses
-            - Draft
-            - Published
-            - Assignments Open
-            - Assignments Closed
-            - Completed
-            - Cancelled
-        - staffing statuses
+            - **Draft** — created but not yet visible to members
+            - **Published** — visible to members but assignments not yet open
+            - **Assignments Open** — members can register for spots
+            - **Assignments Closed** — no new assignments; Event is staffed or closed by coordinator/RP
+            - **Completed** — Event has taken place; debriefing phase begins
+            - **Cancelled** — Event will not take place; archived (hidden from normal views but not deleted)
+        - lifecycle transitions
+            - Draft → Published: manual (coordinator/admin)
+            - Published → Assignments Open: **automatic** at the configured assignment-opening date/time; can also be manually triggered or overridden by coordinator/admin
+            - Assignments Open → Assignments Closed: **automatic** when all spots are filled; can also be manually closed by coordinator/admin or the RP
+            - Assignments Closed → Assignments Open: manual re-open by coordinator/admin or RP (e.g. a person drops out and spots need to be re-opened)
+            - Assignments Closed → Completed: **automatic** after the Event end date/time passes
+            - Any non-Completed state → Cancelled: manual (coordinator/admin only)
+            - Cancelled → Draft: manual restore (coordinator/admin) — allows reuse as a basis for a new Event
+            - Completed Events cannot be cancelled
+        - cancellation and archiving
+            - a Cancelled Event is **archived** (hidden from default views) but not deleted
+            - archived Events can be restored to Draft, or used as the basis for a new Event
+            - admins can permanently delete archived Events
+        - staffing statuses (derived, not manually set)
             - Not staffed
             - Partially staffed
             - Fully staffed
@@ -264,13 +277,38 @@ flowchart TD
 
 
 ## Runtime / Interaction View
-- Key end-to-end scenarios
-- Sequence diagrams / flows for major use cases
-- Error and exception paths
-- Async processing, retries, idempotency, transactions, eventual consistency
 
-**Spot selection at assignment time (example):** An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver qualifications must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
+### Event Lifecycle State Machine
 
+```mermaid
+stateDiagram-v2
+    [*] --> Draft : coordinator/admin creates
+    Draft --> Published : coordinator/admin publishes
+    Published --> AssignmentsOpen : automatic (at configured date/time)\nor manual override (coordinator/admin)
+    AssignmentsOpen --> AssignmentsClosed : automatic (all spots filled)\nor manual (coordinator/admin/RP)
+    AssignmentsClosed --> AssignmentsOpen : manual re-open (coordinator/admin/RP)
+    AssignmentsClosed --> Completed : automatic (after Event end time)
+    Draft --> Cancelled : coordinator/admin cancels
+    Published --> Cancelled : coordinator/admin cancels
+    AssignmentsOpen --> Cancelled : coordinator/admin cancels
+    AssignmentsClosed --> Cancelled : coordinator/admin cancels
+    Cancelled --> Draft : coordinator/admin restores
+    Completed --> [*]
+```
+
+**Notes:**
+- Cancelled Events are **archived** (hidden from default views, not deleted). Admins can permanently delete archived Events.
+- A Completed or Cancelled Event can serve as the basis for creating a new Event (copy/template flow).
+- Staffing status (Not staffed / Partially staffed / Fully staffed / Overstaffed) is a **derived** status updated whenever assignments change; it is not a separate lifecycle state.
+
+### Automatic Transitions (Background Processing)
+The following transitions require a scheduled background job or task:
+- **Published → Assignments Open**: triggered at the configured `assignments_open_at` datetime
+- **Assignments Closed → Completed**: triggered after the Event `end_datetime`
+- **Urgent fill notification**: escalating email reminders to eligible users as Event start approaches and spots remain open
+
+### Spot Selection at Assignment Time
+An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver credentials must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
 
 
 ## Data View
