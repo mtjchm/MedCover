@@ -163,6 +163,7 @@
 - The app UI must be optimized for both PC and mobile phone screens - most users will access the app using their mobile phones
 - all changes must be logged and allow auditing - who changed what and when
 - The infrastructure used by the app should allow backup/restore of the app. Daily backups with 60 days retention, 1day RPO, 12 hours RTO
+- **Concurrent users:** The application must correctly handle **10 or more simultaneous users**. Race conditions — especially two users claiming the same EventSpot at the same time — must be prevented at the application level (row-level locking) and enforced at the database level (UNIQUE constraint). See AD12 for the concurrency strategy.
 
 
 ## Architectural Decisions
@@ -336,6 +337,23 @@
         - Flask-Mail config (`MAIL_*`) is refreshed from the DB on every request via `before_request`; no redeploy required to change SMTP settings.
         - The setup wizard is blocked to all other endpoints via a `before_request` guard until `setup_complete=True`.
         - Audit log records all changes to `AppSettings` (action_type: `edit`, entity_type: `AppSettings`).
+
+- AD12 Concurrency Control Strategy
+    - Problem statement - The application is used by 10 or more people simultaneously. Without explicit concurrency controls, two users could claim the same EventSpot at the same time, or two admins could overwrite each other's edits to the same Event or UserAccount.
+    - Options
+        - **No explicit control** — rely solely on the DB UNIQUE constraint on `assignment.spot_id`; second insert fails at the DB level. Simple but produces a raw DB error with no user-friendly handling, and does not cover non-assignment conflicts.
+        - **Pessimistic locking (SELECT FOR UPDATE)** — lock the target row at the start of the transaction; all other transactions block until the lock is released. Guarantees correctness; adds a brief serialisation bottleneck per contended row.
+        - **Optimistic locking (version column)** — add a `version` integer to each entity; increment on every write; if the version read at fetch time no longer matches at write time, raise a conflict error. Zero blocking; fails fast on conflict; suitable for low-contention edits.
+        - **Application-level queuing** — serialize all assignment requests through a queue. Overkill for expected load; adds infrastructure.
+    - Decision - **Hybrid: pessimistic locking for spot assignment; optimistic locking for general entity edits**
+    - Justification
+        - Spot assignment is the highest-contention operation (many eligible users can see and claim the same spot simultaneously) and must be correct — pessimistic locking with `query.with_for_update()` ensures only one transaction proceeds at a time.
+        - General entity edits (Event, MasterEvent, UserAccount, AppSettings) have much lower contention; optimistic locking with a `version` column is sufficient and avoids unnecessary blocking.
+        - The DB UNIQUE constraint on `assignment.spot_id` is retained as a last-resort safety net but is **not** relied upon as the primary mechanism.
+    - Implementation notes
+        - Spot assignment: `EventSpot.query.filter_by(id=spot_id).with_for_update().one()` inside an explicit transaction; check assignment is still `None` after acquiring lock; create `Assignment`; commit.
+        - Optimistic locking: add `version = db.Column(db.Integer, default=0, nullable=False)` to contended models; use SQLAlchemy's `version_id_col` mapper argument or manual increment; catch `sqlalchemy.exc.StaleDataError` and return HTTP 409 with Czech message "Záznam byl mezitím změněn. Načtěte stránku znovu.".
+        - Implement before any Phase 2 assignment logic is written.
 
 
 MedCover is a standard three-tier web application:
