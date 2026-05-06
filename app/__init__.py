@@ -23,4 +23,8 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes import register_blueprints
     register_blueprints(app)
 
+    if app.config.get("DEV_LOGIN_ENABLED"):
+        from .routes.dev import dev_bp
+        app.register_blueprint(dev_bp)
+
     return app

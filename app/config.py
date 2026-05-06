@@ -11,10 +11,13 @@ class Config:
     MAIL_USERNAME = os.getenv("MAIL_USERNAME")
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER")
+    # Never enabled unless explicitly set — must never be True in production
+    DEV_LOGIN_ENABLED = False
 
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    DEV_LOGIN_ENABLED = os.getenv("DEV_LOGIN_ENABLED", "false").lower() == "true"
 
 
 class TestingConfig(Config):
@@ -27,6 +30,7 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    # DEV_LOGIN_ENABLED is hardcoded False in base Config — no env var override possible
 
 
 config_by_name = {
