@@ -451,3 +451,34 @@ Running the script on an already-seeded database is safe — it checks for exist
 | `RENDER_DEPLOY_HOOK_URL` | GitHub Actions secret |
 
 The `.env.example` file is committed and documents every required variable with a description but no real values.
+
+---
+
+## Frontend Assets
+
+### Bootstrap
+
+Bootstrap is loaded via CDN — no npm or build pipeline required.
+
+| Asset | Version | CDN |
+|---|---|---|
+| `bootstrap.min.css` | 5.3.8 | jsDelivr |
+| `bootstrap.bundle.min.js` | 5.3.8 | jsDelivr (includes Popper) |
+
+SRI hashes in `app/templates/base.html` were generated directly from jsDelivr at the time of setup:
+
+```
+CSS sha384: sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB
+JS  sha384: FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI
+```
+
+When upgrading Bootstrap, regenerate the hashes:
+```bash
+curl -s "https://cdn.jsdelivr.net/npm/bootstrap@VERSION/dist/css/bootstrap.min.css" \
+  | openssl dgst -sha384 -binary | openssl base64 -A
+
+curl -s "https://cdn.jsdelivr.net/npm/bootstrap@VERSION/dist/js/bootstrap.bundle.min.js" \
+  | openssl dgst -sha384 -binary | openssl base64 -A
+```
+Then update the `integrity` attributes in `base.html`.
+
