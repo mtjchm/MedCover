@@ -79,9 +79,18 @@ Users administration:
         - Once the RP is assigned, he/she is responsible for managing the other personnel on that Event.
         - On Events that belong to a custom ME (for example large music festivals), the ME coordinator may force becoming the RP for all the Events in this ME, allowing the coordinator to have overall control of the ME
         - The RP shall be notified about changes in the Event, for example users switching spots, or coordinator/admin changing some parameters of the Event
-    - If someone removes his/her's Assignment from an Event, all users who fulfill the spot requirements will be notified about the new Assignment possibility/need
-    - If the Event is nearing its start and it's still not fully occupied, all users who fulfill the spot requirements will get an email notification about the urgent need for filling the spot
-    - The users registered to an Event shall have an option to transfer the Assignment to a different user (typical scenario is that the user will get sick and will agree with ta colleague to step in)
+    - If someone removes his/her's Assignment from an Event, all users who fulfill the spot requirements will be notified about the new Assignment possibility/need. No approval from the RP is required to free a spot.
+    - If the Event is nearing its start and it's still not fully occupied, all eligible users (not only the RP) shall be notified about the urgent need; notification frequency shall increase as the Event start date approaches
+    - The users registered to an Event shall have an option to transfer the Assignment to a different user (see AD for the preferred mechanism — see AD06)
+- Post-event Debriefing
+    - after an Event reaches the Completed status, the system shall trigger a debriefing process for all assigned members
+    - each member shall receive a personalised email link leading directly to their debriefing form
+    - the debriefing form shall allow reporting:
+        - actual worked hours (may differ from the planned Event duration — e.g. Event ended early, or the person only attended part of the Event)
+        - number of patients treated
+        - medical materials used
+        - general feedback / notes
+    - partial attendance shall be supported: a member may report they were present for only part of the Event duration
 - Equipment
     - create, modify, delete equipment types (such as AED, medikit etc.),
     - manage equipment inventory
@@ -179,6 +188,22 @@ Users administration:
         - Password reset and initial account activation emails require the email/notification service to be operational
 
 
+- AD06 Assignment Handover Mechanism
+    - Problem statement - When a member can no longer attend an Event, how should the spot be handed over to someone else?
+    - Options
+        - **Explicit transfer** — the member selects a specific replacement; the replacement must confirm before the original member is removed. Requires both parties to act.
+        - **Simple spot release** — the member frees the spot without selecting a replacement; the system notifies all eligible users; any eligible user can then self-assign. No bilateral coordination required.
+    - Decision - TBD
+    - Justification - Explicit transfer mirrors the real-world practice of arranging cover with a colleague but adds coordination overhead and potential delays. Simple spot release is operationally simpler and avoids requiring the replacement's approval. Initial feedback from collaborators favours the simple release approach.
+
+
+- AD07 Qualification and Training Hierarchy Model
+    - Problem statement - Should medical Qualifications (Doctor, Nurse, First Aider, Trainee) and additional Trainings (Driver, PSP, KI, humanitarian unit, etc.) be modelled as separate entities, or as a single unified hierarchy?
+    - Options
+        - **Separate entities** — Qualifications carry a medical hierarchy; Trainings are independent certifications with no hierarchy between them or with Qualifications.
+        - **Unified hierarchy tree** — a single entity type with a parent–child hierarchy covering both Qualifications and Trainings (e.g. KI-trained can fill a PSP-trained spot; Doctor can fill a First Aider spot).
+    - Decision - TBD
+    - Justification - A unified tree is more flexible and eliminates duplication when a spot requires both a medical level and a training certification. However, it adds modelling complexity. Separate entities are simpler to implement but may not cover cross-category substitution (e.g. a KI-trained volunteer filling a PSP spot).
 
 
 MedCover is a standard three-tier web application:
