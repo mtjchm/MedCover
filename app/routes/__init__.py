@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, redirect, url_for
 from .auth import auth_bp
 from .events import events_bp
 from .master_events import master_events_bp
@@ -16,3 +16,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(users_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(admin_bp)
+
+    @app.route("/")
+    def index():
+        return redirect(url_for("auth.login"))

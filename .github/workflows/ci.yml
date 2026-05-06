@@ -40,5 +40,8 @@ jobs:
       - name: Install dependencies
         run: pip install --require-hashes -r requirements-dev.txt
 
+      - name: Run migrations
+        run: FLASK_APP=app flask db upgrade
+
       - name: Run tests
         run: pytest --cov=app --cov-report=term-missing

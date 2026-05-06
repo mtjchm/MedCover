@@ -16,6 +16,10 @@ def create_app(config_name: str | None = None) -> Flask:
     login_manager.init_app(app)
     mail.init_app(app)
 
+    # Import models here so Flask-Migrate discovers all tables
+    with app.app_context():
+        from . import models  # noqa: F401
+
     from .routes import register_blueprints
     register_blueprints(app)
 
