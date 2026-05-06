@@ -258,22 +258,30 @@ MedCover is a standard three-tier web application:
 All user interactions flow through the backend; the data store and mail service are internal dependencies not directly exposed to users. The infrastructure administrator (P02) accesses the server directly for operational tasks (deployment, backup, maintenance).
 
 ## System Context
-The System Context is typically a combination of a System Context Diagram and a textual description of its components. It describes how the solution (in this case the application) fits to a larger context of other applications, services and persons (users) around it.  
-(TODO - add trust boundaries and high-level data exchanged with the external apps)
+The System Context describes how MedCover fits into the broader landscape of users, services and external systems around it.
 
 ```mermaid
 flowchart TD
     A[MedCover Solution]
-    B(P01 - User) -->|web UI|A
-    C(S01 - Other Apps) -->|REST API|A
-    D(P02 - Admin) -->|ssh|A
+    B(P01 - User) -->|HTTPS - web UI| A
+    C(S01 - Other Apps) -->|HTTPS - REST API - future| A
+    D(P02 - Admin) -->|SSH - ops & maintenance| A
+    A -->|SMTP / email API| E(S02 - Email Service)
 ```
 
-| Entity ID | Entity Type | Entity Name | Description |
-|-----------|-------------|-------------|-------------|
-| P01       | Person      | User        | Users accessing the app via a Web UI over public Internet |
-| S01       | System | Other Apps  | **Optional** - for later, allowing other apps to interact with the app over REST API |
-| P02       | Person | Admin  | App/infrastructure administrator |
+| Entity ID | Entity Type | Entity Name | Description | Trust Level |
+|---|---|---|---|---|
+| P01 | Person | User | Czech Red Cross members accessing the app via a web browser over the public Internet | Authenticated; access controlled by RBAC |
+| S01 | System | Other Apps | **Future** — third-party systems integrating via the REST API (e.g. reporting tools) | Authenticated via API token; read-only scope initially |
+| P02 | Person | Infrastructure Admin | Person responsible for deployment, backups, OS/app updates and server maintenance | Trusted; accesses the server directly via SSH — outside the app's own auth |
+| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored as server-side secrets |
+
+**Trust boundaries:**
+- All P01 traffic crosses the public Internet and must be served over HTTPS
+- S02 credentials (SMTP/API keys) must never be exposed to P01 users
+- P02 SSH access must be restricted to authorised IP addresses or key-based authentication
+- S01 API tokens must be scoped to minimum required permissions and revocable
+
 
 ## Component Model
 
@@ -423,9 +431,8 @@ erDiagram
 | **Production** | Live system serving real users | Hosting platform TBD — see AD04 and constraints (cost, simplicity) |
 
 ### Hosting Platform
-- Hosting platform TBD — candidates: PythonAnywhere, Render, Railway, or a VPS (all support Flask + PostgreSQL)
-- Candidates: VPS/cloud VM (DigitalOcean, Hetzner, AWS EC2), managed PaaS (PythonAnywhere, Render, Railway), or home-lab server
-- Key constraint: **minimum cost** (volunteer/non-profit project)
+- Hosting platform TBD — candidates: PythonAnywhere, Render, Railway, or a VPS (DigitalOcean, Hetzner, AWS EC2). Home-lab server is also a fallback option.
+- Key constraint: **minimum cost** (volunteer/non-profit project); all listed candidates support Flask + PostgreSQL
 
 ### HA / DR Topology
 - No high-availability redundancy planned for MVP (single-server deployment acceptable given the non-critical nature and low cost constraint)
