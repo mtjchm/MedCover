@@ -635,8 +635,10 @@ For example an User Account assigned to the Admin role will have all the permiss
 | equipment.view | ✓ | ✓ | ✓ | ✓ |
 | equipment_type.create / edit / delete | ✓ | — | — | — |
 | equipment_item.create / edit / delete | ✓ | — | — | — |
-| equipment_item.dislocate_own | ✓ | ✓ | ✓ | — |
-| equipment_item.dislocate_any | ✓ | — | — | — |
+| equipment_item.issue_personal (assign/unassign personal item to a member) | ✓ | — | — | — |
+| equipment_item.report_own (member self-reports status of their own issued personal items) | ✓ | ✓ | ✓ | — |
+| event.equipment.plan (set required equipment types + quantities on an Event) | ✓ | ✓ | — | — |
+| event.equipment.assign (record which specific shared items were brought to an Event) | ✓ | ✓ | — | — |
 | **Debriefing** | | | | |
 | debriefing.submit_own | ✓ | ✓ | ✓ | — |
 | debriefing.view_own | ✓ | ✓ | ✓ | — |
