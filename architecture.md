@@ -453,8 +453,58 @@ The application will be built using the RBAC concept where User Accounts will be
 A Role will be assigned to Permissions. (A Role is a set of permissions)  
 For example an User Account assigned to the Admin role will have all the permissions of this role, allowing the User to administer the whole application. Multiple User Accounts can be assigned to a Role, one User Account can be assigned to multiple Roles.
 
+**Responsible Person (RP)** is not a separate Role but a contextual responsibility assigned to a specific user for a specific Event. The RP gains a small set of additional permissions scoped to their Event (see table note below).
+
 ### Permissions
-Certain objects and/or methods will have required permissions specified. This will allow only the roles with the those permissions assigned to use that object/method. 
+
+| Permission | Admin | Coordinator | Member | Viewer |
+|---|:---:|:---:|:---:|:---:|
+| **Users** | | | | |
+| user.view | ✓ | ✓ | ✓ | ✓ |
+| user.edit_own | ✓ | ✓ | ✓ | ✓ |
+| user.edit_any | ✓ | — | — | — |
+| user.activate / deactivate | ✓ | — | — | — |
+| user.assign_role | ✓ | — | — | — |
+| user.assign_credential | ✓ | — | — | — |
+| invite.create | ✓ | — | — | — |
+| **Credentials** | | | | |
+| credential.view | ✓ | ✓ | ✓ | ✓ |
+| credential.create / edit / delete | ✓ | — | — | — |
+| **Master Events** | | | | |
+| master_event.view | ✓ | ✓ | ✓ | ✓ |
+| master_event.create / edit / cancel | ✓ | ✓ | — | — |
+| **Events** | | | | |
+| event.view (Published and later) | ✓ | ✓ | ✓ | ✓ |
+| event.view (Draft) | ✓ | ✓ | — | — |
+| event.create / edit | ✓ | ✓ | — | — |
+| event.publish | ✓ | ✓ | — | — |
+| event.assignments.open / close | ✓ | ✓ | RP* | — |
+| event.cancel / restore | ✓ | ✓ | — | — |
+| event.delete (archived, permanent) | ✓ | — | — | — |
+| event.assign_own (join / leave) | ✓ | ✓ | ✓ | — |
+| event.assign_other | ✓ | ✓ | — | — |
+| event.set_responsible_person | ✓ | ✓ | — | — |
+| event.notification.send (manual) | ✓ | ✓ | RP* | — |
+| **Event Templates** | | | | |
+| event_template.view | ✓ | ✓ | ✓ | ✓ |
+| event_template.create / edit / delete | ✓ | ✓ | — | — |
+| **Equipment** | | | | |
+| equipment.view | ✓ | ✓ | ✓ | ✓ |
+| equipment_type.create / edit / delete | ✓ | — | — | — |
+| equipment_item.create / edit / delete | ✓ | — | — | — |
+| equipment_item.dislocate_own | ✓ | ✓ | ✓ | — |
+| equipment_item.dislocate_any | ✓ | — | — | — |
+| **Debriefing** | | | | |
+| debriefing.submit_own | ✓ | ✓ | ✓ | — |
+| debriefing.view_own | ✓ | ✓ | ✓ | — |
+| debriefing.view_all | ✓ | ✓ | — | — |
+| **Reports** | | | | |
+| report.view | ✓ | ✓ | ✓ | ✓ (limited) |
+| **Audit** | | | | |
+| audit.view | ✓ | — | — | — |
+
+*\*RP (Responsible Person)* — a Member who is the RP of an Event gains `event.assignments.open`, `event.assignments.close`, and `event.notification.send` scoped to that specific Event only.
+
 
 ### Application Components / Classes
 
