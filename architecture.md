@@ -282,11 +282,20 @@ flowchart TD
 - Retention, privacy, classification, encryption
 
 ## Integration Model
-- APIs / events / messaging
-- Protocols and formats
-- Integration patterns
-- Dependency on external platforms/services
-- Failure handling and SLAs
+
+### Outbound Email
+- The backend sends all email via an **external SMTP relay** (e.g. SendGrid, Mailgun, AWS SES, or the organisation's own SMTP server)
+- Communication: SMTP (port 587/465) or provider HTTP API
+- Use cases: user invite links, account activation, password reset, event notifications/reminders, admin digest emails, post-event debriefing links
+- Failure handling: email delivery failures shall be logged; critical flows (invite, password reset) should surface errors to the admin/user where possible
+
+### REST API (External Integration)
+- The backend shall expose a **REST API** to allow future integration with other systems (S01)
+- Protocol: HTTPS, JSON payloads
+- Authentication: token-based (e.g. API key or OAuth2 bearer token) — mechanism TBD
+- Scope for initial release: read-only access to events and assignments; write access may be added later
+- The REST API is **optional / not required** for the initial MVP
+
 
 ## Deployment Model
 - Environments
