@@ -26,10 +26,11 @@
 ## Functional Requirements
 Users administration:  
     - app roles (authorization) - admin, coordinator, member, viewer  
-    - qualification - Doctor, Nurse (SZP), First Aider (zdravotník), Trainee (zelenáč)  
-        - qualifications shall support hierarchy, allowing a higher-ranked qualification to cover a spot requiring a lower-ranked one (e.g. a Nurse can fill a Trainee spot)
-        - qualifications and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
-        - including training/certifications - driver, humanitarian unit training, PSP training, etc.  
+    - credentials (unified model covering both medical qualifications and additional certifications — see AD07):
+        - medical qualifications: Doctor, Nurse (SZP), First Aider (zdravotník), Trainee (zelenáč)
+        - additional certifications: Driver, PSP training, KI training, humanitarian unit training, etc.
+        - credentials shall support a hierarchy tree, allowing a holder of a higher-ranked credential to fill spots requiring a lower-ranked one (e.g. Doctor can fill a First Aider spot; KI-trained can fill a PSP spot)
+        - credentials and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
     - member equipment - uniform assigned, etc.  
     - phone number, email  
     - reporting/overview section - overview of hours worked, planned, nearest registered Event, last registered Event, etc.  
@@ -81,7 +82,7 @@ Users administration:
         - The RP shall be notified about changes in the Event, for example users switching spots, or coordinator/admin changing some parameters of the Event
     - If someone removes his/her's Assignment from an Event, all users who fulfill the spot requirements will be notified about the new Assignment possibility/need. No approval from the RP is required to free a spot.
     - If the Event is nearing its start and it's still not fully occupied, all eligible users (not only the RP) shall be notified about the urgent need; notification frequency shall increase as the Event start date approaches
-    - The users registered to an Event shall have an option to transfer the Assignment to a different user (see AD for the preferred mechanism — see AD06)
+    - The users registered to an Event shall be able to release their Assignment at any time; no approval from the RP or anyone else is required (see AD06)
 - Post-event Debriefing
     - after an Event reaches the Completed status, the system shall trigger a debriefing process for all assigned members
     - each member shall receive a personalised email link leading directly to their debriefing form
@@ -193,8 +194,8 @@ Users administration:
     - Options
         - **Explicit transfer** — the member selects a specific replacement; the replacement must confirm before the original member is removed. Requires both parties to act.
         - **Simple spot release** — the member frees the spot without selecting a replacement; the system notifies all eligible users; any eligible user can then self-assign. No bilateral coordination required.
-    - Decision - TBD
-    - Justification - Explicit transfer mirrors the real-world practice of arranging cover with a colleague but adds coordination overhead and potential delays. Simple spot release is operationally simpler and avoids requiring the replacement's approval. Initial feedback from collaborators favours the simple release approach.
+    - Decision - **Simple spot release**
+    - Justification - Operationally simpler and avoids requiring the replacement's approval. No coordination delay. The system handles notification to all eligible users automatically.
 
 
 - AD07 Qualification and Training Hierarchy Model
@@ -202,8 +203,12 @@ Users administration:
     - Options
         - **Separate entities** — Qualifications carry a medical hierarchy; Trainings are independent certifications with no hierarchy between them or with Qualifications.
         - **Unified hierarchy tree** — a single entity type with a parent–child hierarchy covering both Qualifications and Trainings (e.g. KI-trained can fill a PSP-trained spot; Doctor can fill a First Aider spot).
-    - Decision - TBD
-    - Justification - A unified tree is more flexible and eliminates duplication when a spot requires both a medical level and a training certification. However, it adds modelling complexity. Separate entities are simpler to implement but may not cover cross-category substitution (e.g. a KI-trained volunteer filling a PSP spot).
+    - Decision - **Unified hierarchy tree**
+    - Justification - A unified tree naturally models cross-category substitution (e.g. a KI-trained volunteer filling a PSP spot, a Doctor filling a First Aider spot) without requiring special-case logic. Eliminates duplication in spot requirements. Slightly more complex to model initially but more flexible long-term.
+    - Notes
+        - The entity will be called **Credential** (or **Qualification**) to cover both medical levels and additional certifications
+        - A Credential may have zero or more parent Credentials whose holders can fill spots requiring it
+        - Examples: Doctor > Nurse > First Aider > Trainee; KI-training > PSP-training
 
 
 MedCover is a standard three-tier web application:
@@ -293,7 +298,7 @@ Certain objects and/or methods will have required permissions specified. This wi
     - name and surname - including title, can be changed
     - phone number - can be changed
     - roles - list of assigned roles, can be assigned by admin only
-    - qualifications - list of assigned qualifications
+    - credentials - list of assigned credentials
 - methods
     - list qualification, etc.
 
@@ -310,17 +315,16 @@ Certain objects and/or methods will have required permissions specified. This wi
     - list users
     - etc.
 
-#### User Qualification
-- description: qualification of what a person can or is allowed to do. for example doctor, Nurse, First Aider, PSP, driver, etc.
+#### Credential
+- description: A unified entity representing both medical qualifications (Doctor, Nurse, First Aider, Trainee) and additional certifications (Driver, PSP training, KI training, etc.). Credentials form a directed hierarchy tree: a holder of a higher-ranked Credential can fill any spot that requires a lower-ranked one in its ancestry (see AD07).
 - properties
-    - qualification name
-    - qualification description - for example describing the conditions for obtaining the qualification or what this qualification entitles the person to do
-    - subordinate qualifications - list of qualifications that can be substituted by the current qualification (for example Doctor can fill a spot of a First Aider)
-
-#### User Training
-- description:
-- properties
+    - name
+    - description — conditions for obtaining it and/or what it entitles the holder to do
+    - parent credentials — list of Credentials whose holders can substitute this one (e.g. Doctor can fill a First Aider spot → Doctor is a parent of First Aider)
 - methods
+    - list holders
+    - list subordinate credentials (credentials this one can substitute for)
+    - etc.
 
 #### Master Event
 - description: An overarching entity that groups related Events (dozory). Exists to support large or multi-day happenings (e.g. music festivals, sports tournaments) that span multiple locations or time slots. A built-in "General" Master Event is always present and acts as the default container for all standalone Events.
@@ -339,10 +343,10 @@ Certain objects and/or methods will have required permissions specified. This wi
     - etc.
 
 #### Event Spot
-- description: a position in an event that can have one or more qualification requirements. one spot equals one person.
+- description: a position in an event that can have one or more Credential requirements. one spot equals one person.
 - properties
     - event ID - the event it belongs to
-    - qualifications - list of required qualifications
+    - required credentials - list of required Credentials (a person must hold all of them, or higher-ranked equivalents, to fill this spot)
 
 #### Event
 - description: AKA "Zdravotní dozor" - a calendar event with a start, end and other properties that allow medical cover planning for a happening such as a music festival, sports or cultural happening where medical cover is requested.
