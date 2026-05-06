@@ -1,0 +1,8 @@
+Dobrý den,
+
+byli jste pozváni do systému MedCover.
+
+Svoji registraci dokončíte na odkazu níže (platný {{ hours }} hodin):
+{{ register_url }}
+
+Tým MedCover

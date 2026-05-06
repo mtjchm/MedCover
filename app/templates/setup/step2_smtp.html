@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Nastavení — Krok 2/3 — MedCover{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-7 col-lg-6">
+    <div class="card shadow-sm mt-4">
+      <div class="card-header bg-danger text-white">
+        <strong>Počáteční nastavení</strong>
+        <span class="float-end text-white-50 small">Krok 2 ze 3</span>
+      </div>
+      <div class="card-body p-4">
+        <h5 class="mb-1">Odchozí e-mail (SMTP)</h5>
+        <p class="text-muted small mb-4">
+          Tyto údaje se použijí pro odesílání pozvánek, upozornění a odkazů na resetování hesla.
+          Pokud nejsou k dispozici, vyplňte je po instalaci v Nastavení.
+        </p>
+        <form method="POST" novalidate>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label for="smtp_server" class="form-label">SMTP server</label>
+              <input type="text" class="form-control" id="smtp_server" name="smtp_server"
+                     value="{{ settings.smtp_server or '' }}" placeholder="smtp.example.com">
+            </div>
+            <div class="col-md-4">
+              <label for="smtp_port" class="form-label">Port</label>
+              <input type="number" class="form-control" id="smtp_port" name="smtp_port"
+                     value="{{ settings.smtp_port or 587 }}" min="1" max="65535">
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="smtp_use_tls" name="smtp_use_tls"
+                       {% if settings.smtp_use_tls %}checked{% endif %}>
+                <label class="form-check-label" for="smtp_use_tls">Použít TLS (STARTTLS)</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label for="smtp_username" class="form-label">Uživatelské jméno (login)</label>
+              <input type="text" class="form-control" id="smtp_username" name="smtp_username"
+                     value="{{ settings.smtp_username or '' }}" autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label for="smtp_password" class="form-label">Heslo</label>
+              <input type="password" class="form-control" id="smtp_password" name="smtp_password"
+                     placeholder="{{ '(beze změny)' if settings.smtp_password_enc else '' }}" autocomplete="new-password">
+              {% if settings.smtp_password_enc %}
+              <div class="form-text text-muted">Heslo je uloženo. Vyplňte pouze pokud chcete změnit.</div>
+              {% endif %}
+            </div>
+            <div class="col-12">
+              <label for="smtp_default_sender" class="form-label">Odesílatel (From)</label>
+              <input type="email" class="form-control" id="smtp_default_sender" name="smtp_default_sender"
+                     value="{{ settings.smtp_default_sender or '' }}" placeholder="MedCover <noreply@example.com>">
+            </div>
+          </div>
+          <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('setup.step1') }}" class="btn btn-outline-secondary">← Zpět</a>
+            <div class="d-flex gap-2">
+              <button type="submit" name="action" value="test" class="btn btn-outline-danger">Odeslat testovací e-mail</button>
+              <button type="submit" name="action" value="next" class="btn btn-danger">Další →</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="d-flex gap-2 mt-3 justify-content-center">
+      <span class="badge bg-secondary px-3 py-2">1 Organizace</span>
+      <span class="badge bg-danger px-3 py-2">2 E-mail</span>
+      <span class="badge bg-secondary px-3 py-2">3 Admin účet</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

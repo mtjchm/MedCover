@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Registrace — MedCover{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-8 col-md-5 col-lg-4">
+    <div class="card shadow-sm mt-4">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-1 text-center">Registrace</h4>
+        <p class="text-muted small text-center mb-4">Pozvánka pro: <strong>{{ invite.email }}</strong></p>
+        <form method="POST" novalidate>
+          <div class="mb-3">
+            <label for="full_name" class="form-label">Celé jméno</label>
+            <input type="text" class="form-control" id="full_name" name="full_name" autofocus required>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Heslo</label>
+            <input type="password" class="form-control" id="password" name="password" required minlength="8">
+          </div>
+          <div class="mb-3">
+            <label for="password2" class="form-label">Zopakujte heslo</label>
+            <input type="password" class="form-control" id="password2" name="password2" required minlength="8">
+          </div>
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-danger">Dokončit registraci</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

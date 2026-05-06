@@ -7,3 +7,4 @@ from .event import spot_credentials, spot_template_credentials  # noqa: F401
 from .assignment import Assignment, DebriefingRecord  # noqa: F401
 from .audit import AuditLogEntry  # noqa: F401
 from .invite import RegistrationInvite  # noqa: F401
+from .settings import AppSettings, get_settings  # noqa: F401

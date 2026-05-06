@@ -319,6 +319,24 @@
         - Scheduler polls the DB every 60 seconds; no message broker needed at this volume.
         - See DEVOPS.md for container layout and `render.yaml` Blueprint.
 
+- AD11 Application Configuration Storage
+    - Problem statement - The application requires runtime configuration (SMTP credentials, organisation name, timezone). Where should these be stored, and how should the app behave on first install?
+    - Options
+        - **Environment variables only** — simple; requires SSH/redeploy to change; no audit trail; credentials in `.env` files on the server.
+        - **Database-backed settings + setup wizard** — settings stored in a dedicated `AppSettings` table; changeable through the Admin UI without touching the server; supports a first-run wizard for guided setup.
+    - Decision - **Database-backed settings with first-run setup wizard**
+    - Justification
+        - SMTP credentials and other operational settings are more naturally managed by an application-level admin than by a server operator editing environment files.
+        - A first-run wizard provides a guided, safe path to a working installation without requiring any SSH access.
+        - Storing credentials in the DB (encrypted) rather than environment variables avoids accidental exposure in CI logs, `.env` files, or Docker inspection output.
+        - The `DATABASE_URL` and `SECRET_KEY` must remain as environment variables since they are needed to boot the application before any DB connection can be established.
+    - Notes
+        - SMTP password is stored Fernet-encrypted using a key derived from `SECRET_KEY` (AES-128 in CBC mode with HMAC); decrypted only in-process at send time.
+        - `AppSettings` is a single-row table (id=1); `get_settings()` is idempotent and creates the row on first call.
+        - Flask-Mail config (`MAIL_*`) is refreshed from the DB on every request via `before_request`; no redeploy required to change SMTP settings.
+        - The setup wizard is blocked to all other endpoints via a `before_request` guard until `setup_complete=True`.
+        - Audit log records all changes to `AppSettings` (action_type: `edit`, entity_type: `AppSettings`).
+
 
 MedCover is a standard three-tier web application:
 
@@ -346,11 +364,11 @@ flowchart TD
 | P01 | Person | User | Czech Red Cross members accessing the app via a web browser over the public Internet | Authenticated; access controlled by RBAC |
 | S01 | System | Other Apps | **Future** — third-party systems integrating via the REST API (e.g. reporting tools) | Authenticated via API token; read-only scope initially |
 | P02 | Person | Infrastructure Admin | Person responsible for deployment, backups, OS/app updates and server maintenance | Trusted; accesses the server directly via SSH — outside the app's own auth |
-| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored as server-side secrets |
+| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored in database (encrypted), managed by admin via Settings UI |
 
 **Trust boundaries:**
 - All P01 traffic crosses the public Internet and must be served over HTTPS
-- S02 credentials (SMTP/API keys) must never be exposed to P01 users
+- S02 credentials (SMTP/API keys) must never be exposed to P01 users; they are stored encrypted in the database and are only configurable by users with the `admin.manage_settings` permission
 - P02 SSH access must be restricted to authorised IP addresses or key-based authentication
 - S01 API tokens must be scoped to minimum required permissions and revocable
 
@@ -545,6 +563,7 @@ erDiagram
 | **DebriefingRecord** | event, user, actual hours, patients treated, materials used, notes | Submitted after Event completion; one record per assigned user |
 | **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
+| **AppSettings** | org_name, timezone, smtp_server/port/tls/username/password (encrypted), smtp_default_sender, setup_complete | Single-row table; SMTP password stored Fernet-encrypted using SECRET_KEY; managed via Setup Wizard and Admin Settings UI |
 
 ### Data Store
 - Single **relational database**: **PostgreSQL** (see AD04)
@@ -564,6 +583,7 @@ erDiagram
 ### Outbound Email
 - The backend sends all email via an **external SMTP relay** (e.g. SendGrid, Mailgun, AWS SES, or the organisation's own SMTP server)
 - Communication: SMTP (port 587/465) or provider HTTP API
+- SMTP credentials are stored **encrypted in the database** (Fernet/AES-128, key derived from `SECRET_KEY`) and managed by an admin user through the Settings UI — not stored in environment variables or config files
 - Use cases: user invite links, account activation, password reset, event notifications/reminders, admin digest emails, post-event debriefing links
 - Failure handling: email delivery failures shall be logged; critical flows (invite, password reset) should surface errors to the admin/user where possible
 

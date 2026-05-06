@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Nastavení dokončeno — MedCover{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <div class="card shadow-sm mt-4 text-center">
+      <div class="card-body p-5">
+        <div class="display-1 mb-3">✅</div>
+        <h4 class="mb-2">Nastavení dokončeno!</h4>
+        <p class="text-muted">MedCover je připraven k použití. Nyní se přihlaste svým administrátorským účtem.</p>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-danger mt-2">Přejít na přihlášení</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
