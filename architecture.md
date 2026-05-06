@@ -392,13 +392,39 @@ erDiagram
 
 
 ## Deployment Model
-- Environments
-- Deployment topology
-- Runtime platforms
-- Network zones / connectivity
-- HA/DR topology
-- Monitoring, logging, alerting
-- Backup / restore / patching / support model
+
+### Environments
+
+| Environment | Purpose | Notes |
+|---|---|---|
+| **Development** | Local developer machines; rapid iteration and testing | Each developer runs the full stack locally |
+| **Staging** | Pre-production validation; testing changes before release | Should mirror production configuration as closely as possible |
+| **Production** | Live system serving real users | Hosting platform TBD — see AD04 and constraints (cost, simplicity) |
+
+### Hosting Platform
+- TBD pending technology stack decision (AD04)
+- Candidates: VPS/cloud VM (DigitalOcean, Hetzner, AWS EC2), managed PaaS (PythonAnywhere, Render, Railway), or home-lab server
+- Key constraint: **minimum cost** (volunteer/non-profit project)
+
+### HA / DR Topology
+- No high-availability redundancy planned for MVP (single-server deployment acceptable given the non-critical nature and low cost constraint)
+- Recovery targets (from Non-Functional Requirements): RPO 1 day, RTO 12 hours
+
+### Backup and Restore
+- Daily automated database backups, 60-day retention
+- Backup storage shall be on a separate system from the production server
+- Restore procedure shall be documented and tested
+
+### Monitoring, Logging and Alerting
+- **Application logs**: errors, warnings, and significant events logged to file or a centralised log store
+- **Uptime monitoring**: external uptime check (e.g. UptimeRobot or equivalent) to detect service unavailability
+- **Alerts**: email notification to admins on application errors or service downtime
+- Advanced observability (metrics, tracing, dashboards) is out of scope for MVP
+
+### Patching and Maintenance
+- Application and OS updates applied by the infrastructure administrator (P02)
+- No automated rolling updates; maintenance windows acceptable given the user base and usage patterns
+
 
 
 ### Role Based Access Control (RBAC)
