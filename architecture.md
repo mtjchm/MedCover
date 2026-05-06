@@ -187,8 +187,16 @@ Users administration:
         - Python Flask + relational database + lightweight JavaScript frontend
         - Python Django + relational database + lightweight JavaScript frontend
         - Other frameworks / languages
-    - Decision - TBD
-    - Justification - The application will be maintained by a volunteer team. Technology choices must favour developer familiarity, simplicity, and long-term maintainability. Candidates should be evaluated against the team's existing knowledge base and the operational complexity they introduce.
+    - Decision - **Python Flask + PostgreSQL + server-rendered HTML (Jinja2) + vanilla JS/jQuery**
+    - Justification
+        - Flask is lightweight and familiar to the project lead; keeps the codebase simple and easy for volunteers to contribute to
+        - PostgreSQL provides robustness and production-grade reliability without significant operational overhead
+        - Jinja2 server-rendered templates eliminate the need for a separate frontend build pipeline or SPA framework
+        - Vanilla JS / jQuery is sufficient for the required interactivity (calendar views, form enhancements, dynamic notifications)
+        - This stack is well-supported on all considered hosting platforms (VPS, PythonAnywhere, Render, etc.)
+    - Implications
+        - REST API (AD): can be added later using Flask blueprints without major architectural changes
+        - ORM: SQLAlchemy (standard Flask ORM for PostgreSQL)
 
 
 - AD05 Authentication Mechanism
@@ -272,9 +280,9 @@ flowchart TD
 
 | Component | Responsibility |
 |---|---|
-| **Frontend Web Client** | Browser-based UI served to users. Renders views for event planning, user management, equipment tracking, calendar/table displays. Optimised for desktop and mobile. |
-| **Backend Application** | Core business logic: RBAC enforcement, event lifecycle, assignment management, credential matching, notification triggers, audit logging, invite/registration flow, debriefing. Exposes the web UI and (optionally) a REST API. |
-| **Relational Database** | Persistent storage for all domain data: users, roles, credentials, master events, events, event spots, assignments, equipment, audit log, notification settings, debriefing records. |
+| **Frontend Web Client** | Server-rendered HTML pages (Jinja2 templates) with vanilla JS/jQuery for interactivity. Served directly by the Flask application. Optimised for desktop and mobile. |
+| **Backend Application** | Python Flask application. Implements all business logic, RBAC, event lifecycle, assignment management, credential matching, notification triggers, audit logging, scheduled tasks. Serves the web UI via Jinja2 templates and will expose a REST API (future). Uses SQLAlchemy as the ORM. |
+| **Relational Database** | PostgreSQL. Persistent storage for all domain data: users, roles, credentials, master events, events, event spots, assignments, equipment, audit log, notification settings, debriefing records. |
 | **Email / Notification Service** | Outbound email delivery: invite links, account activation, password reset, event notifications/reminders, admin digests, debriefing links. May be an external SMTP relay or third-party email API. |
 
 
@@ -363,7 +371,7 @@ erDiagram
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
 
 ### Data Store
-- Single **relational database** (engine TBD — see AD04)
+- Single **relational database**: **PostgreSQL** (see AD04)
 - All domain data is stored in one database; no separate read replicas or caches planned for MVP
 - Audit log is append-only and stored in the same database
 
@@ -402,7 +410,7 @@ erDiagram
 | **Production** | Live system serving real users | Hosting platform TBD — see AD04 and constraints (cost, simplicity) |
 
 ### Hosting Platform
-- TBD pending technology stack decision (AD04)
+- Hosting platform TBD — candidates: PythonAnywhere, Render, Railway, or a VPS (all support Flask + PostgreSQL)
 - Candidates: VPS/cloud VM (DigitalOcean, Hetzner, AWS EC2), managed PaaS (PythonAnywhere, Render, Railway), or home-lab server
 - Key constraint: **minimum cost** (volunteer/non-profit project)
 
