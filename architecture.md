@@ -300,6 +300,25 @@
         - **CI/CD**: GitHub Actions builds and pushes the image; Render or the target platform pulls and deploys automatically.
         - The Deployment Model section should be updated once the NGO credit application is approved and a hyperscaler is chosen.
 
+- AD10 Background Task / Scheduler Architecture
+    - Problem statement - The application requires background processing: scheduled email reminders, automatic Event lifecycle transitions (Published → Assignments Open, Assignments Closed → Completed). How should this be implemented?
+    - Options
+        - **APScheduler inside Flask process** — runs in-process; simple but last release was 2023; unsafe with multi-worker Gunicorn; Flask crash kills scheduler.
+        - **Celery + Redis** — industry-grade distributed task queue; robust retries and monitoring; requires a Redis broker container (additional cost and operational complexity).
+        - **Separate scheduler container** — a second lightweight Docker container running a simple Python script (`schedule` library); shares the same codebase; Flask and scheduler are independently restartable.
+        - **Same container, two processes** (supervisord) — Flask + scheduler colocated; antipattern for containers; harder to debug.
+    - Decision - **Separate scheduler container**
+    - Justification
+        - Clean separation: Flask serves web requests; scheduler handles background work independently.
+        - `schedule` library is actively maintained (2024), has no external dependencies, and is trivially simple for volunteers to understand and extend.
+        - Render.com background workers are free-tier eligible and deploy from the same repo.
+        - Avoids Redis (no 3rd container, no extra cost, no extra ops).
+        - Same `Dockerfile` base image; scheduler container just runs a different command.
+    - Notes
+        - Scheduler tasks for MVP: (1) auto-transition Events at `assignments_open_at` datetime; (2) auto-close Events after `end_datetime`; (3) send reminder emails per `reminder_schedule`; (4) send admin digest emails.
+        - Scheduler polls the DB every 60 seconds; no message broker needed at this volume.
+        - See DEVOPS.md for container layout and `render.yaml` Blueprint.
+
 
 MedCover is a standard three-tier web application:
 
@@ -558,18 +577,30 @@ erDiagram
 
 ## Deployment Model
 
+### Container Architecture
+The application runs as **two containers** sharing the same Docker image:
+
+| Container | Role | Command |
+|---|---|---|
+| `web` | Flask web application (Gunicorn in production, Flask dev server locally) | `gunicorn app:create_app()` |
+| `scheduler` | Background task runner — Event auto-transitions, reminder emails, admin digests | `python scheduler/main.py` |
+
+Both containers connect to the same PostgreSQL database. See AD10 for the scheduler decision rationale. Full details in `DEVOPS.md`.
+
 ### Environments
 
-| Environment | Purpose | Notes |
-|---|---|---|
-| **Development** | Local developer machines; rapid iteration and testing | Docker Compose (Flask + PostgreSQL containers); `.env` for secrets |
-| **Staging** | Pre-production validation; testing changes before release | Same Docker image as production; deployed on Render (free tier) |
-| **Production** | Live system serving real users | Render.com free tier (MVP); hyperscaler with NGO credits long-term — see AD09 |
+| Environment | Purpose | Data | Infrastructure |
+|---|---|---|---|
+| **Local dev** | Developer playground; rapid iteration | Generated mock/seed data (`scripts/seed_dev.py`) | Docker Compose on developer laptop |
+| **PR Preview** | Ephemeral per-PR environment for review and functional testing | Fresh seeded DB (auto-provisioned by Render) | Render.com — spun up on PR open, torn down on merge/close |
+| **Production** | Live system serving real users | Real data | Render.com free tier (MVP); hyperscaler with NGO credits long-term — see AD09 |
+
+No permanent staging environment for MVP — Render PR Preview environments fulfil this role on demand at no extra standing cost.
 
 ### Hosting Platform
-- **MVP**: Render.com — native Docker support, free tier (Flask container + managed PostgreSQL 256 MB), auto-deploy from GitHub. See AD09.
+- **MVP**: Render.com — native Docker support, free tier (web service + background worker + managed PostgreSQL), auto-deploy from GitHub via `render.yaml` Blueprint. See AD09.
 - **Long-term**: Azure Container Apps or Google Cloud Run using NGO non-profit credits (Czech Red Cross qualifies). Same `Dockerfile` used — no application changes required to migrate.
-- **CI/CD**: GitHub Actions builds the Docker image on push to `main`; platform pulls and deploys automatically.
+- **CI/CD**: GitHub Actions runs tests on every PR; Render auto-deploys to production on merge to `main`.
 
 ### HA / DR Topology
 - No high-availability redundancy planned for MVP (single-server deployment acceptable given the non-critical nature and low cost constraint)
