@@ -47,7 +47,7 @@
     - admins/coordinators shall be able to create and edit custom Master Events
     - admins shall be able to archive Master Events to hide them from the default view; archived MEs remain accessible for historical reporting
     - the built-in "General" Master Event cannot be archived
-    - the ME view shall provide an aggregated overview of all its Events: assignment status, worked hours, count of finished / open / cancelled Events
+    - the ME view shall provide an aggregated overview of all its Events: assignment status, worked hours, count of Completed / open / cancelled Events
 - Event
     - Each Event shall have
         - lifecycle statuses
@@ -147,6 +147,7 @@
 | User-set personal reminder | The individual user | At the user-configured time |
 | Manual reminder by admin/coordinator/RP | Selected roles on a specific Event | On demand |
 | Admin system digest | All admins | Adaptive: once/day normally; more frequent if many changes occur in a short window |
+| Account pending activation | All admins | On user registration (immediately) |
 | Registration invite | Invited email address | On admin action |
 | Account activated | Newly activated user | On admin action |
 | Password reset | Requesting user | On demand |
@@ -198,8 +199,7 @@
             master_Event.view  
             master_Event.edit  
             master_Event.create  
-            master_Event.cancel  
-            master_Event.assign
+            master_Event.archive
 
 - AD03 User Registration Access Control
     - Problem statement - Should new user self-registration be open to anyone, or should access be restricted?
@@ -224,7 +224,7 @@
         - Vanilla JS / jQuery is sufficient for the required interactivity (form enhancements, dynamic notifications); calendar views are handled by FullCalendar (see AD08)
         - This stack is well-supported on all considered hosting platforms (VPS, PythonAnywhere, Render, etc.)
     - Implications
-        - REST API (AD): can be added later using Flask blueprints without major architectural changes
+        - REST API: can be added later using Flask blueprints without major architectural changes (auth mechanism TBD when REST API is scoped)
         - ORM: SQLAlchemy (standard Flask ORM for PostgreSQL)
 
 
@@ -492,7 +492,8 @@ erDiagram
 
     EquipmentItem }o--|| EquipmentType : "is of"
     EquipmentItem }o--o| UserAccount : "issued to (personal)"
-    EquipmentItem }o--o{ Event : "assigned to (shared)"
+    EquipmentItem ||--o{ EventEquipmentAssignment : "assigned via"
+    EventEquipmentAssignment }o--|| Event : "at"
 
     EventEquipmentRequirement }o--|| Event : "for"
     EventEquipmentRequirement }o--|| EquipmentType : "requires type"
@@ -517,6 +518,7 @@ erDiagram
 | **EventSpot** | required credentials (list), assignment | One spot = one person |
 | **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
 | **EventTemplate** | name, description, spot templates | Pre-populates Event creation form |
+| **EventSpotTemplate** | event template, required credentials (list) | Defines one spot position within an EventTemplate |
 | **EquipmentType** | name, description, category (personal / shared) | Defines a category of equipment (e.g. AED, medikit, uniform) |
 | **EquipmentItem** | name, type, home location | For *personal* items: issued_to (UserAccount); for *shared* items: assignable to Events via EventEquipmentAssignment |
 | **EventEquipmentRequirement** | event, equipment type, quantity required | Coordinator specifies how many of each shared type are needed for an Event |
@@ -663,6 +665,7 @@ For example an User Account assigned to the Admin role will have all the permiss
     - roles - list of assigned Roles; assigned by admin only
     - credentials - list of assigned Credentials
     - active flag - inactive until admin-activated after registration
+    - preferred_calendar_view — preferred calendar view for desktop (month / week / day / list); list view is always used on mobile regardless of this setting
 - methods
     - assign / unassign role
     - assign / unassign credential
@@ -703,7 +706,7 @@ For example an User Account assigned to the Admin role will have all the permiss
     - events - list of Events belonging to this ME
 - methods
     - list events
-    - get staffing overview (assignment status, worked hours, counts of finished / open / cancelled events)
+    - get staffing overview (assignment status, worked hours, counts of Completed / open / cancelled events)
     - when an Event is created within this ME, the ME coordinator is automatically pre-filled as the RP of that Event; the coordinator (or admin) can later reassign the RP slot to another eligible member
 
 #### Event Spot
@@ -750,8 +753,11 @@ For example an User Account assigned to the Admin role will have all the permiss
     - event.create
     - event.edit
     - event.view
-    - event.assign
+    - event.assign_own
+    - event.assign_other
     - event.cancel
+    - event.restore
+    - event.delete
     - event.notification.send
     - event.set_responsible_person
     - event.publish
