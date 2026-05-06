@@ -40,6 +40,7 @@
     - new User Registration shall be invite-only: an admin generates a unique registration link which is sent to the prospective user; only the holder of the link can register (see AD03)
     - a newly registered account shall require admin activation before the user can log in
     - users shall be able to reset their own password via a self-service email link ("forgot password" flow)
+    - users shall be able to set a preferred calendar view (month, week, day, or list); this preference is stored per user and applied when they open the calendar on desktop; on mobile, list view is the default regardless of stored preference
 - Master Event (ME):
     - the system shall allow grouping of related Events under an overarching Master Event entity
     - a default "General" Master Event shall exist; all Events are assigned to a ME (General by default)
@@ -219,7 +220,7 @@
         - Flask is lightweight and familiar to the project lead; keeps the codebase simple and easy for volunteers to contribute to
         - PostgreSQL provides robustness and production-grade reliability without significant operational overhead
         - Jinja2 server-rendered templates eliminate the need for a separate frontend build pipeline or SPA framework
-        - Vanilla JS / jQuery is sufficient for the required interactivity (calendar views, form enhancements, dynamic notifications)
+        - Vanilla JS / jQuery is sufficient for the required interactivity (form enhancements, dynamic notifications); calendar views are handled by FullCalendar (see AD08)
         - This stack is well-supported on all considered hosting platforms (VPS, PythonAnywhere, Render, etc.)
     - Implications
         - REST API (AD): can be added later using Flask blueprints without major architectural changes
@@ -260,6 +261,24 @@
         - The entity will be called **Credential** (or **Qualification**) to cover both medical levels and additional certifications
         - A Credential may have zero or more parent Credentials whose holders can fill spots requiring it
         - Examples: Doctor > Nurse > First Aider > Trainee; KI-training > PSP-training
+
+- AD08 Calendar UI Component
+    - Problem statement - The application requires a full event calendar with month, week, day, and list views, interactive day-click to create events, and per-event colour coding. Should this be built from scratch or fulfilled by a third-party library?
+    - Options
+        - **Build from scratch** (vanilla JS / jQuery) — write all calendar grid logic, view switching, and touch handling manually.
+        - **FullCalendar** (open-source, MIT licence) — a widely-used JS calendar library delivered via CDN; no build pipeline required.
+    - Decision - **FullCalendar**
+    - Justification
+        - All required views (month, week, day, list) are built-in; no custom grid logic needed.
+        - Interactive day-click (`dateClick` / `select` callbacks) and per-event colour coding are first-class features.
+        - Touch-aware out of the box; swipe-to-navigate works on phones.
+        - MIT-licensed, actively maintained, extensive documentation — volunteer contributors can find tutorials and examples easily.
+        - Delivered via CDN — no build pipeline or npm dependency management required, consistent with the project's simplicity goal.
+        - Building equivalent functionality from scratch would take weeks and be harder to maintain long-term.
+    - Notes
+        - **Mobile default view**: on small screens (phones) the list view shall be the primary default; month/week/day remain accessible but secondary. On desktop the user's preferred view is stored as a personal setting (user preference in the database).
+        - Only the free open-source distribution is used; the paid "Scheduler" add-on (drag-and-drop resource scheduling) is not required.
+        - FullCalendar fetches events from a lightweight JSON endpoint served by the Flask backend.
 
 
 MedCover is a standard three-tier web application:
@@ -465,7 +484,7 @@ erDiagram
 
 | Entity | Key attributes | Notes |
 |---|---|---|
-| **UserAccount** | email, password hash, name, phone, active flag | Email = login identifier; accounts inactive until admin-activated |
+| **UserAccount** | email, password hash, name, phone, active flag, preferred_calendar_view | Email = login identifier; accounts inactive until admin-activated |
 | **Role** | name, description | Pre-defined: Admin, Coordinator, Member, Viewer |
 | **Permission** | code (e.g. `event.create`) | Object-level permissions assigned to roles |
 | **Credential** | name, description, parent credentials | Unified model for medical qualifications and training certifications |
