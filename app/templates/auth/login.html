@@ -29,6 +29,47 @@
         </div>
       </div>
     </div>
+
+    {% if config.DEV_LOGIN_ENABLED %}
+    <div class="card border-warning mt-3">
+      <div class="card-header bg-warning text-dark fw-bold">
+        🛠️ Developer Quick Login
+      </div>
+      <div class="card-body p-3">
+        <p class="small text-muted mb-2">
+          Only visible in dev environment. Run <code>scripts/seed_dev.py</code> first.
+        </p>
+        <div class="d-grid gap-2">
+          <form method="POST" action="{{ url_for('dev.login_as', role='admin') }}">
+            <button class="btn btn-outline-dark btn-sm w-100 text-start">
+              <strong>Admin</strong> — full system access
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('dev.login_as', role='coordinator') }}">
+            <button class="btn btn-outline-primary btn-sm w-100 text-start">
+              <strong>Coordinator</strong> — manage master events &amp; events
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('dev.login_as', role='member') }}">
+            <button class="btn btn-outline-success btn-sm w-100 text-start">
+              <strong>Member</strong> — join events, submit debriefings
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('dev.login_as', role='viewer') }}">
+            <button class="btn btn-outline-secondary btn-sm w-100 text-start">
+              <strong>Viewer</strong> — read-only access
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('dev.login_as', role='inactive') }}">
+            <button class="btn btn-outline-warning btn-sm w-100 text-start">
+              <strong>Inactive</strong> — pending activation
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 </div>
 {% endblock %}
