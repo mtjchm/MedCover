@@ -97,7 +97,7 @@
         - Typically the first First Aider who registers to an Event becomes the RP.
         - The RP can be assigned or changed by the coordinator/admin
         - Once the RP is assigned, he/she is responsible for managing the other personnel on that Event.
-        - On Events that belong to a custom ME (for example large music festivals), the ME coordinator may force becoming the RP for all the Events in this ME, allowing the coordinator to have overall control of the ME
+        - On Events that belong to a custom ME (for example large music festivals), when a new Event is created the ME coordinator is automatically pre-filled as the RP; the coordinator can later reassign the RP slot to another eligible member
         - The RP shall be notified about changes in the Event, for example users switching spots, or coordinator/admin changing some parameters of the Event
     - If someone removes his/her's Assignment from an Event, all users who fulfill the spot requirements will be notified about the new Assignment possibility/need. No approval from the RP is required to free a spot.
     - If the Event is nearing its start and still has unfilled spots, all eligible users shall receive escalating reminder emails; the reminder schedule is configurable per Event by a coordinator/admin (default: 1 reminder, 1 day before start). When an Event is created from a template, the template's reminder schedule is applied.
@@ -345,7 +345,8 @@ The following transitions require a scheduled background job or task:
 - **Urgent fill notification**: reminder emails sent to eligible users at each offset in the Event's reminder schedule
 
 The following happen in real time as a side effect of a user action:
-- **RP auto-assignment**: when the first user holding a First Aider (or higher) credential registers for an Event that has no RP yet, they are automatically set as the RP
+- **RP pre-fill on Event creation**: when an Event is created inside a custom ME, the ME coordinator is automatically set as the initial RP; the coordinator or admin can later change this
+- **RP auto-assignment (General ME)**: when the first user holding a First Aider (or higher) credential registers for an Event that has no RP yet, they are automatically set as the RP
 - **Assignments auto-close**: when the last unfilled spot is taken, lifecycle transitions to Assignments Closed
 - **Staffing status update**: recalculated whenever an Assignment is added or removed
 
@@ -569,7 +570,6 @@ For example an User Account assigned to the Admin role will have all the permiss
 | master_event.view | ✓ | ✓ | ✓ | ✓ |
 | master_event.create / edit | ✓ | ✓ | — | — |
 | master_event.archive / unarchive | ✓ | — | — | — |
-| master_event.force_rp (lock coordinator as RP for all ME Events) | ✓ | ✓ | — | — |
 | **Events** | | | | |
 | event.view (Published and later) | ✓ | ✓ | ✓ | ✓ |
 | event.view (Draft) | ✓ | ✓ | — | — |
@@ -656,7 +656,7 @@ For example an User Account assigned to the Admin role will have all the permiss
 - methods
     - list events
     - get staffing overview (assignment status, worked hours, counts of finished / open / cancelled events)
-    - force_rp — sets the ME coordinator as RP for all Events in this ME, overriding any existing RP assignments
+    - when an Event is created within this ME, the ME coordinator is automatically pre-filled as the RP of that Event; the coordinator (or admin) can later reassign the RP slot to another eligible member
 
 #### Event Spot
 - description: a position in an Event that can be filled by exactly one person. The person must hold all required Credentials (or higher-ranked equivalents per the Credential hierarchy).
