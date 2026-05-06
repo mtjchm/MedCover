@@ -20,10 +20,11 @@ def app():
         _db.session.commit()
         _db.session.remove()
         yield app
-        # Dispose all connections before dropping tables to avoid hang
+        # Do NOT call drop_all() here — we share the dev DB and dropping tables
+        # would leave alembic_version intact but tables gone (phantom state).
+        # Tables are created via migrations; the dev DB is managed with docker-entrypoint.sh.
         _db.session.remove()
         _db.engine.dispose()
-        _db.drop_all()
 
 
 @pytest.fixture(scope="function")
