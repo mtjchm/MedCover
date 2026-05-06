@@ -34,6 +34,7 @@ Users administration:
     - phone number, email  
     - reporting/overview section - overview of hours worked, planned, nearest registered Event, last registered Event, etc.  
     - new User Registration shall require an admin approval
+    - users shall be able to reset their own password via a self-service email link ("forgot password" flow)
 - Master Event (ME):
     - the system shall allow grouping of related Events under an overarching Master Event entity
     - a default "General" Master Event shall exist; all Events are assigned to a ME (General by default)
@@ -164,7 +165,21 @@ Users administration:
     - Justification - The application will be maintained by a volunteer team. Technology choices must favour developer familiarity, simplicity, and long-term maintainability. Candidates should be evaluated against the team's existing knowledge base and the operational complexity they introduce.
 
 
-## Architecture Overview
+- AD05 Authentication Mechanism
+    - Problem statement - How should users authenticate to the application?
+    - Options
+        - Username + password (local accounts only)
+        - Local accounts + social login (e.g. Google OAuth)
+        - Single Sign-On via external identity provider (e.g. LDAP, Azure AD)
+    - Decision - Username + password with email address as the login identifier
+    - Justification - Simplest option to implement and maintain. No dependency on third-party identity providers. Social login or SSO may be revisited in the future if demand arises.
+    - Notes
+        - Users log in with their email address and a password
+        - A self-service "forgot password" flow (password reset via email link) shall be provided
+        - Password reset and initial account activation emails require the email/notification service to be operational
+
+
+
 
 MedCover is a standard three-tier web application:
 
@@ -248,7 +263,7 @@ Certain objects and/or methods will have required permissions specified. This wi
 #### User Account
 - description: typical user account representing a person
 - properties
-    - email address - to be used for login - can be changed by admin only
+    - email address - serves as the login identifier; can be changed by admin only
     - password - to be used for login - can be changed
     - name and surname - including title, can be changed
     - phone number - can be changed
