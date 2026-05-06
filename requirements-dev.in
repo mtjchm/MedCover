@@ -1,0 +1,9 @@
+# MedCover dev/test dependencies
+# Edit this file, then run: pip-compile requirements-dev.in --generate-hashes
+# to regenerate requirements-dev.txt
+
+-r requirements.in   # include all production deps
+
+pytest==9.0.3
+pytest-cov==7.1.0
+Faker==40.15.0
