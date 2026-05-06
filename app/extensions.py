@@ -12,6 +12,10 @@ login_manager.login_view = "auth.login"
 
 
 @login_manager.user_loader
-def load_user(user_id):
-    # Placeholder until User model is implemented
-    return None
+def load_user(user_id: str):
+    from app.models.user import UserAccount
+    import uuid
+    try:
+        return db.session.get(UserAccount, uuid.UUID(user_id))
+    except (ValueError, AttributeError):
+        return None
