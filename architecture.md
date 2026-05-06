@@ -35,7 +35,8 @@ Users administration:
     - phone number, email  
     - reporting/overview section:
         - **per-user**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history
-        - **per Master Event**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, medical materials used, attendance summary — the General (yearly) ME thus provides an annual statistics overview
+        - **per Master Event**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, medical materials used, attendance summary
+        - **date-range report**: all Events within a configurable date range (e.g. a calendar year), aggregated across all MEs — this replaces any need for a "yearly" ME hierarchy
     - new User Registration shall be invite-only: an admin generates a unique registration link which is sent to the prospective user; only the holder of the link can register (see AD03)
     - a newly registered account shall require admin activation before the user can log in
     - users shall be able to reset their own password via a self-service email link ("forgot password" flow)
@@ -44,7 +45,6 @@ Users administration:
     - a default "General" Master Event shall exist; all Events are assigned to a ME (General by default)
     - admins/coordinators shall be able to create, edit and cancel custom Master Events
     - the ME view shall provide an aggregated overview of all its Events: assignment status, worked hours, count of finished / open / cancelled Events
-    - for the General ME, this overview shall serve as the yearly summary of medical cover operations
 - Event
     - Each Event shall have
         - lifecycle statuses
@@ -486,7 +486,7 @@ Certain objects and/or methods will have required permissions specified. This wi
     - etc.
 
 #### Master Event
-- description: An overarching entity that groups related Events (dozory). Exists to support large or multi-day happenings (e.g. music festivals, sports tournaments) that span multiple locations or time slots. A built-in "General" Master Event is always present and acts as the default container for all standalone Events.
+- description: An overarching entity that groups related Events (dozory). Exists to support large or multi-day happenings (e.g. music festivals, sports tournaments) that span multiple locations or time slots. A built-in "General" Master Event is always present and acts as the default container for all standalone Events. Yearly and other time-period statistics are obtained via date-range filtering, not through ME hierarchy.
 - properties
     - name
     - description
