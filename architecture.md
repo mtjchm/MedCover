@@ -314,12 +314,66 @@ An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who h
 
 
 ## Data View
-- Core domain/data model (high level)
-- Data ownership and boundaries
-- CRUD responsibilities
-- Data stores
-- Data flow / lineage
-- Retention, privacy, classification, encryption
+
+### Core Domain Model
+
+```mermaid
+erDiagram
+    UserAccount }o--o{ Role : "assigned to"
+    Role }o--o{ Permission : "has"
+    UserAccount }o--o{ Credential : "holds"
+    Credential }o--o{ Credential : "parent of (hierarchy)"
+
+    MasterEvent ||--o{ Event : "contains"
+    Event ||--o{ EventSpot : "has"
+    EventSpot }o--o{ Credential : "requires"
+    EventSpot ||--o| Assignment : "filled by"
+    Assignment }o--|| UserAccount : "assigned to"
+
+    EventTemplate ||--o{ EventSpotTemplate : "defines"
+    EventSpotTemplate }o--o{ Credential : "requires"
+
+    EquipmentItem }o--|| EquipmentType : "is of"
+    EquipmentItem }o--o| UserAccount : "dislocated to"
+
+    DebriefingRecord }o--|| Event : "for"
+    DebriefingRecord }o--|| UserAccount : "submitted by"
+
+    RegistrationInvite }o--|| UserAccount : "created by (admin)"
+    AuditLogEntry }o--|| UserAccount : "performed by"
+```
+
+### Key Entities and Their Data
+
+| Entity | Key attributes | Notes |
+|---|---|---|
+| **UserAccount** | email, password hash, name, phone, active flag | Email = login identifier; accounts inactive until admin-activated |
+| **Role** | name, description | Pre-defined: Admin, Coordinator, Member, Viewer |
+| **Permission** | code (e.g. `event.create`) | Object-level permissions assigned to roles |
+| **Credential** | name, description, parent credentials | Unified model for medical qualifications and training certifications |
+| **MasterEvent** | name, description, coordinator, status | Default "General" ME always exists |
+| **Event** | name, start/end datetime, lifecycle status, staffing status, assignments_open_at, paid flag, contact, address | Belongs to a MasterEvent |
+| **EventSpot** | required credentials (list), assignment | One spot = one person |
+| **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
+| **EventTemplate** | name, description, spot templates | Pre-populates Event creation form |
+| **EquipmentType** | name, description | Defines a category of equipment (e.g. AED, medikit) |
+| **EquipmentItem** | name, type, home location, current dislocated-to (user or null) | Tracked by location/person; not reserved per Event |
+| **DebriefingRecord** | event, user, actual hours, patients treated, materials used, notes | Submitted after Event completion; one record per assigned user |
+| **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
+| **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
+
+### Data Store
+- Single **relational database** (engine TBD — see AD04)
+- All domain data is stored in one database; no separate read replicas or caches planned for MVP
+- Audit log is append-only and stored in the same database
+
+### Retention and Privacy
+- Personal data (name, email, phone) is subject to GDPR as the organisation operates in the Czech Republic
+- Audit log entries are retained indefinitely (required for accountability)
+- Event and debriefing data: retained indefinitely for statistical purposes
+- Equipment records: retained while items exist in inventory
+- Backup retention: 60 days (as stated in Non-Functional Requirements)
+
 
 ## Integration Model
 
