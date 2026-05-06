@@ -9,3 +9,9 @@ login_manager = LoginManager()
 mail = Mail()
 
 login_manager.login_view = "auth.login"
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Placeholder until User model is implemented
+    return None
