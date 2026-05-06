@@ -280,6 +280,25 @@
         - Only the free open-source distribution is used; the paid "Scheduler" add-on (drag-and-drop resource scheduling) is not required.
         - FullCalendar fetches events from a lightweight JSON endpoint served by the Flask backend.
 
+- AD09 Deployment Platform and Containerisation Strategy
+    - Problem statement - Where should the application be hosted, and how should it be packaged for deployment? The choice must balance simplicity, cost (non-profit context), portability, and reproducibility.
+    - Options
+        - **Platform-specific deployment** (e.g. PythonAnywhere, Heroku buildpacks) — simple setup but tightly coupled to the platform; migration is painful.
+        - **Container-first deployment** (Docker) — application packaged as a container image; deployable to any container-capable platform with no code changes.
+    - Decision - **Container-first (Docker) deployment on Render.com for MVP; targeting a hyperscaler with NGO credits long-term**
+    - Justification
+        - A `Dockerfile` decouples the application from the hosting platform — migrating from Render to Azure or Google Cloud requires no application changes.
+        - Docker Compose provides a consistent local development environment for all contributors, reducing "works on my machine" issues.
+        - Render.com supports Docker natively (push to GitHub → auto-deploy), has a free tier covering MVP needs, and includes managed PostgreSQL.
+        - Czech Red Cross qualifies as an NGO for cloud credit programmes (Azure for Nonprofits ~$3,500/year; Google Cloud for Nonprofits ~$10,000/year); applying after MVP launch unlocks production-grade infrastructure at zero cost.
+        - Container-first is the industry standard and familiar to most developers, making it easier for future volunteers to contribute.
+    - Notes
+        - **MVP target**: Render.com free tier (Flask container + managed PostgreSQL 256 MB). Free tier apps sleep after 15 minutes of inactivity — acceptable given the usage pattern (event-driven, not 24/7).
+        - **Long-term target**: Azure Container Apps or Google Cloud Run using NGO credits; same `Dockerfile` applies.
+        - **Local development**: Docker Compose with Flask app + PostgreSQL containers; `.env` file for secrets (not committed).
+        - **CI/CD**: GitHub Actions builds and pushes the image; Render or the target platform pulls and deploys automatically.
+        - The Deployment Model section should be updated once the NGO credit application is approved and a hyperscaler is chosen.
+
 
 MedCover is a standard three-tier web application:
 
@@ -534,13 +553,14 @@ erDiagram
 
 | Environment | Purpose | Notes |
 |---|---|---|
-| **Development** | Local developer machines; rapid iteration and testing | Each developer runs the full stack locally |
-| **Staging** | Pre-production validation; testing changes before release | Should mirror production configuration as closely as possible |
-| **Production** | Live system serving real users | Hosting platform TBD — see AD04 and constraints (cost, simplicity) |
+| **Development** | Local developer machines; rapid iteration and testing | Docker Compose (Flask + PostgreSQL containers); `.env` for secrets |
+| **Staging** | Pre-production validation; testing changes before release | Same Docker image as production; deployed on Render (free tier) |
+| **Production** | Live system serving real users | Render.com free tier (MVP); hyperscaler with NGO credits long-term — see AD09 |
 
 ### Hosting Platform
-- Hosting platform TBD — candidates: PythonAnywhere, Render, Railway, or a VPS (DigitalOcean, Hetzner, AWS EC2). Home-lab server is also a fallback option.
-- Key constraint: **minimum cost** (volunteer/non-profit project); all listed candidates support Flask + PostgreSQL
+- **MVP**: Render.com — native Docker support, free tier (Flask container + managed PostgreSQL 256 MB), auto-deploy from GitHub. See AD09.
+- **Long-term**: Azure Container Apps or Google Cloud Run using NGO non-profit credits (Czech Red Cross qualifies). Same `Dockerfile` used — no application changes required to migrate.
+- **CI/CD**: GitHub Actions builds the Docker image on push to `main`; platform pulls and deploys automatically.
 
 ### HA / DR Topology
 - No high-availability redundancy planned for MVP (single-server deployment acceptable given the non-critical nature and low cost constraint)
