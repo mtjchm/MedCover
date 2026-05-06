@@ -240,11 +240,28 @@ flowchart TD
 | P02       | Person | Admin  | App/infrastructure administrator |
 
 ## Component Model
-- Major application components or services
-- Their responsibilities
-- Interfaces and dependencies
-- Collaboration between components
-- Logical vs physical realization if needed
+
+### Logical Components
+
+```mermaid
+flowchart TD
+    FE[Frontend\nWeb Client]
+    BE[Backend\nApplication]
+    DB[(Relational\nDatabase)]
+    MAIL[Email / Notification\nService]
+
+    FE -->|HTTP/HTTPS| BE
+    BE -->|SQL| DB
+    BE -->|SMTP / API| MAIL
+```
+
+| Component | Responsibility |
+|---|---|
+| **Frontend Web Client** | Browser-based UI served to users. Renders views for event planning, user management, equipment tracking, calendar/table displays. Optimised for desktop and mobile. |
+| **Backend Application** | Core business logic: RBAC enforcement, event lifecycle, assignment management, credential matching, notification triggers, audit logging, invite/registration flow, debriefing. Exposes the web UI and (optionally) a REST API. |
+| **Relational Database** | Persistent storage for all domain data: users, roles, credentials, master events, events, event spots, assignments, equipment, audit log, notification settings, debriefing records. |
+| **Email / Notification Service** | Outbound email delivery: invite links, account activation, password reset, event notifications/reminders, admin digests, debriefing links. May be an external SMTP relay or third-party email API. |
+
 
 ## Runtime / Interaction View
 - Key end-to-end scenarios
