@@ -31,7 +31,7 @@ Users administration:
         - additional certifications: Driver, PSP training, KI training, humanitarian unit training, etc.
         - credentials shall support a hierarchy tree, allowing a holder of a higher-ranked credential to fill spots requiring a lower-ranked one (e.g. Doctor can fill a First Aider spot; KI-trained can fill a PSP spot)
         - credentials and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
-    - member equipment - uniform assigned, etc.  
+    - member equipment — the user profile shall display organisation-owned items currently issued to the member (long-term dislocation, e.g. uniform, personal medikit). Managed via the equipment inventory model (see Equipment section).
     - phone number, email  
     - reporting/overview section:
         - **per-user**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history
@@ -357,7 +357,7 @@ erDiagram
 | **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
 | **EventTemplate** | name, description, spot templates | Pre-populates Event creation form |
 | **EquipmentType** | name, description | Defines a category of equipment (e.g. AED, medikit) |
-| **EquipmentItem** | name, type, home location, current dislocated-to (user or null) | Tracked by location/person; not reserved per Event |
+| **EquipmentItem** | name, type, home location, dislocation type (long-term issue / temporary borrow), current dislocated-to (user or null) | Not reserved per Event; members can self-report borrowing |
 | **DebriefingRecord** | event, user, actual hours, patients treated, materials used, notes | Submitted after Event completion; one record per assigned user |
 | **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
