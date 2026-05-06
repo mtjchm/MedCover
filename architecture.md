@@ -438,16 +438,20 @@ Certain objects and/or methods will have required permissions specified. This wi
 ### Application Components / Classes
 
 #### User Account
-- description: typical user account representing a person
+- description: represents a person with access to the application
 - properties
     - email address - serves as the login identifier; can be changed by admin only
-    - password - to be used for login - can be changed
-    - name and surname - including title, can be changed
-    - phone number - can be changed
-    - roles - list of assigned roles, can be assigned by admin only
-    - credentials - list of assigned credentials
+    - password hash - used for authentication; can be changed by the user or admin
+    - name and surname - including title
+    - phone number
+    - roles - list of assigned Roles; assigned by admin only
+    - credentials - list of assigned Credentials
+    - active flag - inactive until admin-activated after registration
 - methods
-    - list qualification, etc.
+    - assign / unassign role
+    - assign / unassign credential
+    - list upcoming events
+    - get statistics (hours worked, events attended, etc.)
 
 #### Role
 - description: a grouping of assigned permissions
@@ -490,10 +494,15 @@ Certain objects and/or methods will have required permissions specified. This wi
     - etc.
 
 #### Event Spot
-- description: a position in an event that can have one or more Credential requirements. one spot equals one person.
+- description: a position in an Event that can be filled by exactly one person. The person must hold all required Credentials (or higher-ranked equivalents per the Credential hierarchy).
 - properties
-    - event ID - the event it belongs to
-    - required credentials - list of required Credentials (a person must hold all of them, or higher-ranked equivalents, to fill this spot)
+    - event ID - the Event this spot belongs to
+    - required credentials - list of required Credentials
+    - assignment - the Assignment filling this spot (null if unfilled)
+- methods
+    - check eligibility (given a user, returns whether they can fill this spot)
+    - assign user
+    - release assignment
 
 #### Event
 - description: AKA "Zdravotní dozor" - a calendar event with a start, end and other properties that allow medical cover planning for a happening such as a music festival, sports or cultural happening where medical cover is requested.
@@ -513,14 +522,16 @@ Certain objects and/or methods will have required permissions specified. This wi
         - Partially staffed
         - Fully staffed
         - Overstaffed
-    - spots - list of spots of certain length - number of personnel needed
+    - spots - list of Event Spots
     - number of Patrols - an abstract unit used to calculate required staffing levels; does not model on-site organization. One Patrol typically maps to one First Aider and one Trainee. For more complex on-site requirements, multiple Events or a Master Event should be used instead.
-    - start date
-    - start time
-    - end date
-    - end time
-    - responsible person
-    - 
+    - start datetime
+    - end datetime
+    - assignments_open_at - datetime when Assignments Open is triggered automatically; null = open immediately on Publish
+    - responsible person - assigned User Account (RP)
+    - required equipment - list of equipment types/items needed for the Event
+    - paid flag - whether the Event is a paid engagement
+    - contact person - name and contact details for the Event organiser
+    - address - location of the Event
 - permissions
     - event.create
     - event.edit
@@ -528,13 +539,17 @@ Certain objects and/or methods will have required permissions specified. This wi
     - event.assign
     - event.cancel
     - event.notification.send
+    - event.set_responsible_person
+    - event.publish
+    - event.assignments.open
+    - event.assignments.close
 
 #### Event Template
 - description: A reusable set of Event parameters (spots, required qualifications/trainings, required equipment, paid/unpaid flag, etc.) that pre-populates the Event creation form to reduce repetitive data entry. All pre-filled values remain fully editable before the Event is saved.
 - properties
     - template name
     - description
-    - default spots (list of Event Spots with qualification/training requirements)
+    - default spots (list of Event Spot templates with Credential requirements)
     - default required equipment
     - paid / unpaid flag
     - any other Event parameters that may be pre-set
@@ -542,7 +557,30 @@ Certain objects and/or methods will have required permissions specified. This wi
     - create Event from template
     - etc.
 
+#### Assignment
+- description: records that a specific user is filling a specific Event Spot, and which Credential they are covering for that spot.
+- properties
+    - event spot ID
+    - user account ID
+    - credential used - the specific Credential the user is fulfilling for this spot (selected at assignment time)
+    - assigned at - timestamp
+
+#### DebriefingRecord
+- description: post-event report submitted by an assigned member after an Event is Completed.
+- properties
+    - event ID
+    - user account ID
+    - actual hours worked - may differ from the planned Event duration (partial attendance supported)
+    - patients treated
+    - materials used - free-text or structured list
+    - notes / feedback
+    - submitted at - timestamp
+
 
 
 ## Ideas for future
 - Feature to manage not only medical cover but also medical training Events with its specific requirements
+- Create a new Event from a Cancelled or Completed Event (copy/reuse as a starting point)
+- Custom user roles (currently only pre-defined roles per AD01)
+- REST API write access for third-party integrations
+- Advanced reporting / statistics dashboard beyond per-user and per-ME summaries
