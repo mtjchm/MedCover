@@ -150,7 +150,7 @@ def register(token: str):
         elif UserAccount.query.filter_by(email=invite.email).first():
             flash("Účet s tímto e-mailem již existuje.", "danger")
         else:
-            user = UserAccount(email=invite.email, full_name=full_name, is_active=False)
+            user = UserAccount(email=invite.email, name=full_name, is_active=False)
             user.set_password(password)
             invite.used_at = datetime.now(timezone.utc)
             db.session.add(user)

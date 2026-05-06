@@ -139,7 +139,7 @@ def step3():
         _ensure_roles()
 
         admin_role = Role.query.filter_by(name="Admin").first()
-        user = UserAccount(email=email, full_name=full_name, is_active=True)
+        user = UserAccount(email=email, name=full_name, is_active=True)
         user.set_password(password)
         if admin_role:
             user.roles.append(admin_role)

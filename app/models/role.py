@@ -119,6 +119,9 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "report.view", "description": "View reports"},
     # Audit
     {"code": "audit.view", "description": "View audit log"},
+    # System / Admin
+    {"code": "admin.view", "description": "Access the admin section"},
+    {"code": "admin.manage_settings", "description": "View and edit system settings (SMTP, org name, timezone)"},
 ]
 
 # Permissions per role (from RBAC table in architecture.md)
