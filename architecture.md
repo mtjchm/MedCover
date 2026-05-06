@@ -117,7 +117,11 @@
         - **item name** and **item type**
         - **home location** — where the item belongs and should be returned to after use
         - **dislocation** — tracks when an item has been taken by a member; dislocation type is either *long-term issue* (e.g. a uniform assigned to a member) or *temporary borrow*; members can self-report their own dislocation
-- Display the Events in a form of a table or calendar
+- Display Events in a table or calendar with the following properties:
+    - **Views**: month, week, day (calendar), and list/table view
+    - **Interactive**: clicking a day slot in the calendar opens the Event creation form pre-filled with that date (Coordinators / Admins only)
+    - **Colour coding**: Events are coloured by lifecycle phase (e.g. Draft, Published, Assignments Open, etc.); if the logged-in user is not eligible to join the Event — even if spots exist — the Event is shown in grey
+    - **Default view**: shows all non-archived Events that are in a Published or later phase; filtering options (by ME, date range, etc.) are deferred to post-MVP
 - Email notifications — **email only for MVP** (in-app notifications are on the wish list)
 - Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
 - Audit capability
