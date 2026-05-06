@@ -110,30 +110,31 @@
         - general feedback / notes
     - partial attendance shall be supported: a member may report they were present for only part of the Event duration
 - Equipment
-    - create, modify, delete equipment types (such as AED, medikit etc.),
-    - manage equipment inventory
-        - item name, item type,
-        - item location - this is the default location where the equipment belongs to and where it should be returned after an Event. 
-        - item dislocation - this may be an Event or a person who borrowed the equipment temporarily  
+    - create, modify, delete equipment types (such as AED, medikit, etc.)
+    - manage equipment inventory:
+        - **item name** and **item type**
+        - **home location** — where the item belongs and should be returned to after use
+        - **dislocation** — tracks when an item has been taken by a member; dislocation type is either *long-term issue* (e.g. a uniform assigned to a member) or *temporary borrow*; members can self-report their own dislocation
 - Display the Events in a form of a table or calendar
 - Email notifications — **email only for MVP** (in-app notifications are on the wish list)
-
-    | Trigger | Recipients | Timing |
-    |---|---|---|
-    | Spot released on an Event | RP (immediately) + all eligible users (immediately) | On event |
-    | User joins an Event (spot filled) | RP (immediately) | On event |
-    | Coordinator/admin changes Event parameters | RP (immediately) | On event |
-    | Unfilled spots as Event approaches | All eligible users | Configurable reminder schedule per Event (default: 1 day before start); inherited from template if applicable |
-    | Event Completed — debriefing | Each assigned member (personalised link) | On transition to Completed |
-    | User-set personal reminder | The individual user | At the user-configured time |
-    | Manual reminder by admin/coordinator/RP | Selected roles on a specific Event | On demand |
-    | Admin system digest | All admins | Adaptive: once/day normally; more frequent if many changes occur in a short window |
-    | Registration invite | Invited email address | On admin action |
-    | Account activated | Newly activated user | On admin action |
-    | Password reset | Requesting user | On demand |
-
 - Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
 - Audit capability (view changes for individual entities, app configuration etc.)
+
+### Notification Triggers
+
+| Trigger | Recipients | Timing |
+|---|---|---|
+| Spot released on an Event | RP (immediately) + all eligible users (immediately) | On event |
+| User joins an Event (spot filled) | RP (immediately) | On event |
+| Coordinator/admin changes Event parameters | RP (immediately) | On event |
+| Unfilled spots as Event approaches | All eligible users | Configurable reminder schedule per Event (default: 1 day before start); inherited from template if applicable |
+| Event Completed — debriefing | Each assigned member (personalised link) | On transition to Completed |
+| User-set personal reminder | The individual user | At the user-configured time |
+| Manual reminder by admin/coordinator/RP | Selected roles on a specific Event | On demand |
+| Admin system digest | All admins | Adaptive: once/day normally; more frequent if many changes occur in a short window |
+| Registration invite | Invited email address | On admin action |
+| Account activated | Newly activated user | On admin action |
+| Password reset | Requesting user | On demand |
 
 
 ## Non-Functional Requirements
@@ -333,6 +334,83 @@ The following transitions require a scheduled background job or task:
 ### Spot Selection at Assignment Time
 An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver credentials must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
 
+### User Registration Flow
+```mermaid
+sequenceDiagram
+    actor Admin
+    actor User
+    participant App
+    participant Email
+
+    Admin->>App: generate invite link (enters email)
+    App->>Email: send invite email with unique token link
+    Email->>User: receives invite link
+    User->>App: opens link, fills registration form
+    App->>App: create inactive account
+    App->>Admin: notify admin of pending activation
+    Admin->>App: review and activate account
+    App->>Email: send account activated email
+    Email->>User: receives confirmation, can now log in
+```
+
+### Event Assignment Flow
+```mermaid
+sequenceDiagram
+    actor Member
+    participant App
+    participant Email
+    actor RP
+
+    Member->>App: browse events (table or calendar)
+    Member->>App: select Event, view open spots
+    App->>App: filter spots eligible for Member's credentials
+    Member->>App: choose spot (select credential if multiple eligible)
+    App->>App: record Assignment, update staffing status
+    App->>Email: notify RP of new assignment
+    Email->>RP: "Member X has joined your Event"
+    opt all spots filled
+        App->>App: auto-close assignments
+        App->>Email: notify RP assignments are closed
+    end
+```
+
+### Spot Release Flow
+```mermaid
+sequenceDiagram
+    actor Member
+    participant App
+    participant Email
+    actor RP
+    actor EligibleUsers
+
+    Member->>App: release Assignment
+    App->>App: remove Assignment, update staffing status
+    App->>Email: notify RP of released spot
+    App->>Email: notify all eligible users of open spot
+    Email->>RP: "A spot on your Event has been freed"
+    Email->>EligibleUsers: "A spot is available on Event X"
+```
+
+### Post-Event Debriefing Flow
+```mermaid
+sequenceDiagram
+    participant Scheduler
+    participant App
+    participant Email
+    actor Member
+
+    Scheduler->>App: Event end_datetime passes
+    App->>App: transition Event to Completed
+    loop for each assigned Member
+        App->>Email: send personalised debriefing link
+        Email->>Member: receives debriefing email
+    end
+    Member->>App: opens link, fills debriefing form
+    Member->>App: submit (actual hours, patients, materials, notes)
+    App->>App: store DebriefingRecord
+```
+
+
 
 ## Data View
 
@@ -472,6 +550,7 @@ For example an User Account assigned to the Admin role will have all the permiss
 | **Master Events** | | | | |
 | master_event.view | ✓ | ✓ | ✓ | ✓ |
 | master_event.create / edit / cancel | ✓ | ✓ | — | — |
+| master_event.force_rp (lock coordinator as RP for all ME Events) | ✓ | ✓ | — | — |
 | **Events** | | | | |
 | event.view (Published and later) | ✓ | ✓ | ✓ | ✓ |
 | event.view (Draft) | ✓ | ✓ | — | — |
@@ -561,7 +640,7 @@ For example an User Account assigned to the Admin role will have all the permiss
 - methods
     - list events
     - get staffing overview (assignment status, worked hours, counts of finished / open / cancelled events)
-    - etc.
+    - force_rp — sets the ME coordinator as RP for all Events in this ME, overriding any existing RP assignments
 
 #### Event Spot
 - description: a position in an Event that can be filled by exactly one person. The person must hold all required Credentials (or higher-ranked equivalents per the Credential hierarchy).
