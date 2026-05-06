@@ -43,7 +43,9 @@
 - Master Event (ME):
     - the system shall allow grouping of related Events under an overarching Master Event entity
     - a default "General" Master Event shall exist; all Events are assigned to a ME (General by default)
-    - admins/coordinators shall be able to create, edit and cancel custom Master Events
+    - admins/coordinators shall be able to create and edit custom Master Events
+    - admins shall be able to archive Master Events to hide them from the default view; archived MEs remain accessible for historical reporting
+    - the built-in "General" Master Event cannot be archived
     - the ME view shall provide an aggregated overview of all its Events: assignment status, worked hours, count of finished / open / cancelled Events
 - Event
     - Each Event shall have
@@ -462,7 +464,7 @@ erDiagram
 | **Role** | name, description | Pre-defined: Admin, Coordinator, Member, Viewer |
 | **Permission** | code (e.g. `event.create`) | Object-level permissions assigned to roles |
 | **Credential** | name, description, parent credentials | Unified model for medical qualifications and training certifications |
-| **MasterEvent** | name, description, coordinator, status | Default "General" ME always exists |
+| **MasterEvent** | name, description, coordinator, archived flag | Default "General" ME always exists and cannot be archived |
 | **Event** | name, start/end datetime, lifecycle status, staffing status, assignments_open_at, paid flag, contact, address | Belongs to a MasterEvent |
 | **EventSpot** | required credentials (list), assignment | One spot = one person |
 | **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
@@ -561,7 +563,8 @@ For example an User Account assigned to the Admin role will have all the permiss
 | credential.create / edit / delete | ✓ | — | — | — |
 | **Master Events** | | | | |
 | master_event.view | ✓ | ✓ | ✓ | ✓ |
-| master_event.create / edit / cancel | ✓ | ✓ | — | — |
+| master_event.create / edit | ✓ | ✓ | — | — |
+| master_event.archive / unarchive | ✓ | — | — | — |
 | master_event.force_rp (lock coordinator as RP for all ME Events) | ✓ | ✓ | — | — |
 | **Events** | | | | |
 | event.view (Published and later) | ✓ | ✓ | ✓ | ✓ |
@@ -644,10 +647,7 @@ For example an User Account assigned to the Admin role will have all the permiss
     - name
     - description
     - coordinator (user responsible for the ME)
-    - lifecycle status
-        - Active
-        - Completed
-        - Cancelled
+    - archived flag — when set, the ME is hidden from default views but remains available for historical reporting; the built-in "General" ME cannot be archived
     - events - list of Events belonging to this ME
 - methods
     - list events
