@@ -75,7 +75,8 @@ Users administration:
     - Event management - Create, modify, cancel Events
     - Event templates
         - some Events are very similar, so the system shall provide Event templates to simplify creation of new Events (e.g. a simple Event requiring 1 First Aider and 1 Trainee; a larger Event requiring 2 First Aiders, 2 Trainees and an ambulance)
-        - Event templates shall be manageable (create, edit, delete) by users with appropriate permissions
+        - a template may include a reminder schedule (list of "X days/hours before start" reminder triggers) which is applied automatically when an Event is created from it
+        - Event templates shall be manageable (create, edit, delete) by **admins and coordinators only**
     - parametrize Events
         - start date,
         - start time,
@@ -97,7 +98,7 @@ Users administration:
         - On Events that belong to a custom ME (for example large music festivals), the ME coordinator may force becoming the RP for all the Events in this ME, allowing the coordinator to have overall control of the ME
         - The RP shall be notified about changes in the Event, for example users switching spots, or coordinator/admin changing some parameters of the Event
     - If someone removes his/her's Assignment from an Event, all users who fulfill the spot requirements will be notified about the new Assignment possibility/need. No approval from the RP is required to free a spot.
-    - If the Event is nearing its start and it's still not fully occupied, all eligible users (not only the RP) shall be notified about the urgent need; notification frequency shall increase as the Event start date approaches
+    - If the Event is nearing its start and still has unfilled spots, all eligible users shall receive escalating reminder emails; the reminder schedule is configurable per Event by a coordinator/admin (default: 1 reminder, 1 day before start). When an Event is created from a template, the template's reminder schedule is applied.
     - The users registered to an Event shall be able to release their Assignment at any time; no approval from the RP or anyone else is required (see AD06)
 - Post-event Debriefing
     - after an Event reaches the Completed status, the system shall trigger a debriefing process for all assigned members
@@ -115,11 +116,23 @@ Users administration:
         - item location - this is the default location where the equipment belongs to and where it should be returned after an Event. 
         - item dislocation - this may be an Event or a person who borrowed the equipment temporarily  
 - Display the Events in a form of a table or calendar
-- Email notifications and reminders
-    - individual users can set their own reminders for Events they have subscribed in
-    - admins, coordinators and RPs can send emails to remind selected roles that they are needed for Events that are not fully occupied
-    - Admins shall be notified about significant changes in the system (configurable digest frequency)
-- Notifications should be customizable to prEvent unnecessary spamming (possible customization on the level of the ME, Event,...)
+- Email notifications — **email only for MVP** (in-app notifications are on the wish list)
+
+    | Trigger | Recipients | Timing |
+    |---|---|---|
+    | Spot released on an Event | RP (immediately) + all eligible users (immediately) | On event |
+    | User joins an Event (spot filled) | RP (immediately) | On event |
+    | Coordinator/admin changes Event parameters | RP (immediately) | On event |
+    | Unfilled spots as Event approaches | All eligible users | Configurable reminder schedule per Event (default: 1 day before start); inherited from template if applicable |
+    | Event Completed — debriefing | Each assigned member (personalised link) | On transition to Completed |
+    | User-set personal reminder | The individual user | At the user-configured time |
+    | Manual reminder by admin/coordinator/RP | Selected roles on a specific Event | On demand |
+    | Admin system digest | All admins | Adaptive: once/day normally; more frequent if many changes occur in a short window |
+    | Registration invite | Invited email address | On admin action |
+    | Account activated | Newly activated user | On admin action |
+    | Password reset | Requesting user | On demand |
+
+- Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
 - Audit capability (view changes for individual entities, app configuration etc.)
 
 
@@ -535,6 +548,7 @@ Certain objects and/or methods will have required permissions specified. This wi
     - start datetime
     - end datetime
     - assignments_open_at - datetime when Assignments Open is triggered automatically; null = open immediately on Publish
+    - reminder_schedule — list of offsets before Event start (e.g. [1 day]) at which unfilled-spot reminder emails are sent to eligible users; inherited from template, editable by coordinator/admin
     - responsible person - assigned User Account (RP)
     - required equipment - list of equipment types/items needed for the Event
     - paid flag - whether the Event is a paid engagement
@@ -560,6 +574,7 @@ Certain objects and/or methods will have required permissions specified. This wi
     - default spots (list of Event Spot templates with Credential requirements)
     - default required equipment
     - paid / unpaid flag
+    - reminder schedule — list of offsets before Event start (e.g. [7 days, 1 day]) at which unfilled-spot reminder emails are sent
     - any other Event parameters that may be pre-set
 - methods
     - create Event from template
@@ -588,6 +603,7 @@ Certain objects and/or methods will have required permissions specified. This wi
 
 ## Ideas for future
 - Feature to manage not only medical cover but also medical training Events with its specific requirements
+- In-app notifications (notification bell / inbox in the UI) — email only for MVP
 - Create a new Event from a Cancelled or Completed Event (copy/reuse as a starting point)
 - Custom user roles (currently only pre-defined roles per AD01)
 - REST API write access for third-party integrations
