@@ -113,11 +113,12 @@
         - general feedback / notes
     - partial attendance shall be supported: a member may report they were present for only part of the Event duration
 - Equipment
-    - create, modify, delete equipment types (such as AED, medikit, etc.)
-    - manage equipment inventory:
-        - **item name** and **item type**
-        - **home location** — where the item belongs and should be returned to after use
-        - **dislocation** — tracks when an item has been taken by a member; dislocation type is either *long-term issue* (e.g. a uniform assigned to a member) or *temporary borrow*; members can self-report their own dislocation
+    - manage **equipment types** (e.g. AED, medikit, large medikit, training dummy, uniform, personal LED light, etc.); types are classified as either *personal* or *shared*
+    - manage **equipment inventory** — individual physical items, each belonging to an equipment type:
+        - **Personal equipment** (uniforms, personal lights, etc.) — items issued long-term to a specific member; remain with that member until explicitly returned (e.g. member leaves the organisation or item is destroyed); members can self-report their own personal equipment
+        - **Shared equipment** (AEDs, medikits, training dummies, etc.) — items from a communal pool; assigned to Events for the duration of the event and then returned to inventory
+    - **Event equipment planning**: when creating or editing an Event, a coordinator can specify how many items of each shared equipment type are required (e.g. "2× AED, 1× large medikit")
+    - **Event equipment assignment**: before or during an Event, specific shared EquipmentItems from inventory are assigned to the Event (e.g. AED-1 and AED-red are assigned to Event #42); this records which physical items were used at each Event
 - Display Events in a table or calendar with the following properties:
     - **Views**: month, week, day (calendar), and list/table view
     - **Interactive**: clicking a day slot in the calendar opens the Event creation form pre-filled with that date (Coordinators / Admins only)
@@ -490,7 +491,11 @@ erDiagram
     EventSpotTemplate }o--o{ Credential : "requires"
 
     EquipmentItem }o--|| EquipmentType : "is of"
-    EquipmentItem }o--o| UserAccount : "dislocated to"
+    EquipmentItem }o--o| UserAccount : "issued to (personal)"
+    EquipmentItem }o--o{ Event : "assigned to (shared)"
+
+    EventEquipmentRequirement }o--|| Event : "for"
+    EventEquipmentRequirement }o--|| EquipmentType : "requires type"
 
     DebriefingRecord }o--|| Event : "for"
     DebriefingRecord }o--|| UserAccount : "submitted by"
@@ -512,8 +517,10 @@ erDiagram
 | **EventSpot** | required credentials (list), assignment | One spot = one person |
 | **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
 | **EventTemplate** | name, description, spot templates | Pre-populates Event creation form |
-| **EquipmentType** | name, description | Defines a category of equipment (e.g. AED, medikit) |
-| **EquipmentItem** | name, type, home location, dislocation type (long-term issue / temporary borrow), current dislocated-to (user or null) | Not reserved per Event; members can self-report borrowing |
+| **EquipmentType** | name, description, category (personal / shared) | Defines a category of equipment (e.g. AED, medikit, uniform) |
+| **EquipmentItem** | name, type, home location | For *personal* items: issued_to (UserAccount); for *shared* items: assignable to Events via EventEquipmentAssignment |
+| **EventEquipmentRequirement** | event, equipment type, quantity required | Coordinator specifies how many of each shared type are needed for an Event |
+| **EventEquipmentAssignment** | event, equipment item | Records which specific shared items were actually brought to an Event |
 | **DebriefingRecord** | event, user, actual hours, patients treated, materials used, notes | Submitted after Event completion; one record per assigned user |
 | **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
@@ -733,7 +740,7 @@ For example an User Account assigned to the Admin role will have all the permiss
     - assignments_open_at - datetime when Assignments Open is triggered automatically; null = open immediately on Publish
     - reminder_schedule — list of offsets before Event start (e.g. [1 day]) at which unfilled-spot reminder emails are sent to eligible users; inherited from template, editable by coordinator/admin
     - responsible person - assigned User Account (RP)
-    - required equipment - list of equipment types/items needed for the Event
+    - required equipment - list of `EventEquipmentRequirement` entries (equipment type + quantity needed)
     - paid flag - whether the Event is a paid engagement
     - contact person - name and contact details for the Event organiser
     - address - location of the Event
@@ -778,10 +785,38 @@ For example an User Account assigned to the Admin role will have all the permiss
     - user account ID
     - actual hours worked - may differ from the planned Event duration (partial attendance supported)
     - patients treated
-    - materials used - free-text or structured list
+    - materials used - free-text description of medical materials consumed (bandages, gloves, etc.); structured equipment assignment is tracked separately via EventEquipmentAssignment
     - notes / feedback
     - submitted at - timestamp
 
+#### EquipmentType
+- description: a category of physical equipment (e.g. AED, medikit, large medikit, training dummy, uniform, personal LED light).
+- properties
+    - name
+    - description
+    - category — `personal` (long-term issued to a member) or `shared` (pool of items assignable to Events)
+
+#### EquipmentItem
+- description: a specific physical item belonging to an EquipmentType.
+- properties
+    - name (e.g. AED-1, AED-red, uniform-42)
+    - equipment type
+    - home location — where the item belongs when not in use
+    - **For personal items**: `issued_to` — UserAccount the item is currently assigned to (long-term); null if in storage
+    - **For shared items**: assignable to Events via EventEquipmentAssignment; home location is the default storage point
+
+#### EventEquipmentRequirement
+- description: specifies how many items of a given shared EquipmentType are needed for an Event (the plan).
+- properties
+    - event ID
+    - equipment type
+    - quantity required
+
+#### EventEquipmentAssignment
+- description: records that a specific shared EquipmentItem was actually brought to and used at an Event (the actuals).
+- properties
+    - event ID
+    - equipment item
 
 
 ## Ideas for future
