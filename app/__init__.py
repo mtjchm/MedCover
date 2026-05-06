@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, redirect, request, url_for
 from .extensions import db, migrate, login_manager, mail
 from .config import config_by_name
 
@@ -23,8 +23,33 @@ def create_app(config_name: str | None = None) -> Flask:
     from .routes import register_blueprints
     register_blueprints(app)
 
-    if app.config.get("DEV_LOGIN_ENABLED"):
-        from .routes.dev import dev_bp
-        app.register_blueprint(dev_bp)
+    @app.before_request
+    def _setup_guard():
+        """
+        Redirect to the setup wizard if initial setup is not complete.
+        Skips static files, the setup blueprint itself, and auth routes
+        (so the app doesn't get into a redirect loop before the DB is seeded).
+        """
+        from .models.settings import get_settings
+
+        # Allow static files, setup pages, and auth pages through unconditionally
+        if request.endpoint and (
+            request.endpoint.startswith("setup.")
+            or request.endpoint == "static"
+        ):
+            return None
+
+        try:
+            settings = get_settings()
+        except Exception:
+            # DB not ready yet (e.g. running migrations) — let it through
+            return None
+
+        if not settings.setup_complete:
+            return redirect(url_for("setup.step1"))
+
+        # Keep Flask-Mail config in sync with DB on every request (cheap dict write)
+        settings.apply_to_app(app)
+        return None
 
     return app

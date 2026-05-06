@@ -163,6 +163,7 @@
 - The app UI must be optimized for both PC and mobile phone screens - most users will access the app using their mobile phones
 - all changes must be logged and allow auditing - who changed what and when
 - The infrastructure used by the app should allow backup/restore of the app. Daily backups with 60 days retention, 1day RPO, 12 hours RTO
+- **Concurrent users:** The application must correctly handle **10 or more simultaneous users**. Race conditions — especially two users claiming the same EventSpot at the same time — must be prevented at the application level (row-level locking) and enforced at the database level (UNIQUE constraint). See AD12 for the concurrency strategy.
 
 
 ## Architectural Decisions
@@ -319,6 +320,41 @@
         - Scheduler polls the DB every 60 seconds; no message broker needed at this volume.
         - See DEVOPS.md for container layout and `render.yaml` Blueprint.
 
+- AD11 Application Configuration Storage
+    - Problem statement - The application requires runtime configuration (SMTP credentials, organisation name, timezone). Where should these be stored, and how should the app behave on first install?
+    - Options
+        - **Environment variables only** — simple; requires SSH/redeploy to change; no audit trail; credentials in `.env` files on the server.
+        - **Database-backed settings + setup wizard** — settings stored in a dedicated `AppSettings` table; changeable through the Admin UI without touching the server; supports a first-run wizard for guided setup.
+    - Decision - **Database-backed settings with first-run setup wizard**
+    - Justification
+        - SMTP credentials and other operational settings are more naturally managed by an application-level admin than by a server operator editing environment files.
+        - A first-run wizard provides a guided, safe path to a working installation without requiring any SSH access.
+        - Storing credentials in the DB (encrypted) rather than environment variables avoids accidental exposure in CI logs, `.env` files, or Docker inspection output.
+        - The `DATABASE_URL` and `SECRET_KEY` must remain as environment variables since they are needed to boot the application before any DB connection can be established.
+    - Notes
+        - SMTP password is stored Fernet-encrypted using a key derived from `SECRET_KEY` (AES-128 in CBC mode with HMAC); decrypted only in-process at send time.
+        - `AppSettings` is a single-row table (id=1); `get_settings()` is idempotent and creates the row on first call.
+        - Flask-Mail config (`MAIL_*`) is refreshed from the DB on every request via `before_request`; no redeploy required to change SMTP settings.
+        - The setup wizard is blocked to all other endpoints via a `before_request` guard until `setup_complete=True`.
+        - Audit log records all changes to `AppSettings` (action_type: `edit`, entity_type: `AppSettings`).
+
+- AD12 Concurrency Control Strategy
+    - Problem statement - The application is used by 10 or more people simultaneously. Without explicit concurrency controls, two users could claim the same EventSpot at the same time, or two admins could overwrite each other's edits to the same Event or UserAccount.
+    - Options
+        - **No explicit control** — rely solely on the DB UNIQUE constraint on `assignment.spot_id`; second insert fails at the DB level. Simple but produces a raw DB error with no user-friendly handling, and does not cover non-assignment conflicts.
+        - **Pessimistic locking (SELECT FOR UPDATE)** — lock the target row at the start of the transaction; all other transactions block until the lock is released. Guarantees correctness; adds a brief serialisation bottleneck per contended row.
+        - **Optimistic locking (version column)** — add a `version` integer to each entity; increment on every write; if the version read at fetch time no longer matches at write time, raise a conflict error. Zero blocking; fails fast on conflict; suitable for low-contention edits.
+        - **Application-level queuing** — serialize all assignment requests through a queue. Overkill for expected load; adds infrastructure.
+    - Decision - **Hybrid: pessimistic locking for spot assignment; optimistic locking for general entity edits**
+    - Justification
+        - Spot assignment is the highest-contention operation (many eligible users can see and claim the same spot simultaneously) and must be correct — pessimistic locking with `query.with_for_update()` ensures only one transaction proceeds at a time.
+        - General entity edits (Event, MasterEvent, UserAccount, AppSettings) have much lower contention; optimistic locking with a `version` column is sufficient and avoids unnecessary blocking.
+        - The DB UNIQUE constraint on `assignment.spot_id` is retained as a last-resort safety net but is **not** relied upon as the primary mechanism.
+    - Implementation notes
+        - Spot assignment: `EventSpot.query.filter_by(id=spot_id).with_for_update().one()` inside an explicit transaction; check assignment is still `None` after acquiring lock; create `Assignment`; commit.
+        - Optimistic locking: add `version = db.Column(db.Integer, default=0, nullable=False)` to contended models; use SQLAlchemy's `version_id_col` mapper argument or manual increment; catch `sqlalchemy.exc.StaleDataError` and return HTTP 409 with Czech message "Záznam byl mezitím změněn. Načtěte stránku znovu.".
+        - Implement before any Phase 2 assignment logic is written.
+
 
 MedCover is a standard three-tier web application:
 
@@ -346,11 +382,11 @@ flowchart TD
 | P01 | Person | User | Czech Red Cross members accessing the app via a web browser over the public Internet | Authenticated; access controlled by RBAC |
 | S01 | System | Other Apps | **Future** — third-party systems integrating via the REST API (e.g. reporting tools) | Authenticated via API token; read-only scope initially |
 | P02 | Person | Infrastructure Admin | Person responsible for deployment, backups, OS/app updates and server maintenance | Trusted; accesses the server directly via SSH — outside the app's own auth |
-| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored as server-side secrets |
+| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored in database (encrypted), managed by admin via Settings UI |
 
 **Trust boundaries:**
 - All P01 traffic crosses the public Internet and must be served over HTTPS
-- S02 credentials (SMTP/API keys) must never be exposed to P01 users
+- S02 credentials (SMTP/API keys) must never be exposed to P01 users; they are stored encrypted in the database and are only configurable by users with the `admin.manage_settings` permission
 - P02 SSH access must be restricted to authorised IP addresses or key-based authentication
 - S01 API tokens must be scoped to minimum required permissions and revocable
 
@@ -545,6 +581,7 @@ erDiagram
 | **DebriefingRecord** | event, user, actual hours, patients treated, materials used, notes | Submitted after Event completion; one record per assigned user |
 | **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
+| **AppSettings** | org_name, timezone, smtp_server/port/tls/username/password (encrypted), smtp_default_sender, setup_complete | Single-row table; SMTP password stored Fernet-encrypted using SECRET_KEY; managed via Setup Wizard and Admin Settings UI |
 
 ### Data Store
 - Single **relational database**: **PostgreSQL** (see AD04)
@@ -564,6 +601,7 @@ erDiagram
 ### Outbound Email
 - The backend sends all email via an **external SMTP relay** (e.g. SendGrid, Mailgun, AWS SES, or the organisation's own SMTP server)
 - Communication: SMTP (port 587/465) or provider HTTP API
+- SMTP credentials are stored **encrypted in the database** (Fernet/AES-128, key derived from `SECRET_KEY`) and managed by an admin user through the Settings UI — not stored in environment variables or config files
 - Use cases: user invite links, account activation, password reset, event notifications/reminders, admin digest emails, post-event debriefing links
 - Failure handling: email delivery failures shall be logged; critical flows (invite, password reset) should surface errors to the admin/user where possible
 

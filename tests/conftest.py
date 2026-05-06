@@ -8,8 +8,23 @@ def app():
     app = create_app("testing")
     with app.app_context():
         _db.create_all()
+        # Ensure AppSettings exists with setup_complete=True so the setup
+        # guard doesn't redirect tests to /setup/step1
+        from app.models.settings import AppSettings
+        row = _db.session.get(AppSettings, 1)
+        if row is None:
+            _db.session.add(AppSettings(id=1, org_name="Test Org", setup_complete=True))
+        else:
+            row.setup_complete = True
+            row.org_name = row.org_name or "Test Org"
+        _db.session.commit()
+        _db.session.remove()
         yield app
-        _db.drop_all()
+        # Do NOT call drop_all() here — we share the dev DB and dropping tables
+        # would leave alembic_version intact but tables gone (phantom state).
+        # Tables are created via migrations; the dev DB is managed with docker-entrypoint.sh.
+        _db.session.remove()
+        _db.engine.dispose()
 
 
 @pytest.fixture(scope="function")

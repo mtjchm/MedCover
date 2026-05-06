@@ -1,17 +1,18 @@
 import os
 
 
+RESET_TOKEN_HOURS = 2
+INVITE_TOKEN_HOURS = 72
+
+
 class Config:
     SECRET_KEY = os.environ["SECRET_KEY"]
     SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    MAIL_SERVER = os.getenv("MAIL_SERVER")
-    MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
-    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-    MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER")
-    # Never enabled unless explicitly set — must never be True in production
+    # MAIL_* settings are stored in AppSettings (DB) and applied at runtime
+    # via AppSettings.apply_to_app(). No env-var mail config needed.
+    # DEV_LOGIN_ENABLED is intentionally hardcoded False in base and production.
+    # Only DevelopmentConfig reads the env var — belt-and-suspenders protection.
     DEV_LOGIN_ENABLED = False
 
 

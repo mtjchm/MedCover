@@ -1,0 +1,10 @@
+Dobrý den, {{ user.name }},
+
+váš účet v systému MedCover byl aktivován.
+
+Nyní se můžete přihlásit na adrese:
+{{ login_url }}
+
+V případě dotazů kontaktujte administrátora.
+
+Tým MedCover

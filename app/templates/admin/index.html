@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Admin — MedCover{% endblock %}
+{% block content %}
+<div class="py-4">
+  <h3>Administrace</h3>
+  <div class="list-group mt-3" style="max-width: 400px;">
+    <a href="{{ url_for('admin.pending_users') }}" class="list-group-item list-group-item-action">
+      👤 Čekající aktivace uživatelů
+    </a>
+  </div>
+</div>
+{% endblock %}
