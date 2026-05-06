@@ -11,7 +11,17 @@
 
 
 ### Assumptions and Constraints
-xxx
+
+**Assumptions**
+- The primary user base is Czech Red Cross members; UI language is Czech
+- The application replaces an existing Google Sheets solution — a seamless transition is expected
+- User adoption depends on ease of use; not all users are IT-proficient
+- Events are coordinated by a small group of admins/coordinators; the majority of users are members or viewers
+
+**Constraints**
+- The project is maintained by a volunteer team; the project lead is the primary maintainer
+- Technology choices must favour simplicity and long-term maintainability over feature richness
+- Infrastructure costs should be kept low (volunteer/non-profit context)
 
 ## Functional Requirements
 Users administration:  
@@ -144,7 +154,26 @@ Users administration:
     - Justification - Open registration lowers the barrier to onboarding but requires admin vigilance. Invite-only links provide an additional security layer by preventing unsolicited registrations. Either way, admin approval is required before an account becomes active.
 
 
+- AD04 Technology Stack
+    - Problem statement - Which technology stack should be used to implement the application?
+    - Options
+        - Python Flask + relational database + lightweight JavaScript frontend
+        - Python Django + relational database + lightweight JavaScript frontend
+        - Other frameworks / languages
+    - Decision - TBD
+    - Justification - The application will be maintained by a volunteer team. Technology choices must favour developer familiarity, simplicity, and long-term maintainability. Candidates should be evaluated against the team's existing knowledge base and the operational complexity they introduce.
 
+
+## Architecture Overview
+
+MedCover is a standard three-tier web application:
+
+- **Frontend** — a browser-based web client accessed over the public Internet. Optimised for both desktop and mobile screens.
+- **Backend** — a server-side application exposing a web UI (and optionally a REST API). It implements all business logic, enforces RBAC, and manages application state.
+- **Data store** — a relational database holding all persistent application data (users, events, equipment, audit log, etc.).
+- **Email / notification service** — an outbound mail integration for sending notifications, reminders and digests to users.
+
+All user interactions flow through the backend; the data store and mail service are internal dependencies not directly exposed to users. The infrastructure administrator (P02) accesses the server directly for operational tasks (deployment, backup, maintenance).
 
 ## System Context
 The System Context is typically a combination of a System Context Diagram and a textual description of its components. It describes how the solution (in this case the application) fits to a larger context of other applications, services and persons (users) around it.  
