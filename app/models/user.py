@@ -54,6 +54,13 @@ class UserAccount(UserMixin, db.Model):
         lazy="selectin",
     )
 
+    credentials = db.relationship(
+        "Credential",
+        secondary="user_credentials",
+        back_populates="holders",
+        lazy="selectin",
+    )
+
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
 
