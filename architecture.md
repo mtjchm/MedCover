@@ -118,7 +118,14 @@
 - Display the Events in a form of a table or calendar
 - Email notifications — **email only for MVP** (in-app notifications are on the wish list)
 - Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
-- Audit capability (view changes for individual entities, app configuration etc.)
+- Audit capability
+    - all create, edit, delete and status-change actions on every entity shall be recorded (users, events, master events, assignments, equipment, credentials, roles, debriefing records, system configuration)
+    - each audit entry records: timestamp, actor (user account), action type, entity type, entity ID, and a summary of what changed (before/after values where applicable)
+    - audit log is immutable — entries cannot be edited or deleted
+    - the UI shall expose:
+        - **per-entity timeline** — a chronological history of changes for a single entity (e.g. all changes to Event #42)
+        - **global activity feed** — a filterable feed of all changes across the system, filterable by entity type, user, and date range
+    - audit log access is restricted to admins (see RBAC table)
 
 ### Notification Triggers
 
@@ -329,7 +336,12 @@ flowchart LR
 The following transitions require a scheduled background job or task:
 - **Published → Assignments Open**: triggered at the configured `assignments_open_at` datetime
 - **Assignments Closed → Completed**: triggered after the Event `end_datetime`
-- **Urgent fill notification**: escalating email reminders to eligible users as Event start approaches and spots remain open
+- **Urgent fill notification**: reminder emails sent to eligible users at each offset in the Event's reminder schedule
+
+The following happen in real time as a side effect of a user action:
+- **RP auto-assignment**: when the first user holding a First Aider (or higher) credential registers for an Event that has no RP yet, they are automatically set as the RP
+- **Assignments auto-close**: when the last unfilled spot is taken, lifecycle transitions to Assignments Closed
+- **Staffing status update**: recalculated whenever an Assignment is added or removed
 
 ### Spot Selection at Assignment Time
 An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver credentials must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
