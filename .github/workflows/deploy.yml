@@ -1,3 +1,17 @@
+# Deploy to Production
+#
+# This workflow triggers a Render deploy hook on every push to main.
+#
+# DISABLED: We are not yet deployed to Render. This workflow will be enabled
+# once a Render account is set up and the RENDER_DEPLOY_HOOK_URL secret is
+# added to the GitHub repository settings.
+#
+# To enable:
+#   1. Create a Render account and set up the services per DEVOPS.md
+#   2. Copy the deploy hook URL from Render Dashboard → your service → Settings
+#   3. Add it as a GitHub secret: Settings → Secrets → Actions → RENDER_DEPLOY_HOOK_URL
+#   4. Remove the `if: false` condition below
+
 name: Deploy to Production
 
 on:
@@ -7,6 +21,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: false  # Remove this line when Render is configured
 
     steps:
       - name: Trigger Render deploy
