@@ -33,7 +33,9 @@ Users administration:
         - credentials and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
     - member equipment - uniform assigned, etc.  
     - phone number, email  
-    - reporting/overview section - overview of hours worked, planned, nearest registered Event, last registered Event, etc.  
+    - reporting/overview section:
+        - **per-user**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history
+        - **per Master Event**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, medical materials used, attendance summary — the General (yearly) ME thus provides an annual statistics overview
     - new User Registration shall be invite-only: an admin generates a unique registration link which is sent to the prospective user; only the holder of the link can register (see AD03)
     - a newly registered account shall require admin activation before the user can log in
     - users shall be able to reset their own password via a self-service email link ("forgot password" flow)
@@ -284,10 +286,10 @@ flowchart TD
 stateDiagram-v2
     [*] --> Draft : coordinator/admin creates
     Draft --> Published : coordinator/admin publishes
-    Published --> AssignmentsOpen : automatic (at configured date/time)\nor manual override (coordinator/admin)
-    AssignmentsOpen --> AssignmentsClosed : automatic (all spots filled)\nor manual (coordinator/admin/RP)
+    Published --> AssignmentsOpen : auto at configured date/time (manual override allowed)
+    AssignmentsOpen --> AssignmentsClosed : auto when all spots filled (manual override allowed)
     AssignmentsClosed --> AssignmentsOpen : manual re-open (coordinator/admin/RP)
-    AssignmentsClosed --> Completed : automatic (after Event end time)
+    AssignmentsClosed --> Completed : auto after Event end time
     Draft --> Cancelled : coordinator/admin cancels
     Published --> Cancelled : coordinator/admin cancels
     AssignmentsOpen --> Cancelled : coordinator/admin cancels
