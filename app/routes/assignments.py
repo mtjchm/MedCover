@@ -1,0 +1,251 @@
+"""
+Assignment blueprint — spot claim/release with pessimistic locking.
+
+CONCURRENCY — CRITICAL (AD12):
+  Every claim uses SELECT FOR UPDATE on the EventSpot row to prevent two
+  users from simultaneously claiming the same spot. The check-then-write
+  sequence is atomic within a single DB transaction.
+
+Routes:
+  POST /assignments/claim/<spot_id>            — claim a spot (own)
+  POST /assignments/release/<assignment_id>    — release own assignment
+  POST /assignments/assign/<spot_id>           — admin/coordinator assigns a user
+  POST /assignments/unassign/<assignment_id>   — admin/coordinator unassigns a user
+"""
+
+from flask import Blueprint, redirect, url_for, flash, request, abort
+from flask_login import login_required, current_user
+from sqlalchemy.exc import IntegrityError
+
+from app.extensions import db
+from app.models.event import Event, EventSpot, EventStatus
+from app.models.assignment import Assignment
+from app.models.user import UserAccount
+from app.models.audit import AuditLogEntry
+
+assignments_bp = Blueprint("assignments", __name__, url_prefix="/assignments")
+
+
+def _audit(action: str, assignment: Assignment, summary: str) -> None:
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type=action,
+        entity_type="Assignment",
+        entity_id=str(assignment.id),
+        summary=summary,
+    ))
+
+
+def _auto_close_if_full(event: Event) -> None:
+    """Transition event to ASSIGNMENTS_CLOSED if all spots are now filled."""
+    if event.status == EventStatus.ASSIGNMENTS_OPEN and event.total_spots > 0 and event.filled_spots >= event.total_spots:
+        event.status = EventStatus.ASSIGNMENTS_CLOSED
+        event.version += 1
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="status_change",
+            entity_type="Event",
+            entity_id=str(event.id),
+            summary=f"Přihlašování automaticky uzavřeno — všechna místa obsazena",
+        ))
+
+
+# ── Claim (own) ───────────────────────────────────────────────────────────────
+
+@assignments_bp.post("/claim/<int:spot_id>")
+@login_required
+def claim(spot_id: int):
+    if not current_user.has_permission("event.assign_own"):
+        abort(403)
+
+    # ── Pessimistic lock: SELECT FOR UPDATE ─────────────────────────────────
+    spot = db.session.scalar(
+        db.select(EventSpot).where(EventSpot.id == spot_id).with_for_update()
+    )
+    if spot is None:
+        abort(404)
+
+    event = db.session.get(Event, spot.event_id)
+
+    # Validate event state
+    if event.status != EventStatus.ASSIGNMENTS_OPEN:
+        flash("Přihlašování na tuto akci není otevřeno.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    # Spot must be free
+    if spot.assignment is not None:
+        flash("Toto místo je již obsazeno.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    # User must not already be assigned to this event
+    existing = db.session.scalar(
+        db.select(Assignment)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id == event.id, Assignment.user_id == current_user.id)
+    )
+    if existing:
+        flash("Již jste přihlášeni na tuto akci.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    # Eligibility check
+    if not spot.is_eligible(current_user):
+        flash("Nemáte požadovanou kvalifikaci pro toto místo.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    assignment = Assignment(
+        spot_id=spot_id,
+        user_id=current_user.id,
+        assigned_by_id=current_user.id,
+    )
+    db.session.add(assignment)
+    db.session.flush()
+    _audit("create", assignment, f"Uživatel '{current_user.name}' se přihlásil na akci '{event.name}'")
+    _auto_close_if_full(event)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Toto místo bylo právě obsazeno někým jiným.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    flash("Úspěšně přihlášeni na akci.", "success")
+    return redirect(url_for("events.detail", event_id=event.id))
+
+
+# ── Release (own) ─────────────────────────────────────────────────────────────
+
+@assignments_bp.post("/release/<int:assignment_id>")
+@login_required
+def release(assignment_id: int):
+    assignment = db.session.get(Assignment, assignment_id)
+    if assignment is None:
+        abort(404)
+
+    # Only own assignment unless assigning-other permission
+    if assignment.user_id != current_user.id:
+        if not current_user.has_permission("event.assign_other"):
+            abort(403)
+
+    event = db.session.get(Event, assignment.spot.event_id)
+
+    # Cannot release after event is completed
+    if event.status == EventStatus.COMPLETED:
+        flash("Nelze se odhlásit z dokončené akce.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    event_id = event.id
+    _audit("delete", assignment, f"Uživatel '{assignment.user.name}' se odhlásil z akce '{event.name}'")
+    db.session.delete(assignment)
+
+    # Re-open assignments if they were closed and a spot just freed up
+    if event.status == EventStatus.ASSIGNMENTS_CLOSED:
+        event.status = EventStatus.ASSIGNMENTS_OPEN
+        event.version += 1
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="status_change",
+            entity_type="Event",
+            entity_id=str(event.id),
+            summary="Přihlašování automaticky znovuotevřeno — uvolněno místo",
+        ))
+
+    db.session.commit()
+
+    flash("Odhlášení z akce bylo úspěšné.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Assign other ──────────────────────────────────────────────────────────────
+
+@assignments_bp.post("/assign/<int:spot_id>")
+@login_required
+def assign_other(spot_id: int):
+    if not current_user.has_permission("event.assign_other"):
+        abort(403)
+
+    user_id = request.form.get("user_id")
+    if not user_id:
+        abort(400)
+
+    user = db.session.get(UserAccount, user_id)
+    if user is None or not user.is_active:
+        flash("Uživatel nenalezen nebo není aktivní.", "danger")
+        return redirect(request.referrer or url_for("events.index"))
+
+    # ── Pessimistic lock ────────────────────────────────────────────────────
+    spot = db.session.scalar(
+        db.select(EventSpot).where(EventSpot.id == spot_id).with_for_update()
+    )
+    if spot is None:
+        abort(404)
+
+    event = db.session.get(Event, spot.event_id)
+
+    if event.status not in (EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED):
+        flash("Přiřazení není možné v aktuálním stavu akce.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    if spot.assignment is not None:
+        flash("Toto místo je již obsazeno.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    existing = db.session.scalar(
+        db.select(Assignment)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id == event.id, Assignment.user_id == user.id)
+    )
+    if existing:
+        flash(f"Uživatel {user.name} je již přihlášen na tuto akci.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    assignment = Assignment(
+        spot_id=spot_id,
+        user_id=user.id,
+        assigned_by_id=current_user.id,
+    )
+    db.session.add(assignment)
+    db.session.flush()
+    _audit("create", assignment, f"Koordinátor přiřadil '{user.name}' na akci '{event.name}'")
+    _auto_close_if_full(event)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("Toto místo bylo právě obsazeno někým jiným.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    flash(f"Uživatel {user.name} byl přiřazen na akci.", "success")
+    return redirect(url_for("events.detail", event_id=event.id))
+
+
+# ── Unassign other ────────────────────────────────────────────────────────────
+
+@assignments_bp.post("/unassign/<int:assignment_id>")
+@login_required
+def unassign_other(assignment_id: int):
+    if not current_user.has_permission("event.assign_other"):
+        abort(403)
+
+    assignment = db.session.get(Assignment, assignment_id)
+    if assignment is None:
+        abort(404)
+
+    event = db.session.get(Event, assignment.spot.event_id)
+    if event.status == EventStatus.COMPLETED:
+        flash("Nelze odhlásit uživatele z dokončené akce.", "warning")
+        return redirect(url_for("events.detail", event_id=event.id))
+
+    event_id = event.id
+    _audit("delete", assignment, f"Koordinátor odhlásil '{assignment.user.name}' z akce '{event.name}'")
+    db.session.delete(assignment)
+
+    if event.status == EventStatus.ASSIGNMENTS_CLOSED:
+        event.status = EventStatus.ASSIGNMENTS_OPEN
+        event.version += 1
+
+    db.session.commit()
+
+    flash(f"Uživatel {assignment.user.name} byl odhlášen z akce.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))

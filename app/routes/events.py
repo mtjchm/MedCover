@@ -124,7 +124,14 @@ def detail(event_id: int):
     if not _can_view(event):
         abort(403)
 
-    return render_template("events/detail.html", event=event, EventStatus=EventStatus)
+    # Load active users for coordinator-assign dropdown (only when user has assign_other permission)
+    eligible_users: list = []
+    if current_user.has_permission("event.assign_other"):
+        eligible_users = db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)
+        ).all()
+
+    return render_template("events/detail.html", event=event, EventStatus=EventStatus, eligible_users=eligible_users)
 
 
 # ── Edit ──────────────────────────────────────────────────────────────────────

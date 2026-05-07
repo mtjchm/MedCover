@@ -149,12 +149,65 @@
             <span class="text-muted">Volné</span>
           {% endif %}
         </td>
-        <td>
-          {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
-            <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
-                  onsubmit="return confirm('Smazat toto místo?')">
-              <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
+        <td class="text-end">
+          <div class="d-flex gap-1 justify-content-end flex-wrap">
+            {# Claim own spot #}
+            {% if not spot.assignment and event.status == EventStatus.ASSIGNMENTS_OPEN and current_user.has_permission('event.assign_own') %}
+              {% set already_assigned = namespace(val=false) %}
+              {% for s in event.spots %}{% if s.assignment and s.assignment.user_id == current_user.id %}{% set already_assigned.val = true %}{% endif %}{% endfor %}
+              {% if not already_assigned.val %}
+                <form method="POST" action="{{ url_for('assignments.claim', spot_id=spot.id) }}">
+                  <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
+                </form>
+              {% endif %}
+            {% endif %}
+
+            {# Release own assignment #}
+            {% if spot.assignment and spot.assignment.user_id == current_user.id and event.status != EventStatus.COMPLETED %}
+              <form method="POST" action="{{ url_for('assignments.release', assignment_id=spot.assignment.id) }}"
+                    onsubmit="return confirm('Odhlásit se z tohoto místa?')">
+                <button class="btn btn-outline-warning btn-sm py-0">Odhlásit se</button>
+              </form>
+            {% endif %}
+
+            {# Coordinator: assign another user #}
+            {% if not spot.assignment and current_user.has_permission('event.assign_other') and event.status in [EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED] %}
+              <button class="btn btn-outline-primary btn-sm py-0" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#assign-form-{{ spot.id }}">
+                Přiřadit
+              </button>
+            {% endif %}
+
+            {# Coordinator: unassign another user #}
+            {% if spot.assignment and current_user.has_permission('event.assign_other') and event.status != EventStatus.COMPLETED %}
+              <form method="POST" action="{{ url_for('assignments.unassign_other', assignment_id=spot.assignment.id) }}"
+                    onsubmit="return confirm('Odhlásit tohoto uživatele?')">
+                <button class="btn btn-outline-danger btn-sm py-0">Odhlásit</button>
+              </form>
+            {% endif %}
+
+            {# Delete spot (no assignment, editor) #}
+            {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
+              <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
+                    onsubmit="return confirm('Smazat toto místo?')">
+                <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
+              </form>
+            {% endif %}
+          </div>
+
+          {# Collapse: assign another user form #}
+          {% if current_user.has_permission('event.assign_other') and not spot.assignment %}
+          <div class="collapse mt-1" id="assign-form-{{ spot.id }}">
+            <form method="POST" action="{{ url_for('assignments.assign_other', spot_id=spot.id) }}" class="d-flex gap-1">
+              <select name="user_id" class="form-select form-select-sm">
+                <option value="">— vyberte uživatele —</option>
+                {% for u in eligible_users %}
+                  <option value="{{ u.id }}">{{ u.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm py-0">OK</button>
             </form>
+          </div>
           {% endif %}
         </td>
       </tr>
