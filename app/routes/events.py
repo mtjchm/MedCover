@@ -23,7 +23,7 @@ Permissions:
   event.restore      — Cancelled → Draft
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -78,6 +78,52 @@ def index():
 
     events = db.session.scalars(query).all()
     return render_template("events/index.html", events=events, show_archived=show_archived, EventStatus=EventStatus)
+
+
+# ── Calendar JSON feed ────────────────────────────────────────────────────────
+
+# FullCalendar event background colours by status value
+_STATUS_COLORS: dict[str, str] = {
+    "Draft":              "#6c757d",
+    "Published":          "#0d6efd",
+    "Assignments Open":   "#198754",
+    "Assignments Closed": "#ffc107",
+    "Completed":          "#212529",
+    "Cancelled":          "#dc3545",
+}
+
+
+@events_bp.get("/feed")
+@login_required
+def feed():
+    """Return events as FullCalendar-compatible JSON."""
+    if not current_user.has_any_permission("event.view", "event.view_draft"):
+        abort(403)
+
+    query = db.select(Event)
+    if not current_user.has_permission("event.view_draft"):
+        query = query.where(Event.status != EventStatus.DRAFT)
+
+    events = db.session.scalars(query).all()
+    items = []
+    for e in events:
+        color = _STATUS_COLORS.get(e.status.value, "#6c757d")
+        items.append({
+            "id": e.id,
+            "title": e.name,
+            "start": e.start_datetime.isoformat(),
+            "end": e.end_datetime.isoformat(),
+            "url": url_for("events.detail", event_id=e.id),
+            "backgroundColor": color,
+            "borderColor": color,
+            "textColor": "#ffc107" if e.status.value == "Assignments Closed" else "#fff",
+            "extendedProps": {
+                "status": e.status.value,
+                "filled": e.filled_spots,
+                "total": e.total_spots,
+            },
+        })
+    return jsonify(items)
 
 
 # ── Create ────────────────────────────────────────────────────────────────────
