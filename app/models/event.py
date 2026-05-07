@@ -135,14 +135,14 @@ class Event(db.Model):
         total = self.total_spots
         filled = self.filled_spots
         if total == 0:
-            return "No spots"
+            return "Žádné pozice"
         if filled == 0:
-            return "Not staffed"
+            return "Neobsazeno"
         if filled < total:
-            return "Partially staffed"
+            return "Částečně obsazeno"
         if filled == total:
-            return "Fully staffed"
-        return "Overstaffed"
+            return "Plně obsazeno"
+        return "Přeplněno"
 
     def reminder_hours(self) -> list[int]:
         if not self.reminder_schedule:
