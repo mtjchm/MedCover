@@ -1,0 +1,29 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=app --cov-report=term-missing --cov-report=html:htmlcov -v"
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/templates/*",
+    "*/migrations/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E501", "W503", "E402"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "migrations",
+    ".venv",
+    "htmlcov",
+]

@@ -101,7 +101,7 @@ def edit(cred_id: int):
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip() or None
-        parent_ids = set(int(pid) for pid in request.form.getlist("parent_ids"))
+        parent_ids = {int(pid) for pid in request.form.getlist("parent_ids")}
 
         if not name:
             flash("Název kvalifikace je povinný.", "danger")

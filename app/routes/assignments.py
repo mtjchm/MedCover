@@ -47,7 +47,7 @@ def _auto_close_if_full(event: Event) -> None:
             action_type="status_change",
             entity_type="Event",
             entity_id=str(event.id),
-            summary=f"Přihlašování automaticky uzavřeno — všechny pozice obsazeny",
+            summary="Přihlašování automaticky uzavřeno — všechny pozice obsazeny",
         ))
 
 

@@ -7,7 +7,6 @@ so it is not stored in plaintext in the database.
 """
 
 import base64
-import os
 from datetime import datetime, timezone
 
 from cryptography.fernet import Fernet

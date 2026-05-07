@@ -134,4 +134,3 @@ def dashboard():
         horizon_days=current_user.dashboard_horizon_days,
         EventStatus=EventStatus,
     )
-
