@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" {% if current_user.is_authenticated and current_user.dark_mode %}data-bs-theme="dark"{% endif %}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -42,13 +42,32 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Přehledy</a></li>
           {% endif %}
           {% if current_user.has_permission('admin.view') %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.index') }}">Administrace</a></li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Administrace</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="{{ url_for('admin.index') }}">Dashboard</a></li>
+              {% if current_user.has_permission('user.view') %}
+              <li><a class="dropdown-item" href="{{ url_for('users.index') }}">Uživatelé</a></li>
+              {% endif %}
+              {% if current_user.has_permission('invite.create') %}
+              <li><a class="dropdown-item" href="{{ url_for('users.invites') }}">Pozvánky</a></li>
+              {% endif %}
+              <li><a class="dropdown-item" href="{{ url_for('admin.audit_log_list') }}">Audit log</a></li>
+              {% if current_user.has_permission('credential.view') %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('credentials.index') }}">Kvalifikace</a></li>
+              {% endif %}
+              {% if current_user.has_permission('admin.view') %}
+              <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">Přehled oprávnění</a></li>
+              {% endif %}
+            </ul>
+          </li>
           {% endif %}
           {% endif %}
         </ul>
         <ul class="navbar-nav">
           {% if current_user.is_authenticated %}
-            <li class="nav-item"><a class="nav-link" href="#">{{ current_user.name }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('users.profile') }}">{{ current_user.name }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Odhlásit</a></li>
           {% elif request.endpoint != 'auth.login' %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Přihlásit</a></li>
@@ -85,6 +104,10 @@
       document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
         new bootstrap.Popover(el, { html: false });
       });
+      // Initialise all Bootstrap tooltips
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+      });
       // Initialise all flatpickr datetime inputs
       flatpickr(".flatpickr-dt", {
         enableTime: true,
@@ -106,6 +129,9 @@
       }
     }
   </script>
+
+  <!-- Client-side validation -->
+  <script src="{{ url_for('static', filename='js/validate.js') }}"></script>
 
   {% block extra_scripts %}{% endblock %}
 </body>

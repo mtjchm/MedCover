@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
-from .extensions import db, migrate, login_manager, mail
+from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
 
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
@@ -22,7 +22,8 @@ def create_app(config_name: str | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    mail.init_app(app)
+    _flask_mail.init_app(app)
+    csrf.init_app(app)
 
     # Import models here so Flask-Migrate discovers all tables
     with app.app_context():
@@ -30,6 +31,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     from .routes import register_blueprints
     register_blueprints(app)
+    register_cli_commands(app)
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
@@ -52,8 +54,25 @@ def create_app(config_name: str | None = None) -> Flask:
             "MasterEvent": url_for("master_events.detail", me_id=eid),
             "AppSettings": url_for("app_settings.index"),
             "Credential": url_for("credentials.index"),
+            "UserAccount": url_for("users.detail", user_id=eid) if eid else None,
         }
         return mapping.get(entity_type)
+
+    @app.after_request
+    def _add_security_headers(response: WerkzeugResponse) -> WerkzeugResponse:
+        """Add Content-Security-Policy and other security headers."""
+        config_name_used = os.getenv("FLASK_ENV", "development")
+        if config_name_used != "development":
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "font-src 'self' cdn.jsdelivr.net; "
+                "img-src 'self' data:;"
+            )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        return response
 
     @app.before_request
     def _setup_guard() -> WerkzeugResponse | None:
@@ -86,3 +105,53 @@ def create_app(config_name: str | None = None) -> Flask:
         return None
 
     return app
+
+
+def register_cli_commands(app: Flask) -> None:
+    """Register custom Flask CLI commands."""
+
+    @app.cli.command("verify-schema")
+    def verify_schema() -> None:
+        """
+        Verify that every SQLAlchemy model table and column exists in the DB.
+
+        Run this after 'flask db upgrade' to catch schema drift (e.g. a migration
+        that updated alembic_version but failed to apply the DDL).
+        Exits non-zero and prints a clear error if anything is missing.
+        """
+        import sys
+        from sqlalchemy import inspect as sa_inspect
+
+        inspector = sa_inspect(db.engine)
+        existing_tables = set(inspector.get_table_names())
+
+        errors: list[str] = []
+        table_count = 0
+
+        for table_name, table in db.metadata.tables.items():
+            if table_name == "alembic_version":
+                continue
+
+            if table_name not in existing_tables:
+                errors.append(f"MISSING TABLE: {table_name}")
+                continue
+
+            table_count += 1
+            existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+            for col in table.columns:
+                if col.name not in existing_cols:
+                    errors.append(f"MISSING COLUMN: {table_name}.{col.name}")
+
+        if errors:
+            print("Schema verification FAILED — the following objects are missing from the DB:")
+            for err in errors:
+                print(f"  ✘ {err}")
+            print(
+                "\nPossible causes: migration was stamped but not applied "
+                "('flask db stamp'), DB restored from incomplete backup, "
+                "or a migration script had an error."
+            )
+            print("Fix: drop alembic_version and re-run 'flask db upgrade'.")
+            sys.exit(1)
+        else:
+            print(f"Schema OK — verified {table_count} tables, all columns present.")

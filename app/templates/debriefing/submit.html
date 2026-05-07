@@ -16,6 +16,7 @@
     {% endif %}
 
     <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="mb-3">
         <label for="actual_hours" class="form-label">Odpracované hodiny <span class="text-danger">*</span>
           {{ help_icon("Skutečný počet odpracovaných hodin na akci. Může se lišit od plánované délky.") }}

@@ -7,7 +7,10 @@
     Přehled uživatele:
     <span class="text-muted fw-normal">{{ report_user.name }}</span>
   </h2>
-  <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět na přehledy</a>
+  <div>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět na přehledy</a>
+    <a href="{{ url_for('reports.user_report', user_id=report_user.id, format='csv') }}" class="btn btn-outline-success btn-sm ms-1">⬇ Stáhnout CSV</a>
+  </div>
 </div>
 
 {# User info #}

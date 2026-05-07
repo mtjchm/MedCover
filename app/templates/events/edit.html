@@ -15,6 +15,7 @@
   <div class="col-12 col-lg-8">
     <h2 class="mb-4">Upravit akci</h2>
     <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="version" value="{{ event.version }}">
       <div class="row g-3">
         <div class="col-12">

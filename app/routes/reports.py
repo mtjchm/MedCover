@@ -7,15 +7,20 @@ Routes:
   GET /reports/master-event/<me_id>      — per-master-event report
   GET /reports/date-range                — date-range report (form + results)
 
+All report routes accept ?format=csv to download the data as a CSV file.
+
 Permission: report.view  (users may always view their own per-user report)
 """
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
+from typing import cast
 
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, Response, abort, make_response, render_template, request
 from flask_login import current_user, login_required
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +31,17 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
+
+
+def _csv_response(rows: list[list[str]], filename: str) -> Response:
+    """Return rows as a downloadable CSV file."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerows(rows)
+    response = make_response(buf.getvalue())
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ── Index ─────────────────────────────────────────────────────────────────────
@@ -42,7 +58,7 @@ def index() -> str:
 
 @reports_bp.get("/user/<uuid:user_id>")
 @login_required
-def user_report(user_id: uuid.UUID) -> str:
+def user_report(user_id: uuid.UUID) -> str | Response:
     is_own = str(user_id) == str(current_user.id)
     if not is_own and not current_user.has_permission("report.view"):
         abort(403)
@@ -101,6 +117,22 @@ def user_report(user_id: uuid.UUID) -> str:
 
     total_planned_hours = total_planned_seconds / 3600
 
+    if request.args.get("format") == "csv":
+        csv_rows = [["Akce", "Začátek", "Konec", "Stav", "Plán (h)", "Skutečnost (h)", "Ošetřených"]]
+        for r in rows:
+            ev = r["event"]
+            csv_rows.append([
+                ev.name,
+                ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
+                ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+                ev.status.value,
+                f"{r['planned_hours']:.2f}",
+                f"{r['actual_hours']:.2f}" if r["actual_hours"] is not None else "",
+                r["patients_treated"] if r["patients_treated"] is not None else "",
+            ])
+        safe_name = user.name.replace(" ", "_")
+        return _csv_response(csv_rows, f"prehled_{safe_name}.csv")
+
     return render_template(
         "reports/user_report.html",
         report_user=user,
@@ -117,7 +149,7 @@ def user_report(user_id: uuid.UUID) -> str:
 
 @reports_bp.get("/master-event/<int:me_id>")
 @login_required
-def me_report(me_id: int) -> str:
+def me_report(me_id: int) -> str | Response:
     if not current_user.has_permission("report.view"):
         abort(403)
 
@@ -170,6 +202,23 @@ def me_report(me_id: int) -> str:
         grand_worked_hours += worked_hours
         grand_patients += patients
 
+    if request.args.get("format") == "csv":
+        csv_rows: list[list[str]] = [["Akce", "Začátek", "Konec", "Stav", "Místa celkem", "Obsazená místa", "Odprac. hodin", "Ošetřených"]]
+        for r in rows:
+            csv_ev = cast(Event, r["event"])
+            csv_rows.append([
+                csv_ev.name,
+                csv_ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
+                csv_ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+                csv_ev.status.value,
+                str(r["total_spots"]),
+                str(r["filled_spots"]),
+                f"{r['worked_hours']:.2f}",
+                str(r["patients"]),
+            ])
+        safe_name = master_event.name.replace(" ", "_")
+        return _csv_response(csv_rows, f"prehled_ME_{safe_name}.csv")
+
     return render_template(
         "reports/me_report.html",
         master_event=master_event,
@@ -187,7 +236,7 @@ def me_report(me_id: int) -> str:
 
 @reports_bp.get("/date-range")
 @login_required
-def date_range_report() -> str:
+def date_range_report() -> str | Response:
     if not current_user.has_permission("report.view"):
         abort(403)
 
@@ -251,6 +300,31 @@ def date_range_report() -> str:
         "total_worked_hours": total_worked_hours,
         "total_patients": total_patients,
     }
+
+    if request.args.get("format") == "csv":
+        csv_rows = [["Nadřazená akce", "Akce", "Začátek", "Konec", "Stav", "Místa celkem", "Obsazená místa", "Odprac. hodin", "Ošetřených"]]
+        for ev in events:
+            me_name = ev.master_event.name if ev.master_event else ""
+            total_s = len(ev.spots)
+            filled_s = sum(1 for s in ev.spots if s.assignment is not None)
+            worked_h = Decimal("0")
+            patients = 0
+            for spot in ev.spots:
+                if spot.assignment and spot.assignment.debriefing:
+                    worked_h += spot.assignment.debriefing.actual_hours
+                    patients += spot.assignment.debriefing.patients_treated
+            csv_rows.append([
+                me_name,
+                ev.name,
+                ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
+                ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+                ev.status.value,
+                str(total_s),
+                str(filled_s),
+                f"{worked_h:.2f}",
+                str(patients),
+            ])
+        return _csv_response(csv_rows, f"prehled_{from_date_str}_{to_date_str}.csv")
 
     return render_template(
         "reports/date_range.html",

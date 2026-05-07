@@ -15,6 +15,7 @@
           Pokud nejsou k dispozici, vyplňte je po instalaci v Nastavení.
         </p>
         <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-3">
             <div class="col-md-8">
               <label for="smtp_server" class="form-label">SMTP server</label>

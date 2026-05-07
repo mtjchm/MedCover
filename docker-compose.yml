@@ -38,9 +38,15 @@ services:
 
   db:
     image: postgres:17-alpine
+    # Give PostgreSQL up to 60 s to finish its final checkpoint before Docker
+    # sends SIGKILL on 'docker compose down/stop'.  Default is 10 s which is
+    # often too short for a clean shutdown.
+    stop_grace_period: 60s
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db-init:/docker-entrypoint-initdb.d:ro
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: medcover_dev
       POSTGRES_USER: medcover

@@ -73,7 +73,7 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 
 ---
 
-## Phase 4 — Audit, Equipment & Reports 🔲
+## Phase 4 — Audit, Equipment & Reports ✅
 
 ### Audit Log UI
 - ✅ Audit log list page (admin only): paginated table, filter by entity type / actor / date range
@@ -89,41 +89,45 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 - ✅ Event equipment assignment: assign specific physical items from inventory to event
 
 ### Event Templates
-- 🔲 Event template CRUD (admin / coordinator only)
-- 🔲 Template properties: default spots with credential requirements, required equipment, paid/unpaid flag, reminder schedule
-- 🔲 Create event from template (pre-fills form, all values editable)
-- 🔲 Reminder schedule inherited from template
+- ✅ Event template CRUD (admin / coordinator only)
+- ✅ Template properties: default spots with credential requirements, paid/unpaid flag, reminder schedule
+- ✅ Create event from template (pre-fills form, all values editable)
+- ✅ Reminder schedule inherited from template
 
 ### Reports
 - ✅ Per-user report: events attended, hours, credentials used
 - ✅ Per-ME report: all events under a master event, staffing summary
-- ✅ Date-range report: all events in a configurable date range (replaces yearly ME hierarchy for reporting)
-- 🔲 Export to CSV / PDF (nice-to-have)
+- ✅ Date-range report: all events in a configurable date range
+- ✅ Export to CSV (`?format=csv` on all report routes)
 
 ---
 
-## Phase 5 — Polish & Admin Panel 🔲
+## Phase 5 — Polish & Admin Panel ✅
 
 ### User Profile
-- 🔲 View and edit own profile (name, email, phone, preferred calendar view)
-- 🔲 Preferred calendar view stored per user (month / week / day / list); mobile defaults to list
-- 🔲 Change own password
+- ✅ View and edit own profile (name, email, phone, preferred calendar view)
+- ✅ Preferred calendar view stored per user (month / week / day / list)
+- ✅ Change own password
+- ✅ Dark mode toggle in user settings
 
 ### Admin Panel Improvements
-- 🔲 Credential management UI (create, edit, delete credentials and hierarchy)
-- 🔲 Role/permission management UI (assign roles to users, view permission matrix)
-- 🔲 User list with search/filter
-- 🔲 Full dev seed (`scripts/seed_dev.py` extended with events, assignments, equipment)
+- ✅ Credential management UI (create, edit, delete credentials and hierarchy)
+- ✅ Role assignment per user (in user detail page)
+- ✅ Permission matrix page (read-only reference showing all roles and permission codes)
+- ✅ User list with search/filter + activate/deactivate
+- ✅ Full dev seed (`scripts/seed_dev.py` with events, assignments, equipment, debriefings)
 
 ### Mobile Polish
-- 🔲 Responsive layout audit and fixes for all pages
-- 🔲 Touch-friendly controls for calendar and forms
-- 🔲 Mobile-default list view for calendar
+- ✅ Responsive layout helpers (`table-responsive-stack`, `btn-toolbar-mobile`)
+- ✅ Touch-friendly toggle switch for paid/unpaid flag
+- ✅ Mobile-default calendar view via per-user `preferred_calendar_view` setting
 
 ### Miscellaneous
-- 🔲 Client-side form validation (`validate.js` per AD14)
-- 🔲 CSRF protection on all forms (Flask-WTF)
-- 🔲 REST API foundation (read-only, authenticated via token) — optional/post-MVP
+- ✅ Client-side form validation (`validate.js`)
+- ✅ CSRF protection on all forms (Flask-WTF `CSRFProtect`)
+- ✅ Service status health checks on admin dashboard (DB latency, SMTP timing, scheduler heartbeat)
+- ✅ Post-migration schema verification (`flask verify-schema` in docker-entrypoint.sh)
+- 🔲 REST API foundation (read-only, authenticated via token) — post-MVP
 
 ---
 

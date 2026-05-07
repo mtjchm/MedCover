@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
+{% block title %}Můj profil — MedCover{% endblock %}
+
+{% block extra_head %}
+<style>
+  .dark-toggle { width: 3em; height: 1.5em; cursor: pointer; }
+  .dark-toggle:checked { background-color: #6f42c1; border-color: #6f42c1; }
+  .dark-label.is-dark { color: #6f42c1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-9">
+    <h2 class="mb-4">Můj profil</h2>
+
+    <!-- ── Profile edit ── -->
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Osobní údaje</div>
+      <div class="card-body">
+        <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="profile">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label for="name" class="form-label">Jméno a příjmení</label>
+              <input type="text" class="form-control" id="name" name="name" value="{{ user.name }}" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label for="email" class="form-label">E-mail</label>
+              <input type="email" class="form-control" value="{{ user.email }}" disabled>
+              <div class="form-text">E-mail nelze změnit.</div>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="phone" class="form-label">Telefon</label>
+              <input type="tel" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="preferred_calendar_view" class="form-label">Výchozí zobrazení kalendáře</label>
+              <select class="form-select" id="preferred_calendar_view" name="preferred_calendar_view">
+                {% for cv in calendar_views %}
+                <option value="{{ cv.value }}" {{ 'selected' if user.preferred_calendar_view == cv }}>
+                  {{ {'month': 'Měsíc', 'week': 'Týden', 'day': 'Den', 'list': 'Seznam'}[cv.value] }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="dashboard_horizon_days" class="form-label">Horizont dashboardu (dny)</label>
+              <input type="number" class="form-control" id="dashboard_horizon_days" name="dashboard_horizon_days"
+                     min="1" max="365" value="{{ user.dashboard_horizon_days }}">
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input class="form-check-input dark-toggle" type="checkbox" role="switch"
+                       id="dark_mode" name="dark_mode" value="1" {{ 'checked' if user.dark_mode }}>
+                <label class="form-check-label fw-semibold dark-label" for="dark_mode">Tmavý režim</label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-danger">Uložit profil</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Change password ── -->
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Změna hesla</div>
+      <div class="card-body">
+        <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="password">
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label for="current_password" class="form-label">Současné heslo</label>
+              <input type="password" class="form-control" id="current_password" name="current_password" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="new_password" class="form-label">Nové heslo</label>
+              <input type="password" class="form-control" id="new_password" name="new_password"
+                     minlength="8" required>
+              <div class="form-text">Minimálně 8 znaků.</div>
+            </div>
+            <div class="col-12 col-md-4">
+              <label for="confirm_password" class="form-label">Potvrzení nového hesla</label>
+              <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-outline-danger">Změnit heslo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Credentials ── -->
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Moje kvalifikace</div>
+      <div class="card-body">
+        {% if user.credentials %}
+          <div class="d-flex flex-wrap gap-2">
+            {% for c in user.credentials %}
+              <span class="badge bg-secondary fs-6">{{ c.name }}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Žádné kvalifikace přiřazeny.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Issued equipment ── -->
+    {% if issued_items %}
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Přidělené vybavení</div>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+          {% for item in issued_items %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ item.serial_number or item.id }}</strong>
+              <span class="text-muted ms-2">{{ item.equipment_type.name if item.equipment_type else '—' }}</span>
+            </div>
+            <small class="text-muted">Vydáno: {{ item.issued_at | localdt if item.issued_at else '—' }}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Upcoming events ── -->
+    <div class="card mb-4">
+      <div class="card-header fw-semibold">Nadcházející akce</div>
+      <div class="card-body">
+        {% if upcoming %}
+          <ul class="list-group list-group-flush">
+            {% for a in upcoming %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <a href="{{ url_for('events.detail', event_id=a.spot.event.id) }}">{{ a.spot.event.name }}</a>
+              <span class="text-muted">{{ a.spot.event.start_datetime | localdt }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Žádné nadcházející akce.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const cb = document.getElementById('dark_mode');
+  const lbl = cb ? cb.closest('.form-check').querySelector('.dark-label') : null;
+  function update() { lbl && lbl.classList.toggle('is-dark', cb.checked); }
+  if (cb) { cb.addEventListener('change', update); update(); }
+})();
+</script>
+{% endblock %}

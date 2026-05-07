@@ -6,6 +6,7 @@
   <div class="col-12 col-lg-6">
     <h2 class="mb-4">{{ 'Upravit položku vybavení' if edit else 'Nová položka vybavení' }}</h2>
     <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if edit %}
         <input type="hidden" name="version" value="{{ item.version }}">
       {% endif %}

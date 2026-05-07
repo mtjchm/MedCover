@@ -34,24 +34,28 @@
     {# Lifecycle transition buttons #}
     {% if event.status == EventStatus.DRAFT and current_user.has_permission('event.publish') %}
       <form method="POST" action="{{ url_for('events.transition', event_id=event.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="target_status" value="{{ EventStatus.PUBLISHED.value }}">
         <button class="btn btn-primary btn-sm">Zveřejnit</button>
       </form>
     {% endif %}
     {% if event.status == EventStatus.PUBLISHED and current_user.has_permission('event.assignments.open') %}
       <form method="POST" action="{{ url_for('events.transition', event_id=event.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="target_status" value="{{ EventStatus.ASSIGNMENTS_OPEN.value }}">
         <button class="btn btn-success btn-sm">Otevřít přihlášky</button>
       </form>
     {% endif %}
     {% if event.status == EventStatus.ASSIGNMENTS_OPEN and current_user.has_permission('event.assignments.close') %}
       <form method="POST" action="{{ url_for('events.transition', event_id=event.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="target_status" value="{{ EventStatus.ASSIGNMENTS_CLOSED.value }}">
         <button class="btn btn-warning btn-sm">Uzavřít přihlášky</button>
       </form>
     {% endif %}
     {% if event.status == EventStatus.ASSIGNMENTS_CLOSED and current_user.has_permission('event.assignments.open') %}
       <form method="POST" action="{{ url_for('events.transition', event_id=event.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="target_status" value="{{ EventStatus.ASSIGNMENTS_OPEN.value }}">
         <button class="btn btn-success btn-sm">Znovu otevřít přihlášky</button>
       </form>
@@ -71,12 +75,14 @@
     {% endif %}
     {% if event.status == EventStatus.CANCELLED and current_user.has_permission('event.restore') %}
       <form method="POST" action="{{ url_for('events.restore', event_id=event.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline-success btn-sm">Obnovit do Draftu</button>
       </form>
     {% endif %}
     {% if event.status != EventStatus.COMPLETED and event.status != EventStatus.CANCELLED and current_user.has_permission('event.cancel') %}
       <form method="POST" action="{{ url_for('events.cancel', event_id=event.id) }}"
             onsubmit="return confirm('Opravdu zrušit tuto akci?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger btn-sm">Zrušit akci</button>
       </form>
     {% endif %}
@@ -133,6 +139,7 @@
   <h5 class="mb-0">Pozice ({{ event.total_spots }})</h5>
   {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
     <form method="POST" action="{{ url_for('events.add_spot', event_id=event.id) }}" class="d-flex gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis pozice (volitelné)" style="max-width: 220px">
       <button class="btn btn-outline-danger btn-sm">+ Přidat pozici</button>
     </form>
@@ -170,6 +177,7 @@
               {% for s in event.spots %}{% if s.assignment and s.assignment.user_id == current_user.id %}{% set already_assigned.val = true %}{% endif %}{% endfor %}
               {% if not already_assigned.val %}
                 <form method="POST" action="{{ url_for('assignments.claim', spot_id=spot.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
                 </form>
               {% endif %}
@@ -179,6 +187,7 @@
             {% if spot.assignment and spot.assignment.user_id == current_user.id and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.release', assignment_id=spot.assignment.id) }}"
                     onsubmit="return confirm('Odhlásit se z této pozice?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-warning btn-sm py-0">Odhlásit se</button>
               </form>
             {% endif %}
@@ -195,6 +204,7 @@
             {% if spot.assignment and current_user.has_permission('event.assign_other') and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.unassign_other', assignment_id=spot.assignment.id) }}"
                     onsubmit="return confirm('Odhlásit tohoto uživatele?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Odhlásit</button>
               </form>
             {% endif %}
@@ -203,6 +213,7 @@
             {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
               <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
                     onsubmit="return confirm('Smazat tuto pozici?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
               </form>
             {% endif %}
@@ -212,6 +223,7 @@
           {% if current_user.has_permission('event.assign_other') and not spot.assignment %}
           <div class="collapse mt-1" id="assign-form-{{ spot.id }}">
             <form method="POST" action="{{ url_for('assignments.assign_other', spot_id=spot.id) }}" class="d-flex gap-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <select name="user_id" class="form-select form-select-sm">
                 <option value="">— vyberte uživatele —</option>
                 {% for u in eligible_users %}
@@ -262,6 +274,7 @@
           <td class="text-end">
             {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
               <form method="POST" action="{{ url_for('events.equipment_plan_remove', event_id=event.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="type_id" value="{{ plan.equipment_type_id }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Odebrat</button>
               </form>
@@ -278,6 +291,7 @@
 
   {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_plan_add', event_id=event.id) }}" class="d-flex gap-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="type_id" class="form-select form-select-sm" style="max-width: 200px">
       <option value="">— typ —</option>
       {% for et in all_equipment_types %}
@@ -311,6 +325,7 @@
           <td class="text-end">
             {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
               <form method="POST" action="{{ url_for('events.equipment_unassign', event_id=event.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="item_id" value="{{ ea.equipment_item_id }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Odebrat</button>
               </form>
@@ -327,6 +342,7 @@
 
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="item_id" class="form-select form-select-sm" style="max-width: 250px">
       <option value="">— položka —</option>
       {% for item in available_equipment_items %}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import socket
+import time
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -14,6 +15,10 @@ from app.models.settings import get_settings
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 _PAGE_SIZE = 50
+
+# Response-time thresholds
+_DB_WARN_MS = 200    # warn above 200 ms
+_SMTP_WARN_MS = 1000  # warn above 1 s
 
 
 def _require_permission(code: str) -> None:
@@ -36,12 +41,16 @@ def index() -> str:
     now = datetime.now(timezone.utc)
 
     # ── DB health ──────────────────────────────────────────────────────────────
+    db_ms: int | None = None
     db_error: str | None = None
+    db_status: str  # ok / warning / error
     try:
+        t0 = time.monotonic()
         db.session.execute(db.text("SELECT 1"))
-        db_ok = True
+        db_ms = int((time.monotonic() - t0) * 1000)
+        db_status = "warning" if db_ms > _DB_WARN_MS else "ok"
     except Exception as exc:
-        db_ok = False
+        db_status = "error"
         db_error = type(exc).__name__
 
     # ── Scheduler heartbeat ────────────────────────────────────────────────────
@@ -60,14 +69,23 @@ def index() -> str:
 
     # ── SMTP reachability ──────────────────────────────────────────────────────
     smtp_configured = settings.smtp_configured
-    smtp_reachable: bool | None = None  # None = not tested (not configured)
+    smtp_ms: int | None = None
     smtp_error: str | None = None
-    if smtp_configured:
+    smtp_status: str  # ok / warning / error / unconfigured
+    if not smtp_configured:
+        smtp_status = "unconfigured"
+    else:
         try:
-            with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=2):
-                smtp_reachable = True
+            t0 = time.monotonic()
+            with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=3):
+                pass
+            smtp_ms = int((time.monotonic() - t0) * 1000)
+            smtp_status = "warning" if smtp_ms > _SMTP_WARN_MS else "ok"
+        except TimeoutError:
+            smtp_status = "error"
+            smtp_error = f"Spojení na {settings.smtp_server}:{settings.smtp_port} vypršelo (timeout 3 s)"
         except OSError as exc:
-            smtp_reachable = False
+            smtp_status = "error"
             smtp_error = str(exc)
 
     # ── Statistics ─────────────────────────────────────────────────────────────
@@ -105,13 +123,15 @@ def index() -> str:
 
     return render_template(
         "admin/index.html",
-        db_ok=db_ok,
+        db_status=db_status,
+        db_ms=db_ms,
         db_error=db_error,
         sched_status=sched_status,
         sched_last=sched_last,
         sched_age_s=sched_age_s,
         smtp_configured=smtp_configured,
-        smtp_reachable=smtp_reachable,
+        smtp_status=smtp_status,
+        smtp_ms=smtp_ms,
         smtp_error=smtp_error,
         settings=settings,
         user_total=user_total,
@@ -167,6 +187,24 @@ def _send_activation_email(user: UserAccount) -> None:
         mail.send(msg)
     except Exception as exc:
         current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
+
+
+# ── Permission matrix ─────────────────────────────────────────────────────────
+
+@admin_bp.route("/permissions")
+@login_required
+def permissions() -> str:
+    _require_permission("admin.view")
+
+    from app.models.role import ALL_PERMISSIONS, ROLE_PERMISSIONS
+
+    role_names = list(ROLE_PERMISSIONS.keys())  # Admin, Coordinator, Member, Viewer
+    return render_template(
+        "admin/permissions.html",
+        all_permissions=ALL_PERMISSIONS,
+        role_names=role_names,
+        role_permissions=ROLE_PERMISSIONS,
+    )
 
 
 # ── Audit log ─────────────────────────────────────────────────────────────────
