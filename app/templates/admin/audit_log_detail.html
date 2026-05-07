@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Audit log — detail — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Audit log — detail</h2>
+  <a href="{{ url_for('admin.audit_log_list') }}" class="btn btn-outline-secondary btn-sm">← Zpět na audit log</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header py-2 fw-semibold">Záznam #{{ entry.id }}</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+
+      <dt class="col-sm-3">Čas</dt>
+      <dd class="col-sm-9">{{ entry.timestamp | localdt }}</dd>
+
+      <dt class="col-sm-3">Uživatel</dt>
+      <dd class="col-sm-9">
+        {% if entry.actor %}
+          {{ entry.actor.name }} ({{ entry.actor.email }})
+        {% else %}
+          [systém]
+        {% endif %}
+      </dd>
+
+      <dt class="col-sm-3">Typ akce</dt>
+      <dd class="col-sm-9">
+        {% set badge = {
+          'create':        'success',
+          'edit':          'primary',
+          'delete':        'danger',
+          'status_change': 'warning',
+        }.get(entry.action_type, 'secondary') %}
+        <span class="badge bg-{{ badge }}">{{ entry.action_type }}</span>
+      </dd>
+
+      <dt class="col-sm-3">Typ entity</dt>
+      <dd class="col-sm-9">{{ entry.entity_type }}</dd>
+
+      <dt class="col-sm-3">ID entity</dt>
+      <dd class="col-sm-9">{{ entry.entity_id }}</dd>
+
+      <dt class="col-sm-3">Popis</dt>
+      <dd class="col-sm-9">{{ entry.summary }}</dd>
+
+    </dl>
+  </div>
+</div>
+
+{# ── Before / after diff ─────────────────────────────────────────────────── #}
+{% if entry.changes_json %}
+<div class="card">
+  <div class="card-header py-2 fw-semibold">Změny polí</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:25%">Pole</th>
+          <th style="width:37.5%">Před změnou</th>
+          <th style="width:37.5%">Po změně</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for field, values in entry.changes_json.items() %}
+        <tr>
+          <td class="fw-semibold small text-muted">{{ field }}</td>
+          <td class="small">
+            {% if values[0] is none %}
+              <span class="text-muted fst-italic">—</span>
+            {% else %}
+              <span class="text-danger">{{ values[0] }}</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if values[1] is none %}
+              <span class="text-muted fst-italic">—</span>
+            {% else %}
+              <span class="text-success">{{ values[1] }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center py-2">Žádné zaznamenané změny.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

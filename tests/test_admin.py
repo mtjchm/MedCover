@@ -2,6 +2,7 @@
 from app.extensions import db
 from app.models.role import Role
 from app.models.user import UserAccount
+from app.models.audit import AuditLogEntry
 
 
 class TestAdminDashboard:
@@ -22,6 +23,10 @@ class TestAdminDashboard:
         assert response.status_code == 200
         # Dashboard should contain DB status info
         assert b"DB" in response.data or "Databáze".encode() in response.data
+
+    def test_admin_dashboard_has_audit_log_link(self, admin_client):
+        response = admin_client.get("/admin/")
+        assert b"audit-log" in response.data
 
 
 class TestPendingUsers:
@@ -96,3 +101,73 @@ class TestAppSettings:
         response = admin_client.get("/admin/settings/")
         # SMTP password must never appear in the HTML response
         assert b"smtp_password" not in response.data.lower() or b'type="password"' in response.data
+
+
+class TestAuditLogUI:
+    def test_audit_log_list_requires_login(self, client):
+        response = client.get("/admin/audit-log/", follow_redirects=False)
+        assert response.status_code == 302
+
+    def test_member_cannot_access_audit_log(self, member_client):
+        response = member_client.get("/admin/audit-log/")
+        assert response.status_code == 403
+
+    def test_admin_can_access_audit_log(self, admin_client):
+        response = admin_client.get("/admin/audit-log/")
+        assert response.status_code == 200
+
+    def test_audit_log_shows_entries(self, app, admin_client):
+        with app.app_context():
+            entry = AuditLogEntry(
+                action_type="create",
+                entity_type="Event",
+                entity_id="42",
+                summary="Vytvořena akce 'Test'",
+            )
+            db.session.add(entry)
+            db.session.commit()
+
+        response = admin_client.get("/admin/audit-log/")
+        assert "Vytvořena".encode() in response.data
+
+    def test_audit_log_filter_by_entity_type(self, app, admin_client):
+        with app.app_context():
+            db.session.add(AuditLogEntry(
+                action_type="create", entity_type="Event",
+                entity_id="1", summary="Akce vytvořena",
+            ))
+            db.session.add(AuditLogEntry(
+                action_type="edit", entity_type="MasterEvent",
+                entity_id="2", summary="ME upravena",
+            ))
+            db.session.commit()
+
+        response = admin_client.get("/admin/audit-log/?entity_type=Event")
+        assert response.status_code == 200
+        assert b"ME upravena" not in response.data
+
+    def test_audit_log_detail_requires_admin(self, member_client):
+        response = member_client.get("/admin/audit-log/1")
+        assert response.status_code == 403
+
+    def test_audit_log_detail_404_for_missing(self, admin_client):
+        response = admin_client.get("/admin/audit-log/999999")
+        assert response.status_code == 404
+
+    def test_audit_log_detail_shows_diff(self, app, admin_client):
+        with app.app_context():
+            entry = AuditLogEntry(
+                action_type="edit",
+                entity_type="Event",
+                entity_id="10",
+                summary="Upravena akce",
+                changes_json={"name": ["Starý název", "Nový název"]},
+            )
+            db.session.add(entry)
+            db.session.commit()
+            entry_id = entry.id
+
+        response = admin_client.get(f"/admin/audit-log/{entry_id}")
+        assert response.status_code == 200
+        assert "Starý název".encode() in response.data
+        assert "Nový název".encode() in response.data

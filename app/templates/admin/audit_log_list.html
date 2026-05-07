@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Audit log — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Audit log</h2>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Administrace</a>
+</div>
+
+{# ── Filters ─────────────────────────────────────────────────────────────── #}
+<form method="get" class="card mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+
+      <div class="col-12 col-sm-6 col-md-3">
+        <label class="form-label small mb-1">Hledat v popisu</label>
+        <input type="text" name="q" value="{{ f_q }}" class="form-control form-control-sm" placeholder="Hledat…">
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Typ entity</label>
+        <select name="entity_type" class="form-select form-select-sm">
+          <option value="">— vše —</option>
+          {% for et in entity_types %}
+          <option value="{{ et }}" {{ 'selected' if f_entity_type == et }}>{{ et }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Typ akce</label>
+        <select name="action_type" class="form-select form-select-sm">
+          <option value="">— vše —</option>
+          {% for at in action_types %}
+          <option value="{{ at }}" {{ 'selected' if f_action_type == at }}>{{ at }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Uživatel</label>
+        <select name="actor_id" class="form-select form-select-sm">
+          <option value="">— vše —</option>
+          <option value="system" {{ 'selected' if f_actor_id == 'system' }}>[systém]</option>
+          {% for actor in actors %}
+          <option value="{{ actor.id }}" {{ 'selected' if f_actor_id == actor.id | string }}>{{ actor.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-1">
+        <label class="form-label small mb-1">Od</label>
+        <input type="date" name="date_from" value="{{ f_date_from }}" class="form-control form-control-sm">
+      </div>
+
+      <div class="col-6 col-md-1">
+        <label class="form-label small mb-1">Do</label>
+        <input type="date" name="date_to" value="{{ f_date_to }}" class="form-control form-control-sm">
+      </div>
+
+      <div class="col-12 col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm w-100">Filtrovat</button>
+      </div>
+
+    </div>
+  </div>
+</form>
+
+{# ── Result count + reset ────────────────────────────────────────────────── #}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="text-muted small">Celkem záznamů: <strong>{{ total }}</strong></span>
+  {% if f_entity_type or f_actor_id or f_action_type or f_date_from or f_date_to or f_q %}
+  <a href="{{ url_for('admin.audit_log_list') }}" class="btn btn-outline-secondary btn-sm">✕ Zrušit filtry</a>
+  {% endif %}
+</div>
+
+{# ── Table ───────────────────────────────────────────────────────────────── #}
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle mb-3">
+    <thead class="table-light">
+      <tr>
+        <th style="width:13em">Čas</th>
+        <th>Uživatel</th>
+        <th>Akce</th>
+        <th>Entita</th>
+        <th>Popis</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+      <tr>
+        <td class="text-muted small text-nowrap">{{ entry.timestamp | localdt }}</td>
+        <td class="small text-nowrap">{{ entry.actor.name if entry.actor else '[systém]' }}</td>
+        <td>
+          {% set badge = {
+            'create':        'success',
+            'edit':          'primary',
+            'delete':        'danger',
+            'status_change': 'warning',
+          }.get(entry.action_type, 'secondary') %}
+          <span class="badge bg-{{ badge }}">{{ entry.action_type }}</span>
+        </td>
+        <td class="small text-nowrap">
+          <span class="text-muted">{{ entry.entity_type }}</span>
+          <span class="text-muted">#{{ entry.entity_id }}</span>
+        </td>
+        <td class="small">{{ entry.summary }}</td>
+        <td class="text-end">
+          {% if entry.changes_json %}
+          <a href="{{ url_for('admin.audit_log_detail', entry_id=entry.id) }}" class="btn btn-outline-secondary btn-sm py-0">Detail</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-3">Žádné záznamy.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Pagination ───────────────────────────────────────────────────────────── #}
+{% if total_pages > 1 %}
+<nav>
+  <ul class="pagination pagination-sm justify-content-center">
+    <li class="page-item {{ 'disabled' if page <= 1 }}">
+      <a class="page-link" href="{{ url_for('admin.audit_log_list', page=page-1,
+        entity_type=f_entity_type, actor_id=f_actor_id, action_type=f_action_type,
+        date_from=f_date_from, date_to=f_date_to, q=f_q) }}">‹</a>
+    </li>
+    {% for p in range(1, total_pages + 1) %}
+    {% if p == page or p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+    <li class="page-item {{ 'active' if p == page }}">
+      <a class="page-link" href="{{ url_for('admin.audit_log_list', page=p,
+        entity_type=f_entity_type, actor_id=f_actor_id, action_type=f_action_type,
+        date_from=f_date_from, date_to=f_date_to, q=f_q) }}">{{ p }}</a>
+    </li>
+    {% elif p == page - 3 or p == page + 3 %}
+    <li class="page-item disabled"><span class="page-link">…</span></li>
+    {% endif %}
+    {% endfor %}
+    <li class="page-item {{ 'disabled' if page >= total_pages }}">
+      <a class="page-link" href="{{ url_for('admin.audit_log_list', page=page+1,
+        entity_type=f_entity_type, actor_id=f_actor_id, action_type=f_action_type,
+        date_from=f_date_from, date_to=f_date_to, q=f_q) }}">›</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

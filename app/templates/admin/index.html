@@ -139,6 +139,7 @@
 <div class="card mb-4">
   <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center">
     <span>Poslední záznamy v audit logu</span>
+    <a href="{{ url_for('admin.audit_log_list') }}" class="btn btn-outline-secondary btn-sm">Celý audit log →</a>
   </div>
   <ul class="list-group list-group-flush">
     {% for entry in recent_audit %}
