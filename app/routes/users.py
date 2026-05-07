@@ -17,6 +17,7 @@ from app.extensions import db, mail
 from app.models.user import UserAccount, CalendarView
 from app.models.role import Role
 from app.models.invite import RegistrationInvite
+from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
 from app.utils import diff_changes
 from app.config import INVITE_TOKEN_HOURS
@@ -373,7 +374,9 @@ def update_qualifications(user_id: uuid.UUID) -> Response:
 def invites() -> str:
     _require_permission("invite.create")
     items = db.session.scalars(
-        db.select(RegistrationInvite).order_by(RegistrationInvite.created_at.desc())
+        db.select(RegistrationInvite)
+        .options(selectinload(RegistrationInvite.outbox_email))  # type: ignore[arg-type]
+        .order_by(RegistrationInvite.created_at.desc())
     ).all()
     return render_template("users/invites.html", invites=items)
 
@@ -403,33 +406,62 @@ def create_invite() -> Response:
         expires_at=datetime.now(timezone.utc) + timedelta(hours=INVITE_TOKEN_HOURS),
     )
     db.session.add(invite)
+    db.session.flush()  # get invite.id before _queue_invite_email
+
+    _queue_invite_email(invite)
+
     db.session.add(AuditLogEntry(
         actor_id=current_user.id,
         action_type="create",
         entity_type="RegistrationInvite",
-        entity_id=email,
-        summary=f"Pozvánka vytvořena pro {email}",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka vytvořena a zařazena do fronty pro {email}",
         changes_json={},
     ))
     db.session.commit()
 
-    _send_invite_email(invite)
-    flash(f"Pozvánka odeslána na {email}.", "success")
+    flash(f"Pozvánka zařazena do fronty odchozích zpráv pro {email}.", "success")
     return redirect(url_for("users.invites"))
 
 
-def _send_invite_email(invite: RegistrationInvite) -> None:
+def _queue_invite_email(invite: RegistrationInvite) -> None:
+    """Enqueue invite email into outbox and link it to the invite row."""
     register_url = url_for("auth.register", token=invite.token, _external=True)
     body = render_template("email/invite.txt", invite=invite, register_url=register_url)
-    msg = Message(
+    outbox = OutboxEmail(
+        to_email=invite.email,
         subject="MedCover — pozvánka k registraci",
-        recipients=[invite.email],
         body=body,
     )
-    try:
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.warning("Invite email failed for %s: %s", invite.email, exc)
+    db.session.add(outbox)
+    db.session.flush()
+    invite.outbox_email_id = outbox.id
+
+
+@users_bp.route("/invites/<int:invite_id>/resend", methods=["POST"])
+@login_required
+def resend_invite(invite_id: int) -> Response:
+    _require_permission("invite.create")
+    invite = db.session.get(RegistrationInvite, invite_id)
+    if not invite:
+        abort(404)
+    if invite.is_used:
+        flash("Tato pozvánka již byla použita.", "warning")
+        return redirect(url_for("users.invites"))
+
+    _queue_invite_email(invite)
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="resend",
+        entity_type="RegistrationInvite",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka pro {invite.email} znovu zařazena do fronty",
+        changes_json={},
+    ))
+    db.session.commit()
+
+    flash(f"Pozvánka pro {invite.email} byla znovu zařazena do fronty.", "success")
+    return redirect(url_for("users.invites"))
 
 
 def _send_activation_email(user: UserAccount) -> None:
