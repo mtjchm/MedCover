@@ -104,9 +104,13 @@ def feed():
     if not current_user.has_any_permission("event.view", "event.view_draft"):
         abort(403)
 
+    show_archived = request.args.get("archived") == "1"
+
     query = db.select(Event)
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
+    if not show_archived:
+        query = query.where(Event.archived == False)  # noqa: E712
 
     events = db.session.scalars(query).all()
     items = []
