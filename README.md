@@ -36,7 +36,7 @@ It manages events, spot assignments, user roles, equipment, and reporting — al
 ```bash
 # 1. Clone and create virtual environment
 git clone git@github.com:spidermila/MedCover.git && cd MedCover
-python -m venv .venv && source .venv/bin/activate
+python3.14 -m venv .venv && source .venv/bin/activate
 
 # 2. Install dependencies
 pip install -r requirements.txt -r requirements-dev.txt
