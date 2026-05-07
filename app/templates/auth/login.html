@@ -9,6 +9,7 @@
       <div class="card-body p-4">
         <h4 class="card-title mb-4 text-center">Přihlášení</h4>
         <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label for="email" class="form-label">E-mail</label>
             <input type="email" class="form-control" id="email" name="email"
@@ -41,26 +42,31 @@
         </p>
         <div class="d-grid gap-2">
           <form method="POST" action="{{ url_for('dev.login_as', role='admin') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-dark btn-sm w-100 text-start">
               <strong>Admin</strong> — full system access
             </button>
           </form>
           <form method="POST" action="{{ url_for('dev.login_as', role='coordinator') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-primary btn-sm w-100 text-start">
               <strong>Coordinator</strong> — manage master events &amp; events
             </button>
           </form>
           <form method="POST" action="{{ url_for('dev.login_as', role='member') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-success btn-sm w-100 text-start">
               <strong>Member</strong> — join events, submit debriefings
             </button>
           </form>
           <form method="POST" action="{{ url_for('dev.login_as', role='viewer') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-secondary btn-sm w-100 text-start">
               <strong>Viewer</strong> — read-only access
             </button>
           </form>
           <form method="POST" action="{{ url_for('dev.login_as', role='inactive') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-warning btn-sm w-100 text-start">
               <strong>Inactive</strong> — pending activation
             </button>

@@ -13,6 +13,7 @@
   <div class="col-12 col-lg-8">
     <h2 class="mb-4">{% if template %}Upravit šablonu „{{ template.name }}"{% else %}Nová šablona akce{% endif %}</h2>
     <form method="POST" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if template %}
       <input type="hidden" name="version" value="{{ template.version }}">
       {% endif %}

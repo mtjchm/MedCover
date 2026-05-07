@@ -31,6 +31,7 @@
         <div class="text-muted small">{{ u.email }}</div>
       </div>
       <form method="POST" action="{{ url_for('users.index') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="activate_user_id" value="{{ u.id }}">
         <button class="btn btn-success btn-sm py-0">Aktivovat</button>
       </form>

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Pozvánky — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Pozvánky k registraci</h2>
+  <a href="{{ url_for('users.index') }}" class="btn btn-sm btn-outline-secondary">← Uživatelé</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Nová pozvánka</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('users.create_invite') }}" class="row g-3" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-6">
+        <label for="email" class="form-label">E-mail pozvaného</label>
+        <input type="email" class="form-control" id="email" name="email" required placeholder="jan.novak@example.com">
+      </div>
+      <div class="col-12 d-flex align-items-end">
+        <button type="submit" class="btn btn-danger">Odeslat pozvánku</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>E-mail</th>
+        <th>Vytvořena</th>
+        <th>Vyprší</th>
+        <th>Vytvořil/a</th>
+        <th>Stav</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invites %}
+      <tr>
+        <td>{{ inv.email }}</td>
+        <td>{{ inv.created_at | localdt }}</td>
+        <td>{{ inv.expires_at | localdt if inv.expires_at else '—' }}</td>
+        <td>{{ inv.created_by.name if inv.created_by else '—' }}</td>
+        <td>
+          {% if inv.is_used %}
+            <span class="badge bg-secondary">Použita</span>
+          {% elif inv.is_expired %}
+            <span class="badge bg-danger">Expirovaná</span>
+          {% else %}
+            <span class="badge bg-success">Platná</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted text-center">Žádné pozvánky.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -26,11 +26,13 @@
     {% if current_user.has_permission('master_event.archive') and not me.archived and not me.is_general %}
       <form method="POST" action="{{ url_for('master_events.archive', me_id=me.id) }}"
             onsubmit="return confirm('Opravdu archivovat „{{ me.name }}"?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline-warning btn-sm">Archivovat</button>
       </form>
     {% endif %}
     {% if current_user.has_permission('master_event.unarchive') and me.archived %}
       <form method="POST" action="{{ url_for('master_events.unarchive', me_id=me.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline-success btn-sm">Obnovit z archivu</button>
       </form>
     {% endif %}

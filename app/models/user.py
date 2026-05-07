@@ -44,6 +44,7 @@ class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
         nullable=False,
     )
     dashboard_horizon_days = db.Column(db.Integer, default=30, nullable=False, server_default="30")
+    dark_mode = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(

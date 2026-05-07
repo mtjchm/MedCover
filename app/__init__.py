@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
-from .extensions import db, migrate, login_manager, mail
+from .extensions import db, migrate, login_manager, mail, csrf
 from .config import config_by_name
 
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
@@ -23,6 +23,7 @@ def create_app(config_name: str | None = None) -> Flask:
     migrate.init_app(app, db)
     login_manager.init_app(app)
     mail.init_app(app)
+    csrf.init_app(app)
 
     # Import models here so Flask-Migrate discovers all tables
     with app.app_context():
@@ -52,8 +53,25 @@ def create_app(config_name: str | None = None) -> Flask:
             "MasterEvent": url_for("master_events.detail", me_id=eid),
             "AppSettings": url_for("app_settings.index"),
             "Credential": url_for("credentials.index"),
+            "UserAccount": url_for("users.detail", user_id=eid) if eid else None,
         }
         return mapping.get(entity_type)
+
+    @app.after_request
+    def _add_security_headers(response: WerkzeugResponse) -> WerkzeugResponse:
+        """Add Content-Security-Policy and other security headers."""
+        config_name_used = os.getenv("FLASK_ENV", "development")
+        if config_name_used != "development":
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "font-src 'self' cdn.jsdelivr.net; "
+                "img-src 'self' data:;"
+            )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        return response
 
     @app.before_request
     def _setup_guard() -> WerkzeugResponse | None:
