@@ -86,6 +86,15 @@
         allowInput: true,
       });
     });
+
+    // Set a flatpickr field to the current date/time.
+    // Called by the "Teď" button placed inside the same .input-group wrapper.
+    function fpNow(btn) {
+      var input = btn.closest(".input-group").querySelector(".flatpickr-dt");
+      if (input && input._flatpickr) {
+        input._flatpickr.setDate(new Date(), true);
+      }
+    }
   </script>
 
   {% block extra_scripts %}{% endblock %}
