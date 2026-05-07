@@ -23,11 +23,17 @@
         <div class="form-text">Ponechte prázdné pro výchozí předmět.</div>
       </div>
       <div class="col-12">
-        <label for="custom_message" class="form-label">Osobní zpráva <span class="text-muted fw-normal">(volitelné)</span></label>
-        <textarea class="form-control" id="custom_message" name="custom_message" rows="4"
-                  placeholder="Dobrý den, zveme Vás do systému MedCover..."></textarea>
+        <label for="custom_message" class="form-label">Text e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <textarea class="form-control font-monospace" id="custom_message" name="custom_message" rows="7"
+                  placeholder="Dobrý den,
+
+zveme Vás do systému MedCover pro plánování zdravotního zabezpečení.
+
+S pozdravem,
+Tým MedCover"></textarea>
         <div class="form-text">
-          Váš text bude vložen do e-mailu před automaticky generovaným registračním odkazem.
+          Napište celý text e-mailu včetně pozdravu a podpisu.
+          Na konec bude automaticky připojen pouze registrační odkaz.
           Ponechte prázdné pro výchozí text.
         </div>
       </div>
@@ -67,7 +73,12 @@
           {% elif inv.outbox_email.status == 'sent' %}
             <span class="badge bg-success" title="{{ inv.outbox_email.sent_at | localdt if inv.outbox_email.sent_at else '' }}">Odesláno</span>
           {% elif inv.outbox_email.status == 'failed' %}
-            <span class="badge bg-danger" title="{{ inv.outbox_email.last_error or '' }}">Chyba</span>
+            <span class="badge bg-danger">Chyba</span>
+            {% if inv.outbox_email.last_error %}
+            <br><small class="text-danger" style="font-size:0.7rem" title="{{ inv.outbox_email.last_error }}">
+              {{ inv.outbox_email.last_error | truncate(80) }}
+            </small>
+            {% endif %}
           {% else %}
             <span class="badge bg-warning text-dark">Ve frontě</span>
           {% endif %}
@@ -76,7 +87,7 @@
         {# ── Link clicked ── #}
         <td>
           {% if inv.link_clicked_at %}
-            <span class="badge bg-info text-dark" title="{{ inv.link_clicked_at | localdt }}">Otevřen</span>
+            <span class="badge bg-success" title="{{ inv.link_clicked_at | localdt }}">Otevřen</span>
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}
@@ -85,7 +96,9 @@
         {# ── Registration status ── #}
         <td>
           {% if inv.is_used %}
-            <span class="badge bg-secondary" title="{{ inv.used_at | localdt }}">Dokončena</span>
+            <span class="badge bg-success" title="{{ inv.used_at | localdt }}">Dokončena</span>
+          {% elif inv.is_cancelled %}
+            <span class="badge bg-dark" title="{{ inv.cancelled_at | localdt }}">Zrušena</span>
           {% elif inv.is_expired %}
             <span class="badge bg-danger">Expirovaná</span>
           {% else %}
@@ -94,11 +107,18 @@
         </td>
 
         {# ── Actions ── #}
-        <td>
-          {% if not inv.is_used and (inv.outbox_email is none or inv.outbox_email.status == 'failed') %}
+        <td class="text-nowrap">
+          {% if not inv.is_used and not inv.is_cancelled and (inv.outbox_email is none or inv.outbox_email.status == 'failed') %}
           <form method="POST" action="{{ url_for('users.resend_invite', invite_id=inv.id) }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-warning">Znovu odeslat</button>
+          </form>
+          {% endif %}
+          {% if not inv.is_used and not inv.is_cancelled %}
+          <form method="POST" action="{{ url_for('users.cancel_invite', invite_id=inv.id) }}" class="d-inline"
+                onsubmit="return confirm('Opravdu chcete zrušit tuto pozvánku?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
           </form>
           {% endif %}
         </td>

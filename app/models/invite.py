@@ -26,12 +26,17 @@ class RegistrationInvite(db.Model):  # type: ignore[misc]
 
     # Registration funnel tracking
     link_clicked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    cancelled_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Admin-customisable email content
     custom_subject = db.Column(db.String(255), nullable=True)
     custom_message = db.Column(db.Text, nullable=True)
 
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
+
+    @property
+    def is_cancelled(self) -> bool:
+        return self.cancelled_at is not None
 
     @property
     def is_used(self) -> bool:
@@ -45,7 +50,7 @@ class RegistrationInvite(db.Model):  # type: ignore[misc]
 
     @property
     def is_valid(self) -> bool:
-        return not self.is_used and not self.is_expired
+        return not self.is_used and not self.is_expired and not self.is_cancelled
 
     @property
     def email_status(self) -> str:

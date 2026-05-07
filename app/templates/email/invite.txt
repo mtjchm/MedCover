@@ -1,15 +1,13 @@
-Dobrý den,
+{% if invite.custom_message %}{{ invite.custom_message }}{% else %}Dobrý den,
 
-{% if invite.custom_message %}{{ invite.custom_message }}
+byli jste pozváni do systému MedCover pro plánování zdravotního zabezpečení.
 
-{% else %}byli jste pozváni do systému MedCover.
+S pozdravem,
+Tým MedCover{% endif %}
 
-{% endif %}
 --------------------------------------------------
 Pro dokončení registrace klikněte na odkaz níže
 (platný {{ hours }} hodin):
 
 {{ register_url }}
 --------------------------------------------------
-
-Tým MedCover

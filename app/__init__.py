@@ -38,6 +38,17 @@ def create_app(
     with app.app_context():
         from . import models  # noqa: F401
 
+        # Apply SMTP settings from DB immediately so the scheduler (which never
+        # handles HTTP requests and therefore never triggers before_request) gets
+        # a correctly configured Flask-Mail on startup.
+        try:
+            from .models.settings import get_settings
+            _settings = get_settings()
+            if _settings and _settings.smtp_configured:
+                _settings.apply_to_app(app)
+        except Exception:
+            pass  # DB not ready yet (first migration run)
+
     from .routes import register_blueprints
     register_blueprints(app)
     register_cli_commands(app)

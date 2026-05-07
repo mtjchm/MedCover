@@ -194,6 +194,17 @@ class TestProcessEmailQueue:
             row = db.session.get(OutboxEmail, row_id)
             assert row.status == "failed"
             assert row.retry_count == OutboxEmail.MAX_RETRIES
+            # Permanent failure should produce an audit log entry
+            from app.models.audit import AuditLogEntry
+            entry = db.session.scalar(
+                db.select(AuditLogEntry).where(
+                    AuditLogEntry.entity_type == "OutboxEmail",
+                    AuditLogEntry.action_type == "email_failed",
+                    AuditLogEntry.entity_id == str(row_id),
+                )
+            )
+            assert entry is not None
+            assert "x@test.cz" in entry.summary
 
     def test_already_failed_rows_are_skipped(self, app):
         """Rows with status='failed' must never be retried."""

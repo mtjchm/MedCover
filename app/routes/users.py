@@ -395,10 +395,12 @@ def create_invite() -> Response:
         flash(f"Uživatel s e-mailem {email} již má účet v systému.", "warning")
         return redirect(url_for("users.invites"))
 
+    # Block if a valid (non-cancelled) invite already exists for this email
     existing = db.session.scalar(
         db.select(RegistrationInvite).where(
             RegistrationInvite.email == email,
             RegistrationInvite.used_at.is_(None),
+            RegistrationInvite.cancelled_at.is_(None),
         )
     )
     if existing and existing.is_valid:
@@ -478,6 +480,35 @@ def resend_invite(invite_id: int) -> Response:
     db.session.commit()
 
     flash(f"Pozvánka pro {invite.email} byla znovu zařazena do fronty.", "success")
+    return redirect(url_for("users.invites"))
+
+
+@users_bp.route("/invites/<int:invite_id>/cancel", methods=["POST"])
+@login_required
+def cancel_invite(invite_id: int) -> Response:
+    _require_permission("invite.create")
+    invite = db.session.get(RegistrationInvite, invite_id)
+    if not invite:
+        abort(404)
+    if invite.is_used:
+        flash("Tato pozvánka již byla použita — nelze zrušit.", "warning")
+        return redirect(url_for("users.invites"))
+    if invite.is_cancelled:
+        flash("Tato pozvánka již byla zrušena.", "warning")
+        return redirect(url_for("users.invites"))
+
+    invite.cancelled_at = datetime.now(timezone.utc)
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="cancel",
+        entity_type="RegistrationInvite",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka pro {invite.email} zrušena",
+        changes_json={},
+    ))
+    db.session.commit()
+
+    flash(f"Pozvánka pro {invite.email} byla zrušena.", "success")
     return redirect(url_for("users.invites"))
 
 

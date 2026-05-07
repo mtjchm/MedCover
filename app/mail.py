@@ -118,6 +118,24 @@ def send_unfilled_spots_reminder(
 
 # ── Outbox drain (callable from tests and scheduler) ─────────────────────────
 
+
+def _write_failure_audit(row: OutboxEmail) -> None:
+    """Write an AuditLogEntry when an outbox email permanently fails.
+    Called inside the active DB session — no commit here."""
+    from app.models.audit import AuditLogEntry
+    try:
+        db.session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="email_failed",
+            entity_type="OutboxEmail",
+            entity_id=str(row.id),
+            summary=f"E-mail pro {row.to_email} se nepodařilo odeslat po {row.retry_count} pokusech: {row.last_error}",
+            changes_json={"to": row.to_email, "subject": row.subject, "error": row.last_error},
+        ))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Failed to write failure audit log for outbox id=%d — %s", row.id, exc)
+
+
 def drain_one_outbox_email() -> bool:
     """Send the oldest pending outbox row within the current app context.
 
@@ -156,6 +174,7 @@ def drain_one_outbox_email() -> bool:
                 "Mail permanently failed: id=%d to=%s — %s (after %d retries)",
                 row.id, row.to_email, exc, row.retry_count,
             )
+            _write_failure_audit(row)
         else:
             log.warning(
                 "Mail send failed (attempt %d/%d): id=%d to=%s — %s",

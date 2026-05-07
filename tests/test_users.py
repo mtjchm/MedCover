@@ -324,6 +324,46 @@ class TestInvites:
             assert outbox.subject == "Vítejte v MedCoveru!"
             assert "Zdravím, zvu tě do týmu." in outbox.body
 
+    def test_cancel_invite(self, app: object, admin_client: object) -> None:
+        admin_client.post("/users/invites/create", data={"email": "cancel@example.com"}, follow_redirects=True)
+        with app.app_context():
+            inv = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.email == "cancel@example.com"))
+            assert inv is not None
+            inv_id = inv.id
+        resp = admin_client.post(f"/users/invites/{inv_id}/cancel", follow_redirects=True)
+        assert resp.status_code == 200
+        assert "zrušena".encode() in resp.data
+        with app.app_context():
+            inv = db.session.get(RegistrationInvite, inv_id)
+            assert inv is not None
+            assert inv.is_cancelled
+            assert inv.cancelled_at is not None
+
+    def test_cancel_invite_writes_audit_log(self, app: object, admin_client: object) -> None:
+        admin_client.post("/users/invites/create", data={"email": "cancelaudit@example.com"}, follow_redirects=True)
+        with app.app_context():
+            inv = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.email == "cancelaudit@example.com"))
+            inv_id = inv.id
+        admin_client.post(f"/users/invites/{inv_id}/cancel", follow_redirects=True)
+        with app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLogEntry).where(
+                    AuditLogEntry.entity_type == "RegistrationInvite",
+                    AuditLogEntry.action_type == "cancel",
+                )
+            )
+            assert entry is not None
+
+    def test_cancelled_invite_allows_new_invite(self, app: object, admin_client: object) -> None:
+        admin_client.post("/users/invites/create", data={"email": "retry@example.com"}, follow_redirects=True)
+        with app.app_context():
+            inv = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.email == "retry@example.com"))
+            inv_id = inv.id
+        admin_client.post(f"/users/invites/{inv_id}/cancel", follow_redirects=True)
+        # Should now be able to create a fresh invite for the same email
+        resp = admin_client.post("/users/invites/create", data={"email": "retry@example.com"}, follow_redirects=True)
+        assert "zařazena do fronty".encode() in resp.data
+
     def test_create_invite_queues_outbox_email(self, app: object, admin_client: object) -> None:
         admin_client.post("/users/invites/create", data={"email": "outbox@example.com"}, follow_redirects=True)
         with app.app_context():
