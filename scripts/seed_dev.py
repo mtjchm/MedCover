@@ -6,7 +6,7 @@ Creates roles, permissions, dev user accounts, credentials, master events,
 Safe to run multiple times — checks for existing data before inserting.
 
 Usage:
-    DATABASE_URL=... SECRET_KEY=... FLASK_ENV=development python scripts/seed_dev.py
+    python scripts/seed_dev.py
 
 Or from within the Docker web container:
     docker compose exec web python scripts/seed_dev.py
@@ -18,6 +18,13 @@ from datetime import datetime, timezone, timedelta
 
 # Allow running from repo root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Load .env so DATABASE_URL / SECRET_KEY are available when running outside Docker
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed — env vars must be set manually
 
 from app import create_app
 from app.extensions import db
