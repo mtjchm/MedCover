@@ -32,6 +32,11 @@ Race conditions are a first-class concern, especially for spot assignment:
 - `DEV_LOGIN_ENABLED` is hardcoded `False` in base `Config` and `ProductionConfig`. Only `DevelopmentConfig` reads the env var.
 - All write routes must be protected by `@login_required` + `has_permission()` check.
 - Registration is invite-only. No open self-registration.
+- **CSRF:** All POST forms must include `{{ csrf_token() }}` as a hidden field (Flask-WTF). AJAX POST requests must send the token in the `X-CSRFToken` header. Never skip CSRF on a state-changing route.
+- **Input validation:** Every route that accepts user input must validate server-side (type, length, range, business rules). Client-side JS validation (validate.js) is for UX only — never the sole check.
+- **XSS:** Jinja2 auto-escape is always on. Never use `{{ var | safe }}` for user-supplied content.
+- **SQL injection:** All DB access via SQLAlchemy ORM. Raw `text()` with string interpolation is prohibited.
+- **Transport:** Production `DATABASE_URL` must include `?sslmode=require`. See AD13.
 
 ### Audit Log
 - Every create, edit, delete, and status change on every entity must produce an `AuditLogEntry` row. This is a hard requirement, not optional.
@@ -68,6 +73,8 @@ Race conditions are a first-class concern, especially for spot assignment:
 | AD10 | Separate scheduler container (`schedule` lib) |
 | AD11 | DB-backed AppSettings; SMTP creds Fernet-encrypted; setup wizard on first run |
 | AD12 | Concurrency: pessimistic locking for spot assignment; optimistic locking (version column) for general edits |
+| AD13 | Transport security: TLS at Render edge + `sslmode=require` for DB; no mTLS between containers (Render private network isolation sufficient) |
+| AD14 | CSRF: Flask-WTF tokens on all POST forms; server-side validation primary; client-side JS (validate.js) for UX; CSP header in production |
 
 ---
 
