@@ -13,12 +13,20 @@ from .config import config_by_name
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 
-def create_app(config_name: str | None = None) -> Flask:
+def create_app(
+    config_name: str | None = None,
+    db_url: str | None = None,
+) -> Flask:
     if config_name is None:
         config_name = os.getenv("FLASK_ENV", "development")
 
     app = Flask(__name__)
     app.config.from_object(config_by_name[config_name])
+
+    # Allow callers (e.g. pytest-xdist workers) to override the DB URL before
+    # the extension engines are initialised.
+    if db_url is not None:
+        app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 
     db.init_app(app)
     migrate.init_app(app, db)
