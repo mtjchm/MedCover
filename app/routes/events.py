@@ -31,7 +31,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
-from app import mail as mailer
+import app.mail as mailer
 
 events_bp = Blueprint("events", __name__, url_prefix="/events")
 

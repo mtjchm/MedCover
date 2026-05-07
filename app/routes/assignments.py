@@ -22,7 +22,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
-from app import mail as mailer
+import app.mail as mailer
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/assignments")
 
