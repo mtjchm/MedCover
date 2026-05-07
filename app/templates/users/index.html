@@ -25,13 +25,12 @@
         <th>E-mail</th>
         <th>Role</th>
         <th>Stav</th>
-        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for u in users %}
       <tr>
-        <td>{{ u.name }}</td>
+        <td><a href="{{ url_for('users.detail', user_id=u.id) }}">{{ u.name }}</a></td>
         <td>{{ u.email }}</td>
         <td>
           {% for r in u.roles %}
@@ -46,9 +45,6 @@
           {% else %}
             <span class="badge bg-warning text-dark">Čeká na aktivaci</span>
           {% endif %}
-        </td>
-        <td>
-          <a href="{{ url_for('users.detail', user_id=u.id) }}" class="btn btn-sm btn-outline-secondary">Detail</a>
         </td>
       </tr>
       {% else %}
