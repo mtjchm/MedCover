@@ -48,6 +48,10 @@ Race conditions are a first-class concern, especially for spot assignment:
 - The `conftest.py` fixture seeds `AppSettings(id=1, setup_complete=True)` so the setup guard doesn't block tests.
 - When adding new routes, add corresponding smoke/integration tests.
 
+### Documentation
+- After every change, check whether it affects `README.md`, `DEVOPS.md`, `architecture.md`, or `mvp.md` and update them immediately.
+- Never leave these files out of sync with the actual implementation — outdated documentation is worse than no documentation.
+
 ### Code Style
 - Type hints on all function signatures.
 - Use `db.session.get(Model, pk)` instead of `.query.get(pk)` (deprecated).
