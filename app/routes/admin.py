@@ -189,6 +189,24 @@ def _send_activation_email(user: UserAccount) -> None:
         current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
 
 
+# ── Permission matrix ─────────────────────────────────────────────────────────
+
+@admin_bp.route("/permissions")
+@login_required
+def permissions() -> str:
+    _require_permission("admin.view")
+
+    from app.models.role import ALL_PERMISSIONS, ROLE_PERMISSIONS
+
+    role_names = list(ROLE_PERMISSIONS.keys())  # Admin, Coordinator, Member, Viewer
+    return render_template(
+        "admin/permissions.html",
+        all_permissions=ALL_PERMISSIONS,
+        role_names=role_names,
+        role_permissions=ROLE_PERMISSIONS,
+    )
+
+
 # ── Audit log ─────────────────────────────────────────────────────────────────
 
 @admin_bp.route("/audit-log/")

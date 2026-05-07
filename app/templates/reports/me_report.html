@@ -7,7 +7,10 @@
     Přehled:
     <span class="text-muted fw-normal">{{ master_event.name }}</span>
   </h2>
-  <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět na přehledy</a>
+  <div>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět na přehledy</a>
+    <a href="{{ url_for('reports.me_report', me_id=master_event.id, format='csv') }}" class="btn btn-outline-success btn-sm ms-1">⬇ Stáhnout CSV</a>
+  </div>
 </div>
 
 {# ME info #}
