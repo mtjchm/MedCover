@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Nová akce — MedCover{% endblock %}
 
 {% block content %}
@@ -8,12 +9,16 @@
     <form method="POST" novalidate>
       <div class="row g-3">
         <div class="col-12">
-          <label for="name" class="form-label">Název <span class="text-danger">*</span></label>
+          <label for="name" class="form-label">Název <span class="text-danger">*</span>
+            {{ help_icon("Celý název akce, jak se zobrazí v přehledech a v kalendáři.") }}
+          </label>
           <input type="text" class="form-control" id="name" name="name"
                  value="{{ request.form.get('name', '') }}" required autofocus>
         </div>
         <div class="col-12 col-md-6">
-          <label for="master_event_id" class="form-label">Nadřazená akce <span class="text-danger">*</span></label>
+          <label for="master_event_id" class="form-label">Nadřazená akce <span class="text-danger">*</span>
+            {{ help_icon("Nadřazená akce sdružuje více akcí do celku pro souhrnné výkazy a přehlednou organizaci. Pokud akce nepatří do žádné série, vyberte 'Obecné'.") }}
+          </label>
           <select class="form-select" id="master_event_id" name="master_event_id" required>
             <option value="">— Vyberte —</option>
             {% for me in master_events %}
@@ -25,7 +30,9 @@
           </select>
         </div>
         <div class="col-12 col-md-6">
-          <label for="responsible_person_id" class="form-label">Zodpovědná osoba (RP)</label>
+          <label for="responsible_person_id" class="form-label">Zodpovědná osoba (RP)
+            {{ help_icon("Zodpovědná osoba je vedoucí zdravotník na místě. Zobrazuje se v přehledech a v dokumentaci akce. Neovlivňuje přístupová práva — ta jsou řízena rolemi.") }}
+          </label>
           <select class="form-select" id="responsible_person_id" name="responsible_person_id">
             <option value="">— Nepřiřazena —</option>
             {% for user in users %}
@@ -37,23 +44,31 @@
           </select>
         </div>
         <div class="col-12 col-md-6">
-          <label for="start_datetime" class="form-label">Začátek <span class="text-danger">*</span></label>
+          <label for="start_datetime" class="form-label">Začátek <span class="text-danger">*</span>
+            {{ help_icon("Datum a čas zahájení akce. Slouží pro řazení v přehledech a kalendáři.") }}
+          </label>
           <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime"
                  value="{{ request.form.get('start_datetime', '') }}" required>
         </div>
         <div class="col-12 col-md-6">
-          <label for="end_datetime" class="form-label">Konec <span class="text-danger">*</span></label>
+          <label for="end_datetime" class="form-label">Konec <span class="text-danger">*</span>
+            {{ help_icon("Datum a čas ukončení akce. Po tomto čase scheduler automaticky přesune akci do stavu Dokončena.") }}
+          </label>
           <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime"
                  value="{{ request.form.get('end_datetime', '') }}" required>
         </div>
         <div class="col-12 col-md-6">
-          <label for="assignments_open_datetime" class="form-label">Otevření přihlášek</label>
+          <label for="assignments_open_datetime" class="form-label">Otevření přihlášek
+            {{ help_icon("Pokud zadáte datum, přihlašování se automaticky otevře až v tento čas. Prázdné = přihlašování se otevře ihned po zveřejnění akce.") }}
+          </label>
           <input type="datetime-local" class="form-control" id="assignments_open_datetime" name="assignments_open_datetime"
                  value="{{ request.form.get('assignments_open_datetime', '') }}">
           <div class="form-text">Prázdné = okamžitě po zveřejnění</div>
         </div>
         <div class="col-12 col-md-3">
-          <label for="spot_count" class="form-label">Počet míst</label>
+          <label for="spot_count" class="form-label">Počet míst
+            {{ help_icon("Počet zdravotnických míst na akci. Každé místo může mít přiřazenu požadovanou kvalifikaci. Po vytvoření akce lze místa přidávat nebo odebírat.") }}
+          </label>
           <input type="number" class="form-control" id="spot_count" name="spot_count"
                  value="{{ request.form.get('spot_count', '1') }}" min="0" max="50">
         </div>
@@ -61,21 +76,29 @@
           <div class="form-check mb-2">
             <input class="form-check-input" type="checkbox" id="paid" name="paid" value="1"
                    {{ 'checked' if request.form.get('paid') == '1' }}>
-            <label class="form-check-label" for="paid">Placená akce</label>
+            <label class="form-check-label" for="paid">Placená akce
+              {{ help_icon("Označte, pokud je akce honorována. Zobrazuje se v přehledech a výkazech.") }}
+            </label>
           </div>
         </div>
         <div class="col-12">
-          <label for="address" class="form-label">Adresa</label>
+          <label for="address" class="form-label">Adresa
+            {{ help_icon("Místo konání akce — zobrazuje se v detailu akce a slouží jako orientační informace pro zdravotníky.") }}
+          </label>
           <input type="text" class="form-control" id="address" name="address"
                  value="{{ request.form.get('address', '') }}">
         </div>
         <div class="col-12">
-          <label for="contact_person" class="form-label">Kontaktní osoba</label>
+          <label for="contact_person" class="form-label">Kontaktní osoba
+            {{ help_icon("Jméno a případně telefon na organizátora nebo kontaktní osobu akce (ne zdravotníka). Zobrazuje se v detailu akce.") }}
+          </label>
           <input type="text" class="form-control" id="contact_person" name="contact_person"
                  value="{{ request.form.get('contact_person', '') }}">
         </div>
         <div class="col-12">
-          <label for="description" class="form-label">Popis</label>
+          <label for="description" class="form-label">Popis
+            {{ help_icon("Volitelné doplňující informace o akci — charakter akce, požadavky na vybavení, specifické instrukce pro zdravotníky.") }}
+          </label>
           <textarea class="form-control" id="description" name="description" rows="3">{{ request.form.get('description', '') }}</textarea>
         </div>
       </div>

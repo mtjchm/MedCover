@@ -63,6 +63,15 @@
           integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
           crossorigin="anonymous"></script>
 
+  <!-- Initialise all Bootstrap popovers (used by help_icon macro) -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
+        new bootstrap.Popover(el, { html: false });
+      });
+    });
+  </script>
+
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>
