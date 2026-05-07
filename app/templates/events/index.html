@@ -35,13 +35,19 @@
 </div>
 
 {# Status legend #}
-<div class="d-flex gap-2 flex-wrap mb-3 small" id="status-legend">
-  <span class="badge bg-secondary">Koncept</span>
-  <span class="badge bg-primary">Zveřejněná</span>
-  <span class="badge bg-success">Přihlášky otevřeny</span>
-  <span class="badge" style="background:#ffc107;color:#000">Přihlášky uzavřeny</span>
-  <span class="badge bg-dark">Dokončena</span>
-  <span class="badge bg-secondary"><s>Zrušena</s></span>
+<div class="mb-3" id="status-legend">
+  <div class="d-flex gap-2 flex-wrap small mb-1">
+    <span class="badge bg-secondary">Koncept</span>
+    <span class="badge bg-primary">Zveřejněná</span>
+    <span class="badge bg-success">Přihlášky otevřeny</span>
+    <span class="badge" style="background:#ffc107;color:#000">Přihlášky uzavřeny</span>
+    <span class="badge bg-dark">Dokončena</span>
+    <span class="badge bg-secondary"><s>Zrušena</s></span>
+  </div>
+  <div class="text-muted small">
+    Obsazení: <strong>obsazeno / celkem pozic</strong> &nbsp;·&nbsp;
+    Čas v kalendáři: <strong>čas začátku akce</strong>
+  </div>
 </div>
 
 {% set status_colors = {
@@ -84,7 +90,7 @@
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
-          <td>{{ event.filled_spots }}/{{ event.total_spots }}</td>
+          <td>{% if event.status == EventStatus.CANCELLED %}—{% else %}{{ event.filled_spots }}/{{ event.total_spots }}{% endif %}</td>
           <td>{{ event.responsible_person.name if event.responsible_person else '—' }}</td>
         </tr>
         {% endfor %}
@@ -148,11 +154,12 @@
       },
       eventDidMount: function(info) {
         const p = info.event.extendedProps;
+        const cancelled = p.status === "Zrušena";
+        const spotsLine = cancelled ? "" : `\nObsazení: ${p.filled}/${p.total}`;
         info.el.setAttribute("title",
-          `${info.event.title}\nObsazení: ${p.filled}/${p.total}\nStav: ${p.status}`
+          `${info.event.title}${spotsLine}\nStav: ${p.status}`
         );
-        if (p.status === "Zrušena") {
-          // In list view the title lives in .fc-list-event-title a; in grid it's the whole block
+        if (cancelled) {
           info.el.style.opacity = "0.55";
           const titleEl = info.el.querySelector(".fc-list-event-title a") || info.el.querySelector(".fc-event-title");
           if (titleEl) {
