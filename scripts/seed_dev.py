@@ -211,43 +211,51 @@ def seed() -> None:
 
         # ── Equipment types & items ───────────────────────────────────────────
         print("Seeding equipment...")
-        et_lekarna = _get_or_create_equip_type(
-            "Lékárnička", EquipmentCategory.SHARED, "Standardní zdravotnická lékárnička."
-        )
-        et_nositka = _get_or_create_equip_type(
-            "Nosítka", EquipmentCategory.SHARED, "Skládací transportní nosítka."
-        )
-        et_vest = _get_or_create_equip_type(
-            "Reflexní vesta", EquipmentCategory.PERSONAL, "Reflexní vesta pro zdravotníky."
-        )
 
-        def _add_item(equip_type: EquipmentType, serial: str, location: str) -> EquipmentItem:
+        et_aed = _get_or_create_equip_type("AED", EquipmentCategory.SHARED, "AED")
+        et_batoh_m = _get_or_create_equip_type("Batoh malý", EquipmentCategory.SHARED, "malá lékárnička")
+        et_batoh_v = _get_or_create_equip_type("Batoh velký", EquipmentCategory.SHARED, "velká lékárnička")
+        _get_or_create_equip_type("KPR figurína adolescent", EquipmentCategory.SHARED, "")
+        _get_or_create_equip_type("KPR figurína dospělá standardní", EquipmentCategory.SHARED, "")
+        _get_or_create_equip_type("KPR figurína dospělá tlustá", EquipmentCategory.SHARED, "")
+        et_mimino = _get_or_create_equip_type("KPR figurína mimino", EquipmentCategory.SHARED, "")
+        _get_or_create_equip_type("Mikina", EquipmentCategory.PERSONAL, "")
+        _get_or_create_equip_type("Nosítka", EquipmentCategory.SHARED, "Skládací transportní nosítka.")
+        _get_or_create_equip_type("Sanitka", EquipmentCategory.SHARED, "")
+        et_stan = _get_or_create_equip_type("Stan", EquipmentCategory.SHARED, "")
+        _get_or_create_equip_type("Uniforma blůza", EquipmentCategory.PERSONAL, "")
+        _get_or_create_equip_type("Uniforma kalhoty", EquipmentCategory.PERSONAL, "")
+        _get_or_create_equip_type("VR sada", EquipmentCategory.SHARED, "")
+
+        def _add_item(
+            equip_type: EquipmentType,
+            name: str,
+            serial: str | None,
+            location: str,
+            notes: str = "",
+        ) -> EquipmentItem:
             existing = db.session.scalar(
-                db.select(EquipmentItem).where(EquipmentItem.serial_number == serial)
+                db.select(EquipmentItem).where(EquipmentItem.name == name)
             )
             if existing:
                 return existing
             item = EquipmentItem(
-                name=f"{equip_type.name} ({serial})",
+                name=name,
                 type_id=equip_type.id,
-                serial_number=serial,
+                serial_number=serial or None,
                 home_location=location,
+                notes=notes or None,
             )
             db.session.add(item)
             db.session.flush()
             return item
 
-        _add_item(et_lekarna, "LEK-001", "Sklad A")
-        _add_item(et_lekarna, "LEK-002", "Sklad A")
-        _add_item(et_nositka, "NOS-001", "Sklad B")
-        item_vest1 = _add_item(et_vest, "VEST-001", "Sklad C")
-        _add_item(et_vest, "VEST-002", "Sklad C")
-        _add_item(et_vest, "VEST-003", "Sklad C")
-
-        # Issue a vest to the member dev user
-        if member_user and item_vest1.issued_to_id is None:
-            item_vest1.issued_to_id = member_user.id
-            item_vest1.issued_at = now - timedelta(days=10)
+        _add_item(et_aed, "AED Phillips Sanitka", "123123", "Sanitka")
+        _add_item(et_batoh_m, "Batoh 1", None, "spolek")
+        _add_item(et_batoh_m, "Batoh 2", None, "spolek")
+        _add_item(et_batoh_v, "Velký batoh 1", None, "spolek")
+        _add_item(et_mimino, "mimino 1", None, "spolek")
+        _add_item(et_stan, "Stan starý", None, "spolek")
         db.session.commit()
 
         # ── Events ────────────────────────────────────────────────────────────
