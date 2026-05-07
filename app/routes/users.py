@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -23,6 +24,15 @@ from app.config import INVITE_TOKEN_HOURS
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 
 _PAGE_SIZE = 30
+
+# Phone: 9 bare digits, OR +/00 followed by 10-15 digits (spaces stripped before check)
+_PHONE_RE = re.compile(r"^\d{9}$|^(\+|00)\d{10,15}$")
+
+
+def _validate_phone(raw: str) -> bool:
+    """Return True if raw phone is empty (optional) or matches allowed formats."""
+    stripped = raw.strip().replace(" ", "")
+    return stripped == "" or bool(_PHONE_RE.match(stripped))
 
 
 def _require_permission(code: str) -> None:
@@ -84,8 +94,12 @@ def _update_profile(user: UserAccount) -> Response:
     if not name:
         flash("Jméno nesmí být prázdné.", "danger")
         return redirect(url_for("users.profile"))
+    phone_raw = request.form.get("phone", "").strip()
+    if not _validate_phone(phone_raw):
+        flash("Neplatný formát telefonního čísla.", "danger")
+        return redirect(url_for("users.profile"))
     user.name = name
-    user.phone = request.form.get("phone", "").strip() or None
+    user.phone = phone_raw or None
     cv = request.form.get("preferred_calendar_view", CalendarView.LIST.value)
     try:
         user.preferred_calendar_view = CalendarView(cv)
@@ -203,13 +217,17 @@ def edit_user(user_id: uuid.UUID) -> Response:
 
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip().lower()
-    phone = request.form.get("phone", "").strip() or None
+    phone_raw = request.form.get("phone", "").strip()
+    phone = phone_raw or None
 
     if not name:
         flash("Jméno nesmí být prázdné.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
     if not email:
         flash("E-mail nesmí být prázdný.", "danger")
+        return redirect(url_for("users.detail", user_id=user_id))
+    if not _validate_phone(phone_raw):
+        flash("Neplatný formát telefonního čísla.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
 
     if email != user.email:

@@ -35,6 +35,7 @@
             <div class="col-12 col-md-4">
               <label for="phone" class="form-label">Telefon</label>
               <input type="tel" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+              <div class="invalid-feedback">Neplatný formát. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).</div>
             </div>
             <div class="col-12 col-md-4">
               <label for="preferred_calendar_view" class="form-label">Výchozí zobrazení kalendáře</label>
@@ -162,6 +163,42 @@
   const lbl = cb ? cb.closest('.form-check').querySelector('.dark-label') : null;
   function update() { lbl && lbl.classList.toggle('is-dark', cb.checked); }
   if (cb) { cb.addEventListener('change', update); update(); }
+})();
+
+(function () {
+  // Strips whitespace then validates: 9 digits, or +/00 followed by 10-15 digits
+  const PHONE_RE_STRIPPED = /^\d{9}$|^(\+|00)\d{10,15}$/;
+
+  const phoneInput = document.getElementById('phone');
+  if (!phoneInput) return;
+
+  function validatePhone() {
+    const val = phoneInput.value.trim();
+    if (val === '') {
+      // Empty is allowed (optional field)
+      phoneInput.classList.remove('is-invalid', 'is-valid');
+      return true;
+    }
+    const stripped = val.replace(/\s+/g, '');
+    const ok = PHONE_RE_STRIPPED.test(stripped);
+    phoneInput.classList.toggle('is-invalid', !ok);
+    phoneInput.classList.toggle('is-valid', ok);
+    return ok;
+  }
+
+  phoneInput.addEventListener('input', validatePhone);
+  phoneInput.addEventListener('blur', validatePhone);
+
+  // Block form submit if phone is invalid
+  const form = phoneInput.closest('form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!validatePhone()) {
+        e.preventDefault();
+        phoneInput.focus();
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

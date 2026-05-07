@@ -283,3 +283,82 @@ class TestInvites:
             follow_redirects=True,
         )
         assert "již existuje".encode() in resp.data
+
+
+# ── Phone number validation ───────────────────────────────────────────────────
+
+import pytest
+
+VALID_PHONES = [
+    "123456789",
+    "123 456 789",
+    "+420123456789",
+    "+420 123 456 789",
+    "00420123456789",
+    "00420 123 456 789",
+    "+1 555 123 456",        # international with short local
+    "",                       # empty — optional field
+]
+
+INVALID_PHONES = [
+    "abc",
+    "12345678",              # 8 digits — too short
+    "+420 abc 123",
+    "123-456-789",           # hyphens not allowed
+    "phone: 123",
+    "123 456 789 0",         # extra digit
+]
+
+
+class TestPhoneValidationProfile:
+    @pytest.mark.parametrize("phone", VALID_PHONES)
+    def test_valid_phone_accepted_on_profile(self, app: object, member_client: object, phone: str) -> None:
+        resp = member_client.post(
+            "/users/profile",
+            data={"action": "profile", "name": "Test Member", "dashboard_horizon_days": "30", "phone": phone},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "Profil byl uložen".encode() in resp.data
+
+    @pytest.mark.parametrize("phone", INVALID_PHONES)
+    def test_invalid_phone_rejected_on_profile(self, app: object, member_client: object, phone: str) -> None:
+        resp = member_client.post(
+            "/users/profile",
+            data={"action": "profile", "name": "Test Member", "dashboard_horizon_days": "30", "phone": phone},
+            follow_redirects=True,
+        )
+        assert "Neplatný formát telefonního čísla".encode() in resp.data
+
+
+class TestPhoneValidationAdminEdit:
+    def _create_user(self, app: object) -> str:
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            user = UserAccount(email="phonetarget@test.com", name="Phone Target", is_active=True)
+            user.set_password("pass1234")
+            user.roles = [role]
+            db.session.add(user)
+            db.session.commit()
+            return str(user.id)
+
+    @pytest.mark.parametrize("phone", VALID_PHONES)
+    def test_valid_phone_accepted_on_admin_edit(self, app: object, admin_client: object, phone: str) -> None:
+        uid = self._create_user(app)
+        resp = admin_client.post(
+            f"/users/{uid}/edit",
+            data={"name": "Phone Target", "email": "phonetarget@test.com", "phone": phone},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "Neplatný formát telefonního čísla".encode() not in resp.data
+
+    @pytest.mark.parametrize("phone", INVALID_PHONES)
+    def test_invalid_phone_rejected_on_admin_edit(self, app: object, admin_client: object, phone: str) -> None:
+        uid = self._create_user(app)
+        resp = admin_client.post(
+            f"/users/{uid}/edit",
+            data={"name": "Phone Target", "email": "phonetarget@test.com", "phone": phone},
+            follow_redirects=True,
+        )
+        assert "Neplatný formát telefonního čísla".encode() in resp.data

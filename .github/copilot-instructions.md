@@ -52,6 +52,10 @@ Race conditions are a first-class concern, especially for spot assignment:
 - After every change, check whether it affects `README.md`, `DEVOPS.md`, `architecture.md`, or `mvp.md` and update them immediately.
 - Never leave these files out of sync with the actual implementation — outdated documentation is worse than no documentation.
 
+### Tests
+- After every change, check whether a test should be added or updated. Coverage must not decrease.
+- JS-only validation must be backed by matching server-side validation so it is testable and cannot be bypassed.
+
 ### Code Style
 - Type hints on all function signatures.
 - Use `db.session.get(Model, pk)` instead of `.query.get(pk)` (deprecated).
