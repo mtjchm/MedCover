@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
-from .extensions import db, migrate, login_manager, mail, csrf
+from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
 
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
@@ -22,7 +22,7 @@ def create_app(config_name: str | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    mail.init_app(app)
+    _flask_mail.init_app(app)
     csrf.init_app(app)
 
     # Import models here so Flask-Migrate discovers all tables
