@@ -16,6 +16,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.credential import Credential
 from app.models.audit import AuditLogEntry
+from app.utils import diff_changes
 
 credentials_bp = Blueprint("credentials", __name__, url_prefix="/credentials")
 
@@ -116,16 +117,16 @@ def edit(cred_id: int) -> str | Response:
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
             return render_template("credentials/edit.html", cred=cred, all_credentials=all_credentials)
 
-        before = {"name": cred.name, "description": cred.description, "parents": [p.id for p in cred.parents]}
+        before = {"name": cred.name, "description": cred.description, "parents": str([p.id for p in cred.parents])}
         cred.name = name
         cred.description = description
         # Sync parents
         cred.parents = [c for pid in parent_ids if (c := db.session.get(Credential, pid)) is not None]
 
-        _audit("edit", cred, f"Upravena kvalifikace '{cred.name}'", {
-            "before": before,
-            "after": {"name": cred.name, "description": cred.description, "parents": [p.id for p in cred.parents]},
-        })
+        _audit("edit", cred, f"Upravena kvalifikace '{cred.name}'", diff_changes(
+            before,
+            {"name": cred.name, "description": cred.description, "parents": str([p.id for p in cred.parents])},
+        ))
         db.session.commit()
 
         flash(f"Kvalifikace '{cred.name}' byla uložena.", "success")

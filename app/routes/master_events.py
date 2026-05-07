@@ -17,6 +17,7 @@ from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app.utils import diff_changes
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
 
@@ -169,10 +170,10 @@ def edit(me_id: int) -> str | Response:
         me.coordinator_id = coordinator_id
         me.version += 1
 
-        _audit("edit", me, f"Upraven záznam nadřazené akce '{me.name}'", {
-            "before": before,
-            "after": {"name": me.name, "description": me.description, "coordinator_id": str(me.coordinator_id)},
-        })
+        _audit("edit", me, f"Upraven záznam nadřazené akce '{me.name}'", diff_changes(
+            before,
+            {"name": me.name, "description": me.description, "coordinator_id": str(me.coordinator_id)},
+        ))
 
         db.session.commit()
 

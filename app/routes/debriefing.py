@@ -21,17 +21,19 @@ from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.assignment import Assignment, DebriefingRecord
 from app.models.audit import AuditLogEntry
+from app.utils import diff_changes
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 
 
-def _audit(action: str, record: DebriefingRecord, summary: str) -> None:
+def _audit(action: str, record: DebriefingRecord, summary: str, changes: dict | None = None) -> None:
     db.session.add(AuditLogEntry(
         actor_id=current_user.id,
         action_type=action,
         entity_type="DebriefingRecord",
         entity_id=str(record.id),
         summary=summary,
+        changes_json=changes,
     ))
 
 
@@ -81,12 +83,26 @@ def submit(assignment_id: int) -> str | Response:
             patients_treated = 0
 
         if existing:
+            before = {
+                "actual_hours": str(existing.actual_hours),
+                "patients_treated": existing.patients_treated,
+                "materials_used": existing.materials_used,
+                "feedback": existing.feedback,
+            }
             existing.actual_hours = actual_hours
             existing.patients_treated = patients_treated
             existing.materials_used = materials
             existing.feedback = feedback
             existing.submitted_by_id = current_user.id
-            _audit("edit", existing, f"Hlášení aktualizováno pro akci '{event.name}'")
+            _audit("edit", existing, f"Hlášení aktualizováno pro akci '{event.name}'", diff_changes(
+                before,
+                {
+                    "actual_hours": str(actual_hours),
+                    "patients_treated": patients_treated,
+                    "materials_used": materials,
+                    "feedback": feedback,
+                },
+            ))
         else:
             record = DebriefingRecord(
                 assignment_id=assignment_id,

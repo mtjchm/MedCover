@@ -33,6 +33,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app.utils import diff_changes
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -222,13 +223,40 @@ def edit(event_id: int) -> str | Response:
             flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
             return render_template("events/edit.html", event=event, master_events=master_events, users=users)
 
+        # Snapshot before mutation
+        before = {
+            "name": event.name,
+            "master_event_id": event.master_event_id,
+            "start_datetime": str(event.start_datetime),
+            "end_datetime": str(event.end_datetime),
+            "address": event.address,
+            "contact_person": event.contact_person,
+            "description": event.description,
+            "paid": event.paid,
+            "responsible_person_id": str(event.responsible_person_id),
+            "assignments_open_datetime": str(event.assignments_open_datetime),
+        }
+
         updated, error = _parse_event_form(request.form, existing=event)
         if error:
             flash(error, "danger")
             return render_template("events/edit.html", event=event, master_events=master_events, users=users)
 
+        after = {
+            "name": event.name,
+            "master_event_id": event.master_event_id,
+            "start_datetime": str(event.start_datetime),
+            "end_datetime": str(event.end_datetime),
+            "address": event.address,
+            "contact_person": event.contact_person,
+            "description": event.description,
+            "paid": event.paid,
+            "responsible_person_id": str(event.responsible_person_id),
+            "assignments_open_datetime": str(event.assignments_open_datetime),
+        }
+
         event.version += 1
-        _audit("edit", event, f"Upravena akce '{event.name}'")
+        _audit("edit", event, f"Upravena akce '{event.name}'", diff_changes(before, after))
         db.session.commit()
 
         flash("Akce byla uložena.", "success")

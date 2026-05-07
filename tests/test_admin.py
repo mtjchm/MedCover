@@ -3,6 +3,41 @@ from app.extensions import db
 from app.models.role import Role
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app.utils import diff_changes
+
+
+class TestDiffChanges:
+    def test_returns_only_changed_fields(self):
+        before = {"name": "A", "desc": "same"}
+        after = {"name": "B", "desc": "same"}
+        result = diff_changes(before, after)
+        assert result == {"name": ["A", "B"]}
+        assert "desc" not in result
+
+    def test_empty_when_nothing_changed(self):
+        before = {"x": 1, "y": 2}
+        after = {"x": 1, "y": 2}
+        assert diff_changes(before, after) == {}
+
+    def test_all_fields_changed(self):
+        before = {"a": "old", "b": "old2"}
+        after = {"a": "new", "b": "new2"}
+        result = diff_changes(before, after)
+        assert result == {"a": ["old", "new"], "b": ["old2", "new2"]}
+
+    def test_new_keys_in_after_included(self):
+        before = {"a": "x"}
+        after = {"a": "x", "b": "y"}
+        result = diff_changes(before, after)
+        assert "b" in result
+        assert result["b"] == [None, "y"]
+
+    def test_missing_keys_in_after(self):
+        before = {"a": "x", "b": "y"}
+        after = {"a": "x"}
+        result = diff_changes(before, after)
+        assert "b" in result
+        assert result["b"] == ["y", None]
 
 
 class TestAdminDashboard:
