@@ -151,6 +151,15 @@
         info.el.setAttribute("title",
           `${info.event.title}\nObsazení: ${p.filled}/${p.total}\nStav: ${p.status}`
         );
+        if (p.status === "Zrušena") {
+          // In list view the title lives in .fc-list-event-title a; in grid it's the whole block
+          info.el.style.opacity = "0.55";
+          const titleEl = info.el.querySelector(".fc-list-event-title a") || info.el.querySelector(".fc-event-title");
+          if (titleEl) {
+            titleEl.style.textDecoration = "line-through";
+            titleEl.style.color = "#6c757d";
+          }
+        }
       },
       height: "auto"
     });
