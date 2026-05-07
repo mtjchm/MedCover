@@ -531,3 +531,4 @@ wtforms==3.2.2 \
     --hash=sha256:72b90d5d921bd3119252069cf0301e9c13915f9e52792652bc91c5dda4b79e56 \
     --hash=sha256:7b00c73f8670f35d4edb0293dcd81b980528bee72fd662b182aaba27ae570b93
     # via flask-wtf
+openpyxl>=3.1
