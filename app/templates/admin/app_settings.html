@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Nastavení aplikace — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Nastavení aplikace</h2>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Admin</a>
+</div>
+
+<form method="POST" novalidate>
+
+  {# ── Organizace ──────────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Organizace</div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label for="org_name" class="form-label">Název organizace</label>
+        <input type="text" class="form-control" id="org_name" name="org_name"
+               value="{{ settings.org_name or '' }}">
+      </div>
+      <div class="mb-0">
+        <label for="timezone" class="form-label">Časová zóna</label>
+        <select class="form-select" id="timezone" name="timezone">
+          {% for tz in timezones %}
+          <option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# ── SMTP ────────────────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Odchozí e-mail (SMTP)</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label for="smtp_server" class="form-label">SMTP server</label>
+          <input type="text" class="form-control" id="smtp_server" name="smtp_server"
+                 value="{{ settings.smtp_server or '' }}" placeholder="smtp.example.com">
+        </div>
+        <div class="col-md-4">
+          <label for="smtp_port" class="form-label">Port</label>
+          <input type="number" class="form-control" id="smtp_port" name="smtp_port"
+                 value="{{ settings.smtp_port or 587 }}" min="1" max="65535">
+        </div>
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="smtp_use_tls" name="smtp_use_tls"
+                   {% if settings.smtp_use_tls %}checked{% endif %}>
+            <label class="form-check-label" for="smtp_use_tls">Použít TLS (STARTTLS)</label>
+          </div>
+        </div>
+        <div class="col-12">
+          <label for="smtp_username" class="form-label">Uživatelské jméno (login)</label>
+          <input type="text" class="form-control" id="smtp_username" name="smtp_username"
+                 value="{{ settings.smtp_username or '' }}" autocomplete="off">
+        </div>
+        <div class="col-12">
+          <label for="smtp_password" class="form-label">Heslo</label>
+          <input type="password" class="form-control" id="smtp_password" name="smtp_password"
+                 placeholder="{{ '(beze změny)' if settings.smtp_password_enc else '' }}"
+                 autocomplete="new-password">
+          {% if settings.smtp_password_enc %}
+          <div class="form-text text-muted">Heslo je uloženo. Vyplňte pouze pokud chcete změnit.</div>
+          {% endif %}
+        </div>
+        <div class="col-12">
+          <label for="smtp_default_sender" class="form-label">Odesílatel (From)</label>
+          <input type="email" class="form-control" id="smtp_default_sender" name="smtp_default_sender"
+                 value="{{ settings.smtp_default_sender or '' }}"
+                 placeholder="MedCover <noreply@example.com>">
+        </div>
+      </div>
+
+      {# SMTP status badge #}
+      <div class="mt-3">
+        {% if settings.smtp_configured %}
+        <span class="badge bg-success">SMTP nakonfigurováno</span>
+        {% else %}
+        <span class="badge bg-warning text-dark">SMTP není nakonfigurováno</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Akce ────────────────────────────────────────────────────────── #}
+  <div class="d-flex flex-wrap gap-2">
+    <button type="submit" name="action" value="save" class="btn btn-danger">Uložit nastavení</button>
+    <button type="submit" name="action" value="test" class="btn btn-outline-secondary">
+      Odeslat testovací e-mail
+    </button>
+  </div>
+
+</form>
+{% endblock %}

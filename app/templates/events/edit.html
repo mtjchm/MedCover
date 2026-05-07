@@ -31,7 +31,7 @@
           </select>
         </div>
         <div class="col-12 col-md-6">
-          <label for="responsible_person_id" class="form-label">Zodpovědná osoba (RP)
+          <label for="responsible_person_id" class="form-label">Zodpovědný zdravotník
             {{ help_icon("Vedoucí zdravotník na místě. Zobrazuje se v přehledech a dokumentaci. Neovlivňuje přístupová práva.") }}
           </label>
           <select class="form-select" id="responsible_person_id" name="responsible_person_id">
@@ -46,22 +46,31 @@
           <label for="start_datetime" class="form-label">Začátek <span class="text-danger">*</span>
             {{ help_icon("Datum a čas zahájení akce.") }}
           </label>
-          <input type="text" class="form-control flatpickr-dt" id="start_datetime" name="start_datetime"
-                 value="{{ request.form.get('start_datetime', event.start_datetime.strftime('%Y-%m-%dT%H:%M')) }}" required>
+          <div class="input-group">
+            <input type="text" class="form-control flatpickr-dt" id="start_datetime" name="start_datetime"
+                   value="{{ request.form.get('start_datetime', event.start_datetime | localdt(fmt='%Y-%m-%dT%H:%M')) }}" required>
+            <button class="btn btn-outline-secondary" type="button" onclick="fpNow(this)">Teď</button>
+          </div>
         </div>
         <div class="col-12 col-md-6">
           <label for="end_datetime" class="form-label">Konec <span class="text-danger">*</span>
             {{ help_icon("Po tomto čase scheduler automaticky přesune akci do stavu Dokončena.") }}
           </label>
-          <input type="text" class="form-control flatpickr-dt" id="end_datetime" name="end_datetime"
-                 value="{{ request.form.get('end_datetime', event.end_datetime.strftime('%Y-%m-%dT%H:%M')) }}" required>
+          <div class="input-group">
+            <input type="text" class="form-control flatpickr-dt" id="end_datetime" name="end_datetime"
+                   value="{{ request.form.get('end_datetime', event.end_datetime | localdt(fmt='%Y-%m-%dT%H:%M')) }}" required>
+            <button class="btn btn-outline-secondary" type="button" onclick="fpNow(this)">Teď</button>
+          </div>
         </div>
         <div class="col-12 col-md-6">
           <label for="assignments_open_datetime" class="form-label">Otevření přihlášek
             {{ help_icon("Pokud zadáte datum, přihlašování se automaticky otevře až v tento čas. Prázdné = ihned po zveřejnění.") }}
           </label>
-          <input type="text" class="form-control flatpickr-dt" id="assignments_open_datetime" name="assignments_open_datetime"
-                 value="{{ request.form.get('assignments_open_datetime', event.assignments_open_datetime.strftime('%Y-%m-%dT%H:%M') if event.assignments_open_datetime else '') }}">
+          <div class="input-group">
+            <input type="text" class="form-control flatpickr-dt" id="assignments_open_datetime" name="assignments_open_datetime"
+                   value="{{ request.form.get('assignments_open_datetime', event.assignments_open_datetime | localdt(fmt='%Y-%m-%dT%H:%M') if event.assignments_open_datetime else '') }}">
+            <button class="btn btn-outline-secondary" type="button" onclick="fpNow(this)">Teď</button>
+          </div>
           <div class="form-text">Prázdné = okamžitě po zveřejnění</div>
         </div>
         <div class="col-12 col-md-3 d-flex align-items-end">

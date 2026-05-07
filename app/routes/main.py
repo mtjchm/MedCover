@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, render_template
+from flask import Blueprint, jsonify, render_template
 from flask_login import login_required, current_user
 from sqlalchemy import or_
 
@@ -10,6 +10,16 @@ from app.models.assignment import Assignment
 from app.models.user import UserAccount
 
 main_bp = Blueprint("main", __name__)
+
+
+@main_bp.get("/health")
+def health():
+    """Liveness + readiness probe. Returns 200 if DB is reachable, 503 otherwise."""
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        return jsonify({"status": "ok"}), 200
+    except Exception as exc:
+        return jsonify({"status": "error", "detail": str(exc)}), 503
 
 
 @main_bp.route("/dashboard")
@@ -40,6 +50,9 @@ def dashboard():
         )
         .order_by(Event.start_datetime)
     )
+    # Users without view_draft cannot open DRAFT events — exclude them to avoid 403
+    if not current_user.has_permission("event.view_draft"):
+        my_events_query = my_events_query.where(Event.status != EventStatus.DRAFT)
     my_events_raw = db.session.scalars(my_events_query).all()
 
     # Build (event, [tags]) pairs
@@ -49,7 +62,7 @@ def dashboard():
         if e.id in assigned_event_ids:
             tags.append("Přihlášen")
         if e.responsible_person_id == current_user.id:
-            tags.append("RP")
+            tags.append("Zodpovědný zdravotník")
         if e.created_by_id == current_user.id:
             tags.append("Koordinátor")
         my_events.append((e, tags))

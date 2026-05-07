@@ -1,0 +1,12 @@
+Dobrý den, {{ user_name }},
+
+vaše přihláška na akci byla zrušena:
+
+  {{ event.name }}
+  Začátek: {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}
+  Konec:   {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}
+
+Pokud se domníváte, že jde o chybu, kontaktujte prosím koordinátora akce.
+
+S pozdravem,
+MedCover

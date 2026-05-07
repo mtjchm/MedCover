@@ -3,12 +3,12 @@
 
 {% block content %}
 {% set status_colors = {
-  'Draft': 'secondary',
-  'Published': 'primary',
-  'Assignments Open': 'success',
-  'Assignments Closed': 'warning',
-  'Completed': 'dark',
-  'Cancelled': 'danger'
+  'Koncept': 'secondary',
+  'Zveřejněná': 'primary',
+  'Přihlášky otevřeny': 'success',
+  'Přihlášky uzavřeny': 'warning',
+  'Dokončena': 'dark',
+  'Zrušena': 'danger'
 } %}
 
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
@@ -56,6 +56,19 @@
         <button class="btn btn-success btn-sm">Znovu otevřít přihlášky</button>
       </form>
     {% endif %}
+    {% if event.status == EventStatus.COMPLETED %}
+      {% set my_assignment = event.spots | selectattr('assignment') | selectattr('assignment.user_id', 'equalto', current_user.id) | map(attribute='assignment') | first | default(none) %}
+      {% if my_assignment %}
+        <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
+           class="btn btn-outline-primary btn-sm">
+          {{ 'Upravit hlášení' if my_assignment.debriefing else 'Odevzdat hlášení' }}
+        </a>
+      {% endif %}
+      {% if current_user.has_any_permission('event.edit', 'event.assign_other') %}
+        <a href="{{ url_for('debriefing.event_overview', event_id=event.id) }}"
+           class="btn btn-outline-secondary btn-sm">Přehled hlášení</a>
+      {% endif %}
+    {% endif %}
     {% if event.status == EventStatus.CANCELLED and current_user.has_permission('event.restore') %}
       <form method="POST" action="{{ url_for('events.restore', event_id=event.id) }}">
         <button class="btn btn-outline-success btn-sm">Obnovit do Draftu</button>
@@ -76,10 +89,10 @@
     <div class="card border-0 bg-light h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
+        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime | localdt }}</p>
         {% if event.assignments_open_datetime %}
-          <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
+          <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
         {% endif %}
       </div>
     </div>
@@ -89,12 +102,12 @@
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Obsazení</h6>
         <p class="mb-1">
-          <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> míst obsazeno
+          <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> pozic obsazeno
           <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1">
             {{ event.staffing_status }}
           </span>
         </p>
-        <p class="mb-0"><strong>RP:</strong> {{ event.responsible_person.name if event.responsible_person else '—' }}</p>
+        <p class="mb-0"><strong>Zodpovědný zdravotník:</strong> {{ event.responsible_person.name if event.responsible_person else '—' }}</p>
       </div>
     </div>
   </div>
@@ -117,11 +130,11 @@
 
 {# Spots #}
 <div class="d-flex justify-content-between align-items-center mb-2">
-  <h5 class="mb-0">Místa ({{ event.total_spots }})</h5>
+  <h5 class="mb-0">Pozice ({{ event.total_spots }})</h5>
   {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
     <form method="POST" action="{{ url_for('events.add_spot', event_id=event.id) }}" class="d-flex gap-2">
-      <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis místa (volitelné)" style="max-width: 220px">
-      <button class="btn btn-outline-danger btn-sm">+ Přidat místo</button>
+      <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis pozice (volitelné)" style="max-width: 220px">
+      <button class="btn btn-outline-danger btn-sm">+ Přidat pozici</button>
     </form>
   {% endif %}
 </div>
@@ -165,7 +178,7 @@
             {# Release own assignment #}
             {% if spot.assignment and spot.assignment.user_id == current_user.id and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.release', assignment_id=spot.assignment.id) }}"
-                    onsubmit="return confirm('Odhlásit se z tohoto místa?')">
+                    onsubmit="return confirm('Odhlásit se z této pozice?')">
                 <button class="btn btn-outline-warning btn-sm py-0">Odhlásit se</button>
               </form>
             {% endif %}
@@ -189,7 +202,7 @@
             {# Delete spot (no assignment, editor) #}
             {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
               <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
-                    onsubmit="return confirm('Smazat toto místo?')">
+                    onsubmit="return confirm('Smazat tuto pozici?')">
                 <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
               </form>
             {% endif %}
@@ -216,7 +229,7 @@
   </table>
 </div>
 {% else %}
-  <p class="text-muted">Žádná místa zatím nejsou přidána.</p>
+  <p class="text-muted">Žádné pozice zatím nejsou přidány.</p>
 {% endif %}
 
 <div class="mt-3">

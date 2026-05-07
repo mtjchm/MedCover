@@ -34,6 +34,12 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('master_events.index') }}">Nadřazené akce</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Vybavení</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
+          {% if current_user.has_permission('admin.manage_settings') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('app_settings.index') }}">Nastavení</a></li>
+          {% endif %}
+          {% if current_user.has_permission('admin.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.index') }}">Admin</a></li>
+          {% endif %}
           {% endif %}
         </ul>
         <ul class="navbar-nav">
@@ -86,6 +92,15 @@
         allowInput: true,
       });
     });
+
+    // Set a flatpickr field to the current date/time.
+    // Called by the "Teď" button placed inside the same .input-group wrapper.
+    function fpNow(btn) {
+      var input = btn.closest(".input-group").querySelector(".flatpickr-dt");
+      if (input && input._flatpickr) {
+        input._flatpickr.setDate(new Date(), true);
+      }
+    }
   </script>
 
   {% block extra_scripts %}{% endblock %}

@@ -31,6 +31,10 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+import app.mail as mailer
+from zoneinfo import ZoneInfo
+
+_PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 events_bp = Blueprint("events", __name__, url_prefix="/events")
 
@@ -84,12 +88,12 @@ def index():
 
 # FullCalendar event background colours by status value
 _STATUS_COLORS: dict[str, str] = {
-    "Draft":              "#6c757d",
-    "Published":          "#0d6efd",
-    "Assignments Open":   "#198754",
-    "Assignments Closed": "#ffc107",
-    "Completed":          "#212529",
-    "Cancelled":          "#dc3545",
+    "Koncept":              "#6c757d",
+    "Zveřejněná":          "#0d6efd",
+    "Přihlášky otevřeny":  "#198754",
+    "Přihlášky uzavřeny":  "#ffc107",
+    "Dokončena":            "#212529",
+    "Zrušena":              "#adb5bd",
 }
 
 
@@ -100,9 +104,13 @@ def feed():
     if not current_user.has_any_permission("event.view", "event.view_draft"):
         abort(403)
 
+    show_archived = request.args.get("archived") == "1"
+
     query = db.select(Event)
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
+    if not show_archived:
+        query = query.where(Event.archived == False)  # noqa: E712
 
     events = db.session.scalars(query).all()
     items = []
@@ -116,11 +124,15 @@ def feed():
             "url": url_for("events.detail", event_id=e.id),
             "backgroundColor": color,
             "borderColor": color,
-            "textColor": "#ffc107" if e.status.value == "Assignments Closed" else "#fff",
+            "textColor": "#000" if e.status.value == "Přihlášky uzavřeny" else "#fff",
             "extendedProps": {
                 "status": e.status.value,
                 "filled": e.filled_spots,
                 "total": e.total_spots,
+                "rp": e.responsible_person.name if e.responsible_person else None,
+                "start_local": e.start_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
+                "end_local": e.end_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
+                "me_name": None if e.master_event.is_general else e.master_event.name,
             },
         })
     return jsonify(items)
@@ -258,6 +270,20 @@ def transition(event_id: int):
     })
     db.session.commit()
 
+    # Email notifications
+    if target_status == EventStatus.PUBLISHED:
+        active_users = db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        ).all()
+        for u in active_users:
+            mailer.send_event_published(u.email, u.name, event)
+    elif target_status == EventStatus.ASSIGNMENTS_OPEN:
+        active_users = db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        ).all()
+        for u in active_users:
+            mailer.send_assignments_opened(u.email, u.name, event)
+
     flash(f"Stav akce byl změněn na {target_status.value}.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
 
@@ -279,7 +305,16 @@ def cancel(event_id: int):
     event.archived = True
     event.version += 1
     _audit("status_change", event, f"Akce zrušena a archivována")
+
+    # Notify all assigned users before commit so we still have spot data
+    assigned_users = [
+        (s.assignment.user.email, s.assignment.user.name)
+        for s in event.spots if s.assignment
+    ]
     db.session.commit()
+
+    for email, name in assigned_users:
+        mailer.send_event_cancelled(email, name, event)
 
     flash("Akce byla zrušena.", "warning")
     return redirect(url_for("events.index"))
@@ -323,7 +358,7 @@ def add_spot(event_id: int):
     spot = EventSpot(event_id=event_id, description=description)
     db.session.add(spot)
     event.version += 1
-    _audit("edit", event, f"Přidáno místo k akci '{event.name}'")
+    _audit("edit", event, f"Přidána pozice k akci '{event.name}'")
     db.session.commit()
 
     flash("Místo přidáno.", "success")
@@ -339,13 +374,13 @@ def delete_spot(event_id: int, spot_id: int):
     if spot is None or spot.event_id != event_id:
         abort(404)
     if spot.assignment is not None:
-        flash("Obsazené místo nelze smazat.", "danger")
+        flash("Obsazenou pozici nelze smazat.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
     db.session.delete(spot)
     event = db.session.get(Event, event_id)
     event.version += 1
-    _audit("edit", event, f"Odstraněno místo z akce '{event.name}'")
+    _audit("edit", event, f"Odstraněna pozice z akce '{event.name}'")
     db.session.commit()
 
     flash("Místo odstraněno.", "success")
@@ -355,8 +390,18 @@ def delete_spot(event_id: int, spot_id: int):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None, str | None]:
-    """Parse the event form and return (event, error_message)."""
+    """Parse the event form and return (event, error_message).
+
+    All datetime inputs are interpreted as Europe/Prague local time and stored
+    as UTC in the database.
+    """
     from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    _PRAGUE = ZoneInfo("Europe/Prague")
+
+    def _local_to_utc(s: str) -> datetime:
+        """Parse a naive datetime string (Prague local time) and return UTC."""
+        return datetime.fromisoformat(s).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
 
     name = form.get("name", "").strip()
     master_event_id = form.get("master_event_id", "").strip()
@@ -377,8 +422,8 @@ def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None
         return None, "Datum a čas začátku i konce jsou povinné."
 
     try:
-        start_dt = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
-        end_dt = datetime.fromisoformat(end_str).replace(tzinfo=timezone.utc)
+        start_dt = _local_to_utc(start_str)
+        end_dt = _local_to_utc(end_str)
     except ValueError:
         return None, "Neplatný formát data a času."
 
@@ -388,7 +433,7 @@ def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None
     assignments_open_dt = None
     if assignments_open_str:
         try:
-            assignments_open_dt = datetime.fromisoformat(assignments_open_str).replace(tzinfo=timezone.utc)
+            assignments_open_dt = _local_to_utc(assignments_open_str)
         except ValueError:
             return None, "Neplatný formát data otevření přihlášek."
 

@@ -10,6 +10,8 @@ from .users import users_bp
 from .reports import reports_bp
 from .admin import admin_bp
 from .assignments import assignments_bp
+from .debriefing import debriefing_bp
+from .app_settings import app_settings_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -20,10 +22,12 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(master_events_bp)
     app.register_blueprint(credentials_bp)
     app.register_blueprint(assignments_bp)
+    app.register_blueprint(debriefing_bp)
     app.register_blueprint(equipment_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(app_settings_bp)
 
     if app.config.get("DEV_LOGIN_ENABLED"):
         from .dev import dev_bp

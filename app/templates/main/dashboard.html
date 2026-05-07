@@ -3,12 +3,12 @@
 
 {% block content %}
 {% set status_colors = {
-  'Draft': 'secondary',
-  'Published': 'primary',
-  'Assignments Open': 'success',
-  'Assignments Closed': 'warning',
-  'Completed': 'dark',
-  'Cancelled': 'danger'
+  'Koncept': 'secondary',
+  'Zveřejněná': 'primary',
+  'Přihlášky otevřeny': 'success',
+  'Přihlášky uzavřeny': 'warning',
+  'Dokončena': 'dark',
+  'Zrušena': 'danger'
 } %}
 
 <div class="mb-3">
@@ -53,8 +53,13 @@
       <a href="{{ url_for('events.detail', event_id=e.id) }}" class="text-decoration-none stretched-link"></a>
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="fw-semibold">{{ e.name }}</div>
-          <div class="text-muted small">{{ e.start_datetime.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div class="d-flex align-items-baseline gap-1 overflow-hidden">
+            <span class="fw-semibold flex-shrink-0">{{ e.name }}</span>
+            {% if not e.master_event.is_general %}
+            <span class="text-muted fw-normal small text-truncate">({{ e.master_event.name }})</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
         </div>
         <div class="text-end">
           <span class="badge bg-{{ status_colors.get(e.status.value, 'secondary') }} mb-1">{{ e.status.value }}</span>
@@ -82,9 +87,14 @@
       <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none stretched-link"></a>
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="fw-semibold">{{ event.name }}</div>
-          <div class="text-muted small">{{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}
-            — {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div class="d-flex align-items-baseline gap-1 overflow-hidden">
+            <span class="fw-semibold flex-shrink-0">{{ event.name }}</span>
+            {% if not event.master_event.is_general %}
+            <span class="text-muted fw-normal small text-truncate">({{ event.master_event.name }})</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small">{{ event.start_datetime | localdt }}
+            — {{ event.end_datetime | localdt }}</div>
           <div class="mt-1">
             {% for tag in tags %}
             <span class="badge bg-secondary me-1">{{ tag }}</span>
@@ -123,12 +133,17 @@
       <li class="list-group-item list-group-item-action py-2">
         <a href="{{ url_for('events.detail', event_id=e.id) }}" class="text-decoration-none stretched-link"></a>
         <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="fw-semibold">{{ e.name }}</div>
-            <div class="text-muted small">{{ e.start_datetime.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div class="overflow-hidden me-2">
+            <div class="d-flex align-items-baseline gap-1 overflow-hidden">
+              <span class="fw-semibold flex-shrink-0">{{ e.name }}</span>
+              {% if not e.master_event.is_general %}
+              <span class="text-muted fw-normal small text-truncate">({{ e.master_event.name }})</span>
+              {% endif %}
+            </div>
+            <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
           </div>
-          <div class="text-muted small text-end flex-shrink-0 ms-2">
-            volná místa:<br>
+          <div class="text-muted small text-end flex-shrink-0">
+            volné pozice:<br>
             {{ e.total_spots - e.filled_spots }}
           </div>
         </div>
@@ -146,12 +161,17 @@
     <li class="list-group-item list-group-item-action py-2">
       <a href="{{ url_for('events.detail', event_id=e.id) }}" class="text-decoration-none stretched-link"></a>
       <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <div class="fw-semibold">{{ e.name }}</div>
-          <div class="text-muted small">{{ e.start_datetime.strftime('%d.%m.%Y %H:%M') }}</div>
+        <div class="overflow-hidden me-2">
+          <div class="d-flex align-items-baseline gap-1 overflow-hidden">
+            <span class="fw-semibold flex-shrink-0">{{ e.name }}</span>
+            {% if not e.master_event.is_general %}
+            <span class="text-muted fw-normal small text-truncate">({{ e.master_event.name }})</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
         </div>
         <div class="text-muted small text-end flex-shrink-0 ms-2">
-          volná místa:<br>{{ e.total_spots - e.filled_spots }}
+          volné pozice:<br>{{ e.total_spots - e.filled_spots }}
         </div>
       </div>
     </li>

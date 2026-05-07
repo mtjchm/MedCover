@@ -22,6 +22,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+import app.mail as mailer
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/assignments")
 
@@ -46,7 +47,7 @@ def _auto_close_if_full(event: Event) -> None:
             action_type="status_change",
             entity_type="Event",
             entity_id=str(event.id),
-            summary=f"Přihlašování automaticky uzavřeno — všechna místa obsazena",
+            summary=f"Přihlašování automaticky uzavřeno — všechny pozice obsazeny",
         ))
 
 
@@ -74,7 +75,7 @@ def claim(spot_id: int):
 
     # Spot must be free
     if spot.assignment is not None:
-        flash("Toto místo je již obsazeno.", "warning")
+        flash("Tato pozice je již obsazena.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     # User must not already be assigned to this event
@@ -89,7 +90,7 @@ def claim(spot_id: int):
 
     # Eligibility check
     if not spot.is_eligible(current_user):
-        flash("Nemáte požadovanou kvalifikaci pro toto místo.", "warning")
+        flash("Nemáte požadovanou kvalifikaci pro tuto pozici.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     assignment = Assignment(
@@ -106,10 +107,11 @@ def claim(spot_id: int):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        flash("Toto místo bylo právě obsazeno někým jiným.", "warning")
+        flash("Tato pozice byla právě obsazena někým jiným.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     flash("Úspěšně přihlášeni na akci.", "success")
+    mailer.send_assignment_confirmed(current_user.email, current_user.name, event)
     return redirect(url_for("events.detail", event_id=event.id))
 
 
@@ -147,12 +149,13 @@ def release(assignment_id: int):
             action_type="status_change",
             entity_type="Event",
             entity_id=str(event.id),
-            summary="Přihlašování automaticky znovuotevřeno — uvolněno místo",
+            summary="Přihlašování automaticky znovuotevřeno — uvolněna pozice",
         ))
 
     db.session.commit()
 
     flash("Odhlášení z akce bylo úspěšné.", "success")
+    mailer.send_assignment_released(current_user.email, current_user.name, event)
     return redirect(url_for("events.detail", event_id=event_id))
 
 
@@ -187,7 +190,7 @@ def assign_other(spot_id: int):
         return redirect(url_for("events.detail", event_id=event.id))
 
     if spot.assignment is not None:
-        flash("Toto místo je již obsazeno.", "warning")
+        flash("Tato pozice je již obsazena.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     existing = db.session.scalar(
@@ -213,10 +216,11 @@ def assign_other(spot_id: int):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        flash("Toto místo bylo právě obsazeno někým jiným.", "warning")
+        flash("Tato pozice byla právě obsazena někým jiným.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     flash(f"Uživatel {user.name} byl přiřazen na akci.", "success")
+    mailer.send_assignment_confirmed(user.email, user.name, event)
     return redirect(url_for("events.detail", event_id=event.id))
 
 
@@ -248,4 +252,5 @@ def unassign_other(assignment_id: int):
     db.session.commit()
 
     flash(f"Uživatel {assignment.user.name} byl odhlášen z akce.", "success")
+    mailer.send_assignment_released(assignment.user.email, assignment.user.name, event)
     return redirect(url_for("events.detail", event_id=event_id))
