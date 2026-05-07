@@ -52,7 +52,7 @@ def dashboard():
         if e.id in assigned_event_ids:
             tags.append("Přihlášen")
         if e.responsible_person_id == current_user.id:
-            tags.append("RP")
+            tags.append("Zodpovědný zdravotník")
         if e.created_by_id == current_user.id:
             tags.append("Koordinátor")
         my_events.append((e, tags))
