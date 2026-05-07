@@ -35,6 +35,8 @@ class UserAccount(UserMixin, db.Model):
         default=CalendarView.LIST,
         nullable=False,
     )
+    # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
+    version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

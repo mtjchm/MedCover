@@ -102,6 +102,8 @@ class Event(db.Model):
     created_by_id = db.Column(db.Uuid, db.ForeignKey("user_account.id"), nullable=True)
     # Reminder schedule inherited from template or set manually (hours before start, comma-separated)
     reminder_schedule = db.Column(db.String(255), nullable=True, default="24")
+    # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
+    version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -157,6 +159,8 @@ class EventSpot(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey("event.id"), nullable=False)
     description = db.Column(db.String(255), nullable=True)
+    # Optimistic locking — used in combination with with_for_update() for assignment
+    version = db.Column(db.Integer, default=1, nullable=False)
 
     event = db.relationship("Event", back_populates="spots")
     required_credentials = db.relationship(
