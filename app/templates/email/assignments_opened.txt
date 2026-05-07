@@ -1,0 +1,13 @@
+Dobrý den, {{ user_name }},
+
+přihlašování na akci je nyní otevřeno:
+
+  {{ event.name }}
+  Začátek: {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}
+  Konec:   {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}
+{% if event.address %}  Místo:   {{ event.address }}
+{% endif %}
+Přihlaste se v aplikaci MedCover, pokud máte zájem o účast.
+
+S pozdravem,
+MedCover

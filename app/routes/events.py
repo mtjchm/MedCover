@@ -31,6 +31,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app import mail as mailer
 
 events_bp = Blueprint("events", __name__, url_prefix="/events")
 
@@ -258,6 +259,20 @@ def transition(event_id: int):
     })
     db.session.commit()
 
+    # Email notifications
+    if target_status == EventStatus.PUBLISHED:
+        active_users = db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        ).all()
+        for u in active_users:
+            mailer.send_event_published(u.email, u.name, event)
+    elif target_status == EventStatus.ASSIGNMENTS_OPEN:
+        active_users = db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        ).all()
+        for u in active_users:
+            mailer.send_assignments_opened(u.email, u.name, event)
+
     flash(f"Stav akce byl změněn na {target_status.value}.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
 
@@ -279,7 +294,16 @@ def cancel(event_id: int):
     event.archived = True
     event.version += 1
     _audit("status_change", event, f"Akce zrušena a archivována")
+
+    # Notify all assigned users before commit so we still have spot data
+    assigned_users = [
+        (s.assignment.user.email, s.assignment.user.name)
+        for s in event.spots if s.assignment
+    ]
     db.session.commit()
+
+    for email, name in assigned_users:
+        mailer.send_event_cancelled(email, name, event)
 
     flash("Akce byla zrušena.", "warning")
     return redirect(url_for("events.index"))

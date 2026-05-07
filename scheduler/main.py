@@ -86,9 +86,32 @@ def close_completed_events() -> None:
 
 
 def send_reminders() -> None:
-    """Send unfilled-spot reminder emails per each Event's reminder_schedule."""
+    """Send unfilled-spot reminder emails to coordinator/RP for open events."""
     with app.app_context():
-        log.info("TODO: send_reminders task (Phase 3 email)")
+        from app.extensions import db
+        from app.models.event import Event, EventStatus
+        from app.mail import send_unfilled_spots_reminder
+
+        events = db.session.scalars(
+            db.select(Event).where(
+                Event.status == EventStatus.ASSIGNMENTS_OPEN,
+                Event.archived == False,  # noqa: E712
+            )
+        ).all()
+
+        for event in events:
+            unfilled = event.total_spots - event.filled_spots
+            if unfilled <= 0:
+                continue
+            # Notify coordinator (ME) and/or RP
+            recipients: set[tuple[str, str]] = set()
+            if event.responsible_person:
+                recipients.add((event.responsible_person.email, event.responsible_person.name))
+            if event.master_event and event.master_event.coordinator:
+                recipients.add((event.master_event.coordinator.email, event.master_event.coordinator.name))
+            for email, name in recipients:
+                send_unfilled_spots_reminder(email, name, event, unfilled)
+                log.info("Reminder sent for event id=%s to %s", event.id, email)
 
 
 def send_admin_digest() -> None:
