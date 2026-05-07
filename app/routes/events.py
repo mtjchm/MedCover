@@ -90,7 +90,7 @@ _STATUS_COLORS: dict[str, str] = {
     "Přihlášky otevřeny":  "#198754",
     "Přihlášky uzavřeny":  "#ffc107",
     "Dokončena":            "#212529",
-    "Zrušena":              "#dc3545",
+    "Zrušena":              "#adb5bd",
 }
 
 
@@ -117,7 +117,7 @@ def feed():
             "url": url_for("events.detail", event_id=e.id),
             "backgroundColor": color,
             "borderColor": color,
-            "textColor": "#ffc107" if e.status.value == "Assignments Closed" else "#fff",
+            "textColor": "#000" if e.status.value == "Přihlášky uzavřeny" else "#fff",
             "extendedProps": {
                 "status": e.status.value,
                 "filled": e.filled_spots,

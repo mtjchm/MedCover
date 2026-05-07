@@ -41,7 +41,7 @@
   <span class="badge bg-success">Přihlášky otevřeny</span>
   <span class="badge" style="background:#ffc107;color:#000">Přihlášky uzavřeny</span>
   <span class="badge bg-dark">Dokončena</span>
-  <span class="badge bg-danger">Zrušena</span>
+  <span class="badge bg-secondary"><s>Zrušena</s></span>
 </div>
 
 {% set status_colors = {
@@ -50,7 +50,7 @@
   'Přihlášky otevřeny': 'success',
   'Přihlášky uzavřeny': 'warning',
   'Dokončena': 'dark',
-  'Zrušena': 'danger'
+  'Zrušena': 'secondary'
 } %}
 
 {# ── Table view ─────────────────────────────────────────────────────────── #}
@@ -70,10 +70,10 @@
       </thead>
       <tbody>
         {% for event in events %}
-        <tr class="{{ 'text-muted' if event.archived }}">
+        <tr class="{{ 'table-secondary text-muted' if event.status == EventStatus.CANCELLED else ('text-muted' if event.archived) }}">
           <td>
-            <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold">
-              {{ event.name }}{% if not event.master_event.is_general %} <span class="text-muted fw-normal">({{ event.master_event.name }})</span>{% endif %}
+            <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
+              {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
             </a>
             {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
           </td>
@@ -81,7 +81,7 @@
           <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
           <td>
             <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
-              {{ event.status.value }}
+              {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
           <td>{{ event.filled_spots }}/{{ event.total_spots }}</td>
