@@ -38,7 +38,9 @@
           {% if current_user.has_permission('equipment.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('equipment.index') }}">Vybavení</a></li>
           {% endif %}
-          <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
+          {% if current_user.has_permission('report.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Přehledy</a></li>
+          {% endif %}
           {% if current_user.has_permission('admin.manage_settings') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('app_settings.index') }}">Nastavení</a></li>
           {% endif %}
