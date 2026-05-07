@@ -37,12 +37,12 @@
 {# Status legend #}
 <div class="mb-3" id="status-legend">
   <div class="d-flex gap-2 flex-wrap small mb-1">
-    <span class="badge bg-secondary">Koncept</span>
-    <span class="badge bg-primary">Zveřejněná</span>
-    <span class="badge bg-success">Přihlášky otevřeny</span>
-    <span class="badge" style="background:#ffc107;color:#000">Přihlášky uzavřeny</span>
-    <span class="badge bg-dark">Dokončena</span>
-    <span class="badge bg-secondary"><s>Zrušena</s></span>
+    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Akce je ve fázi přípravy, není viditelná pro členy.">Koncept</span>
+    <span class="badge bg-primary" data-bs-toggle="tooltip" title="Akce je viditelná, ale přihlašování ještě nezačalo.">Zveřejněná</span>
+    <span class="badge bg-success" data-bs-toggle="tooltip" title="Členové se mohou přihlašovat na volné pozice.">Přihlášky otevřeny</span>
+    <span class="badge" style="background:#ffc107;color:#000" data-bs-toggle="tooltip" title="Přihlašování bylo uzavřeno.">Přihlášky uzavřeny</span>
+    <span class="badge bg-dark" data-bs-toggle="tooltip" title="Akce proběhla a byla uzavřena.">Dokončena</span>
+    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Akce byla zrušena."><s>Zrušena</s></span>
   </div>
   <div class="text-muted small">
     Obsazení: <strong>obsazeno / celkem pozic</strong> &nbsp;·&nbsp;

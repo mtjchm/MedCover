@@ -34,17 +34,16 @@ class ProductionConfig(Config):
     DEBUG = False
     # DEV_LOGIN_ENABLED is hardcoded False in base Config — no env var override possible
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+
     @classmethod
     def init_app(cls, app: object) -> None:  # type: ignore[override]
-        pass
-
-    # Enforce sslmode=require on startup (Render Postgres provides SSL by default)
-    @staticmethod
-    def validate_db_url(url: str) -> None:
-        if url and "sslmode" not in url:
+        db_url = os.environ.get("DATABASE_URL", "")
+        if db_url and "sslmode" not in db_url:
             import warnings
             warnings.warn(
-                "DATABASE_URL does not contain sslmode=require. "
+                "DATABASE_URL does not include sslmode=require. "
                 "Add ?sslmode=require for production security.",
                 stacklevel=2,
             )

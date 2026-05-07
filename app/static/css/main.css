@@ -33,6 +33,44 @@
   box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
 }
 
+/* ── Mobile: make tables horizontally scrollable ── */
+@media (max-width: 767.98px) {
+  .table-responsive-stack thead {
+    display: none;
+  }
+  .table-responsive-stack tbody tr {
+    display: block;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+  }
+  .table-responsive-stack tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0.5rem;
+    border: none;
+  }
+  .table-responsive-stack tbody td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 600;
+    margin-right: 0.5rem;
+    white-space: nowrap;
+  }
+}
+
+/* ── Mobile: btn groups stacked ── */
+@media (max-width: 575.98px) {
+  .btn-toolbar-mobile {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-toolbar-mobile .btn {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+}
+
 /* ── FullCalendar — mobile-only adjustments ── */
 @media (max-width: 575.98px) {
   .fc .fc-toolbar-title {

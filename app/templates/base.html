@@ -97,6 +97,10 @@
       document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
         new bootstrap.Popover(el, { html: false });
       });
+      // Initialise all Bootstrap tooltips
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+      });
       // Initialise all flatpickr datetime inputs
       flatpickr(".flatpickr-dt", {
         enableTime: true,
@@ -118,6 +122,9 @@
       }
     }
   </script>
+
+  <!-- Client-side validation -->
+  <script src="{{ url_for('static', filename='js/validate.js') }}"></script>
 
   {% block extra_scripts %}{% endblock %}
 </body>
