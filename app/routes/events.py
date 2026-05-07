@@ -32,6 +32,9 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 import app.mail as mailer
+from zoneinfo import ZoneInfo
+
+_PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 events_bp = Blueprint("events", __name__, url_prefix="/events")
 
@@ -122,6 +125,9 @@ def feed():
                 "status": e.status.value,
                 "filled": e.filled_spots,
                 "total": e.total_spots,
+                "rp": e.responsible_person.name if e.responsible_person else None,
+                "start_local": e.start_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
+                "end_local": e.end_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
             },
         })
     return jsonify(items)
