@@ -23,7 +23,7 @@
         <tr>
           <td>{{ user.name }}</td>
           <td>{{ user.email }}</td>
-          <td class="text-muted small">{{ user.created_at.strftime('%d.%m.%Y %H:%M') if user.created_at else '—' }}</td>
+          <td class="text-muted small">{{ user.created_at | localdt if user.created_at else '—' }}</td>
           <td class="text-end">
             <form method="POST" action="{{ url_for('admin.activate_user', user_id=user.id) }}" class="d-inline">
               <button type="submit" class="btn btn-sm btn-success">Aktivovat</button>

@@ -40,6 +40,9 @@ def dashboard():
         )
         .order_by(Event.start_datetime)
     )
+    # Users without view_draft cannot open DRAFT events — exclude them to avoid 403
+    if not current_user.has_permission("event.view_draft"):
+        my_events_query = my_events_query.where(Event.status != EventStatus.DRAFT)
     my_events_raw = db.session.scalars(my_events_query).all()
 
     # Build (event, [tags]) pairs

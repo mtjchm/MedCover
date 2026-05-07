@@ -1,7 +1,12 @@
 import os
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from flask import Flask, redirect, request, url_for
 from .extensions import db, migrate, login_manager, mail
 from .config import config_by_name
+
+_PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -22,6 +27,15 @@ def create_app(config_name: str | None = None) -> Flask:
 
     from .routes import register_blueprints
     register_blueprints(app)
+
+    @app.template_filter("localdt")
+    def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
+        """Convert a UTC datetime to Europe/Prague local time and format it."""
+        if dt is None:
+            return "—"
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
     @app.before_request
     def _setup_guard():

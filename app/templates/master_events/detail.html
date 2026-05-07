@@ -103,7 +103,7 @@
         <td>
           <a href="#" class="text-decoration-none">{{ event.name }}</a>
         </td>
-        <td class="text-nowrap">{{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
         <td>
           {% set status_colors = {
             'Draft': 'secondary',

@@ -379,8 +379,18 @@ def delete_spot(event_id: int, spot_id: int):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None, str | None]:
-    """Parse the event form and return (event, error_message)."""
+    """Parse the event form and return (event, error_message).
+
+    All datetime inputs are interpreted as Europe/Prague local time and stored
+    as UTC in the database.
+    """
     from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    _PRAGUE = ZoneInfo("Europe/Prague")
+
+    def _local_to_utc(s: str) -> datetime:
+        """Parse a naive datetime string (Prague local time) and return UTC."""
+        return datetime.fromisoformat(s).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
 
     name = form.get("name", "").strip()
     master_event_id = form.get("master_event_id", "").strip()
@@ -401,8 +411,8 @@ def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None
         return None, "Datum a čas začátku i konce jsou povinné."
 
     try:
-        start_dt = datetime.fromisoformat(start_str).replace(tzinfo=timezone.utc)
-        end_dt = datetime.fromisoformat(end_str).replace(tzinfo=timezone.utc)
+        start_dt = _local_to_utc(start_str)
+        end_dt = _local_to_utc(end_str)
     except ValueError:
         return None, "Neplatný formát data a času."
 
@@ -412,7 +422,7 @@ def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None
     assignments_open_dt = None
     if assignments_open_str:
         try:
-            assignments_open_dt = datetime.fromisoformat(assignments_open_str).replace(tzinfo=timezone.utc)
+            assignments_open_dt = _local_to_utc(assignments_open_str)
         except ValueError:
             return None, "Neplatný formát data otevření přihlášek."
 

@@ -89,10 +89,10 @@
     <div class="card border-0 bg-light h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
+        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime | localdt }}</p>
         {% if event.assignments_open_datetime %}
-          <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime.strftime('%d.%m.%Y %H:%M') }}</p>
+          <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
         {% endif %}
       </div>
     </div>
