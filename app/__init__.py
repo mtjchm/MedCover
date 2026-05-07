@@ -31,6 +31,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     from .routes import register_blueprints
     register_blueprints(app)
+    register_cli_commands(app)
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
@@ -104,3 +105,53 @@ def create_app(config_name: str | None = None) -> Flask:
         return None
 
     return app
+
+
+def register_cli_commands(app: Flask) -> None:
+    """Register custom Flask CLI commands."""
+
+    @app.cli.command("verify-schema")
+    def verify_schema() -> None:
+        """
+        Verify that every SQLAlchemy model table and column exists in the DB.
+
+        Run this after 'flask db upgrade' to catch schema drift (e.g. a migration
+        that updated alembic_version but failed to apply the DDL).
+        Exits non-zero and prints a clear error if anything is missing.
+        """
+        import sys
+        from sqlalchemy import inspect as sa_inspect
+
+        inspector = sa_inspect(db.engine)
+        existing_tables = set(inspector.get_table_names())
+
+        errors: list[str] = []
+        table_count = 0
+
+        for table_name, table in db.metadata.tables.items():
+            if table_name == "alembic_version":
+                continue
+
+            if table_name not in existing_tables:
+                errors.append(f"MISSING TABLE: {table_name}")
+                continue
+
+            table_count += 1
+            existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+            for col in table.columns:
+                if col.name not in existing_cols:
+                    errors.append(f"MISSING COLUMN: {table_name}.{col.name}")
+
+        if errors:
+            print("Schema verification FAILED — the following objects are missing from the DB:")
+            for err in errors:
+                print(f"  ✘ {err}")
+            print(
+                "\nPossible causes: migration was stamped but not applied "
+                "('flask db stamp'), DB restored from incomplete backup, "
+                "or a migration script had an error."
+            )
+            print("Fix: drop alembic_version and re-run 'flask db upgrade'.")
+            sys.exit(1)
+        else:
+            print(f"Schema OK — verified {table_count} tables, all columns present.")
