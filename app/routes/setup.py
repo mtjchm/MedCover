@@ -135,8 +135,9 @@ def step3():
             flash(error, "warning")
             return render_template("setup/step3_admin.html")
 
-        # Ensure Admin role and its permissions exist
+        # Ensure Admin role and its permissions exist, plus General ME
         _ensure_roles()
+        _ensure_general_me()
 
         admin_role = Role.query.filter_by(name="Admin").first()
         user = UserAccount(email=email, name=full_name, is_active=True)
@@ -168,9 +169,9 @@ def _ensure_roles() -> None:
     """Idempotently create all permissions and roles (mirrors seed_dev.py logic)."""
     from app.models.role import ALL_PERMISSIONS
 
-    for code in ALL_PERMISSIONS:
-        if not Permission.query.filter_by(code=code).first():
-            db.session.add(Permission(code=code))
+    for perm_data in ALL_PERMISSIONS:
+        if not Permission.query.filter_by(code=perm_data["code"]).first():
+            db.session.add(Permission(code=perm_data["code"], description=perm_data.get("description")))
     db.session.flush()
 
     for role_name, perm_codes in ROLE_PERMISSIONS.items():
@@ -185,3 +186,15 @@ def _ensure_roles() -> None:
                 perm = Permission.query.filter_by(code=code).first()
                 if perm:
                     role.permissions.append(perm)
+
+
+def _ensure_general_me() -> None:
+    """Idempotently create the built-in General master event."""
+    from app.models.master_event import MasterEvent
+    if not db.session.scalar(db.select(MasterEvent).where(MasterEvent.is_general == True)):  # noqa: E712
+        db.session.add(MasterEvent(
+            name="Obecné",
+            description="Výchozí nadřazená akce pro akce bez specifického zařazení.",
+            is_general=True,
+        ))
+        db.session.flush()

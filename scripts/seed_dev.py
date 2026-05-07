@@ -21,6 +21,7 @@ from app import create_app
 from app.extensions import db
 from app.models.user import UserAccount
 from app.models.role import Role, Permission, ALL_PERMISSIONS, ROLE_PERMISSIONS
+from app.models.master_event import MasterEvent
 from app.routes.dev import DEV_ACCOUNTS
 
 
@@ -89,6 +90,18 @@ def seed():
             print(f"  Created {email} ({status})")
 
         db.session.commit()
+        print("\nSeeding General master event...")
+        if not db.session.scalar(db.select(MasterEvent).where(MasterEvent.is_general == True)):  # noqa: E712
+            db.session.add(MasterEvent(
+                name="Obecné",
+                description="Výchozí nadřazená akce pro akce bez specifického zařazení.",
+                is_general=True,
+            ))
+            db.session.commit()
+            print("  Created General master event.")
+        else:
+            print("  General master event already exists.")
+
         print("\nDone. Dev accounts (password: devpassword):")
         for a in DEV_ACCOUNTS:
             print(f"  {a['role']:12s}  {a['email']}")

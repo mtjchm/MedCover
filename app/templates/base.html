@@ -28,7 +28,7 @@
         <ul class="navbar-nav me-auto">
           {% if current_user.is_authenticated %}
           <li class="nav-item"><a class="nav-link" href="#">Akce</a></li>
-          <li class="nav-item"><a class="nav-link" href="#">Nadřazené akce</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('master_events.index') }}">Nadřazené akce</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Vybavení</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
           {% endif %}
