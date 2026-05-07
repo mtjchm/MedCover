@@ -186,10 +186,11 @@ class EventSpot(db.Model):  # type: ignore[misc]
 
     def is_eligible(self, user: UserAccount) -> bool:
         """Return True if the user holds qualifications satisfying all spot requirements."""
-        if not self.required_qualifications:
-            return True  # no qualification requirement — anyone can fill it
+        active_reqs = [q for q in self.required_qualifications if not q.is_deleted]
+        if not active_reqs:
+            return True  # no active qualification requirement — anyone can fill it
         user_quals = set(user.qualifications)
-        for required in self.required_qualifications:
+        for required in active_reqs:
             if not any(required.can_be_filled_by(uq) for uq in user_quals):
                 return False
         return True

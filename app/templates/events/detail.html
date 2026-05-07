@@ -197,7 +197,14 @@
         <td style="white-space: normal; word-break: break-word">{{ spot.description or '—' }}</td>
         <td style="white-space: normal; word-break: break-word; max-width: 180px">
           {% if spot.required_qualifications %}
-            {{ spot.required_qualifications | map(attribute='name') | join(', ') }}
+            {% for q in spot.required_qualifications %}
+              {% if q.is_deleted %}
+                <span class="text-decoration-line-through text-muted">{{ q.name }}</span>
+                <span class="badge bg-secondary" style="font-size:.65rem">odstraněna</span>{% if not loop.last %}, {% endif %}
+              {% else %}
+                {{ q.name }}{% if not loop.last %}, {% endif %}
+              {% endif %}
+            {% endfor %}
           {% else %}
             —
           {% endif %}

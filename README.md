@@ -1,8 +1,8 @@
 # MedCover
 
 [![CI](https://github.com/spidermila/MedCover/actions/workflows/ci.yml/badge.svg)](https://github.com/spidermila/MedCover/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-68%20passed-brightgreen)](https://github.com/spidermila/MedCover/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-59%25-yellow)](https://github.com/spidermila/MedCover/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-270%20passed-brightgreen)](https://github.com/spidermila/MedCover/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-67%25-yellow)](https://github.com/spidermila/MedCover/actions/workflows/ci.yml)
 
 MedCover is a web application for the **Czech Red Cross** that replaces a Google Sheets–based medical cover planning solution.
 It manages events, spot assignments, user roles, equipment, and reporting — all in Czech, tailored to the organisation's workflows.

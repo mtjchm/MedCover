@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Mapped
 from app.extensions import db
 
@@ -22,10 +24,22 @@ user_qualifications = db.Table(
 
 class Qualification(db.Model):  # type: ignore[misc]
     __tablename__ = "qualification"
+    __table_args__ = (
+        # Partial unique index: name must be unique among non-deleted qualifications only,
+        # so a new qualification can be created with the same name after soft-delete.
+        db.Index(
+            "ix_qualification_name_active_unique",
+            "name",
+            unique=True,
+            postgresql_where=db.text("is_deleted = false"),
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(128), unique=True, nullable=False)
+    name = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    is_deleted = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Qualifications that can substitute for this one (e.g. Doctor is a parent of First Aider)
     parents: Mapped[list[Qualification]] = db.relationship(
@@ -59,6 +73,11 @@ class Qualification(db.Model):  # type: ignore[misc]
         if qualification.id == self.id:
             return True
         return any(parent.can_be_filled_by(qualification, _visited) for parent in self.parents)
+
+    def soft_delete(self) -> None:
+        """Mark this qualification as deleted. Does not cascade — caller handles references."""
+        self.is_deleted = True
+        self.deleted_at = datetime.now(timezone.utc)
 
     def __repr__(self) -> str:
         return f"<Qualification {self.name}>"

@@ -170,7 +170,7 @@ class TestAdminEditUser:
 
     def test_admin_can_edit_name_email_phone(self, app: object, admin_client: object) -> None:
         uid = self._create_user(app)
-        resp = admin_client.post(f"/users/{uid}/edit", data={
+        resp = admin_client.post(f"/users/{uid}/save", data={
             "name": "New Name",
             "email": "newemail@test.com",
             "phone": "+420123456789",
@@ -185,7 +185,7 @@ class TestAdminEditUser:
 
     def test_member_cannot_edit_user(self, app: object, member_client: object) -> None:
         uid = self._create_user(app, "member_edit_target@test.com")
-        resp = member_client.post(f"/users/{uid}/edit", data={
+        resp = member_client.post(f"/users/{uid}/save", data={
             "name": "Hacker",
             "email": "hacked@test.com",
             "phone": "",
@@ -201,7 +201,7 @@ class TestAdminEditUser:
             other.roles = [role]
             db.session.add(other)
             db.session.commit()
-        resp = admin_client.post(f"/users/{uid}/edit", data={
+        resp = admin_client.post(f"/users/{uid}/save", data={
             "name": "Orig",
             "email": "taken@test.com",
             "phone": "",
@@ -215,7 +215,7 @@ class TestAdminEditUser:
 
     def test_empty_name_rejected(self, app: object, admin_client: object) -> None:
         uid = self._create_user(app, "noname@test.com")
-        resp = admin_client.post(f"/users/{uid}/edit", data={
+        resp = admin_client.post(f"/users/{uid}/save", data={
             "name": "",
             "email": "noname@test.com",
             "phone": "",
@@ -226,7 +226,7 @@ class TestAdminEditUser:
     def test_audit_log_entry_created(self, app: object, admin_client: object) -> None:
         from app.models.audit import AuditLogEntry
         uid = self._create_user(app, "audit_edit@test.com")
-        admin_client.post(f"/users/{uid}/edit", data={
+        admin_client.post(f"/users/{uid}/save", data={
             "name": "Audited Name",
             "email": "audit_edit@test.com",
             "phone": "",
@@ -447,6 +447,31 @@ class TestInvites:
             )
             assert entry is not None
 
+    def test_new_user_gets_member_role(self, app: object, client: object) -> None:
+        with app.app_context():
+            from app.models.role import Role as _Role
+            admin_role = db.session.scalar(db.select(Role).where(Role.name == _Role.ADMIN))
+            creator = UserAccount(email="roletest_creator@test.com", name="RoleCreator", is_active=True)
+            creator.set_password("pass1234")
+            creator.roles = [admin_role]
+            db.session.add(creator)
+            db.session.flush()
+            inv = RegistrationInvite(email="roletest@example.com", created_by_id=creator.id)
+            db.session.add(inv)
+            db.session.commit()
+            token = inv.token
+        client.post(f"/auth/register/{token}", data={
+            "full_name": "Role Test User",
+            "password": "pass1234",
+            "password2": "pass1234",
+        }, follow_redirects=True)
+        with app.app_context():
+            from app.models.role import Role as _Role
+            user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "roletest@example.com"))
+            assert user is not None
+            role_names = [r.name for r in user.roles]
+            assert _Role.MEMBER in role_names
+
 
 # ── Phone number validation ───────────────────────────────────────────────────
 
@@ -509,7 +534,7 @@ class TestPhoneValidationAdminEdit:
     def test_valid_phone_accepted_on_admin_edit(self, app: object, admin_client: object, phone: str) -> None:
         uid = self._create_user(app)
         resp = admin_client.post(
-            f"/users/{uid}/edit",
+            f"/users/{uid}/save",
             data={"name": "Phone Target", "email": "phonetarget@test.com", "phone": phone},
             follow_redirects=True,
         )
@@ -520,7 +545,7 @@ class TestPhoneValidationAdminEdit:
     def test_invalid_phone_rejected_on_admin_edit(self, app: object, admin_client: object, phone: str) -> None:
         uid = self._create_user(app)
         resp = admin_client.post(
-            f"/users/{uid}/edit",
+            f"/users/{uid}/save",
             data={"name": "Phone Target", "email": "phonetarget@test.com", "phone": phone},
             follow_redirects=True,
         )

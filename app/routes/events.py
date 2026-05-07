@@ -86,7 +86,13 @@ def index() -> str:
         query = query.where(Event.archived == False)  # noqa: E712
 
     events = db.session.scalars(query).all()
-    return render_template("events/index.html", events=events, show_archived=show_archived, EventStatus=EventStatus)
+    return render_template(
+        "events/index.html",
+        events=events,
+        show_archived=show_archived,
+        EventStatus=EventStatus,
+        has_draft_perm=current_user.has_permission("event.view_draft"),
+    )
 
 
 # ── Calendar JSON feed ────────────────────────────────────────────────────────
@@ -132,6 +138,7 @@ def feed() -> Response:
             "textColor": "#000" if e.status.value == "Přihlášky uzavřeny" else "#fff",
             "extendedProps": {
                 "status": e.status.value,
+                "status_key": e.status.name,
                 "filled": e.filled_spots,
                 "total": e.total_spots,
                 "rp": e.responsible_person.name if e.responsible_person else None,

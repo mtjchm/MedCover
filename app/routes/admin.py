@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import socket
 import time
 
@@ -101,12 +101,28 @@ def index() -> str:
     }
     event_total = sum(event_counts.values())
 
+    cutoff_24h = now - timedelta(hours=24)
     outbox_pending = db.session.scalar(
-        db.select(db.func.count()).select_from(OutboxEmail).where(OutboxEmail.status == "pending")
+        db.select(db.func.count()).select_from(OutboxEmail)
+        .where(OutboxEmail.status == "pending")
+        .where(OutboxEmail.created_at >= cutoff_24h)
     )
     outbox_failed = db.session.scalar(
-        db.select(db.func.count()).select_from(OutboxEmail).where(OutboxEmail.status == "failed")
+        db.select(db.func.count()).select_from(OutboxEmail)
+        .where(OutboxEmail.status == "failed")
+        .where(OutboxEmail.created_at >= cutoff_24h)
     )
+    outbox_sent = db.session.scalar(
+        db.select(db.func.count()).select_from(OutboxEmail)
+        .where(OutboxEmail.status == "sent")
+        .where(OutboxEmail.created_at >= cutoff_24h)
+    )
+    outbox_last = db.session.scalar(
+        db.select(OutboxEmail)
+        .order_by(OutboxEmail.created_at.desc())
+        .limit(1)
+    )
+    outbox_last_status = outbox_last.status if outbox_last else None
     outbox_last_sent = db.session.scalar(
         db.select(OutboxEmail.sent_at)
         .where(OutboxEmail.status == "sent")
@@ -141,6 +157,8 @@ def index() -> str:
         event_counts=event_counts,
         outbox_pending=outbox_pending,
         outbox_failed=outbox_failed,
+        outbox_sent=outbox_sent,
+        outbox_last_status=outbox_last_status,
         outbox_last_sent=outbox_last_sent,
         recent_audit=recent_audit,
         now=now,
@@ -234,7 +252,7 @@ def audit_log_list() -> str:
         try:
             dt_to = datetime.strptime(f_date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             # include the full day
-            from datetime import timedelta
+            from datetime import timedelta  # noqa: F811 (already imported at top)
             query = query.where(AuditLogEntry.timestamp < dt_to + timedelta(days=1))
         except ValueError:
             pass

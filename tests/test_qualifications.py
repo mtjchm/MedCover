@@ -28,6 +28,32 @@ def _make_user_with_qual(app, qual: Qualification) -> UserAccount:
     return user
 
 
+def _make_event_spot_with_qual(qual: Qualification) -> int:
+    """Create a minimal MasterEvent → Event → EventSpot and attach qual. Returns spot id."""
+    from app.models.master_event import MasterEvent
+    from app.models.event import Event, EventStatus, EventSpot
+    from datetime import datetime, timezone, timedelta
+    me = MasterEvent(name="Test ME for spot")
+    db.session.add(me)
+    db.session.flush()
+    now = datetime.now(timezone.utc)
+    ev = Event(
+        name="Test Event for spot",
+        master_event_id=me.id,
+        status=EventStatus.DRAFT,
+        start_datetime=now,
+        end_datetime=now + timedelta(hours=2),
+        version=1,
+    )
+    db.session.add(ev)
+    db.session.flush()
+    spot = EventSpot(event_id=ev.id)
+    spot.required_qualifications.append(qual)
+    db.session.add(spot)
+    db.session.commit()
+    return spot.id
+
+
 # ── Index ─────────────────────────────────────────────────────────────────────
 
 class TestQualificationIndex:
@@ -258,13 +284,17 @@ class TestQualificationEdit:
 
 class TestQualificationDelete:
     def test_delete_qualification(self, app, admin_client):
+        """Deleting an unreferenced qualification soft-deletes it."""
         with app.app_context():
             q = _make_qual("KeSmazání")
             qid = q.id
         resp = admin_client.post(f"/qualifications/{qid}/delete", follow_redirects=True)
         assert resp.status_code == 200
         with app.app_context():
-            assert db.session.get(Qualification, qid) is None
+            q = db.session.get(Qualification, qid)
+            assert q is not None
+            assert q.is_deleted is True
+            assert q.deleted_at is not None
 
     def test_delete_writes_audit_log(self, app, admin_client):
         with app.app_context():
@@ -280,15 +310,75 @@ class TestQualificationDelete:
             )
             assert entry is not None
 
-    def test_delete_blocked_when_assigned_to_user(self, app, admin_client):
+    def test_delete_cascades_user_qualification(self, app, admin_client):
+        """Deleting a qualification removes it from users and soft-deletes it."""
         with app.app_context():
             q = _make_qual("Přiřazená")
-            _make_user_with_qual(app, q)
+            user = _make_user_with_qual(app, q)
             qid = q.id
+            uid = user.id
         resp = admin_client.post(f"/qualifications/{qid}/delete", follow_redirects=True)
-        assert "přiřazena uživatelům".encode() in resp.data
+        assert resp.status_code == 200
         with app.app_context():
-            assert db.session.get(Qualification, qid) is not None
+            q = db.session.get(Qualification, qid)
+            assert q.is_deleted is True
+            user = db.session.get(UserAccount, uid)
+            # qualification removed from user
+            assert all(uq.id != qid for uq in user.qualifications)
+
+    def test_delete_cascades_active_spot(self, app, admin_client):
+        """Qualification is removed from active (DRAFT) event spots on delete."""
+        from app.models.event import EventSpot
+        with app.app_context():
+            q = _make_qual("SpotQual")
+            qid = q.id
+            q_ref = db.session.get(Qualification, qid)
+            spot_id = _make_event_spot_with_qual(q_ref)
+        resp = admin_client.post(f"/qualifications/{qid}/delete", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            q = db.session.get(Qualification, qid)
+            assert q.is_deleted is True
+            spot = db.session.get(EventSpot, spot_id)
+            # qualification unlinked from the DRAFT spot
+            assert all(rq.id != qid for rq in spot.required_qualifications)
+
+    def test_delete_keeps_tombstone_on_completed_spot(self, app, admin_client):
+        """Qualification stays linked (tombstone) on completed/cancelled event spots."""
+        from app.models.event import EventSpot, Event, EventStatus
+        from datetime import datetime, timezone, timedelta
+        from app.models.master_event import MasterEvent
+        with app.app_context():
+            q = _make_qual("CompletedSpotQual")
+            qid = q.id
+            # Build a completed event with this qualification
+            me = MasterEvent(name="Completed ME")
+            db.session.add(me)
+            db.session.flush()
+            now = datetime.now(timezone.utc)
+            ev = Event(
+                name="Completed Event",
+                master_event_id=me.id,
+                status=EventStatus.COMPLETED,
+                start_datetime=now - timedelta(days=1),
+                end_datetime=now,
+                version=1,
+            )
+            db.session.add(ev)
+            db.session.flush()
+            spot = EventSpot(event_id=ev.id)
+            spot.required_qualifications.append(db.session.get(Qualification, qid))
+            db.session.add(spot)
+            db.session.commit()
+            spot_id = spot.id
+        resp = admin_client.post(f"/qualifications/{qid}/delete", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            q = db.session.get(Qualification, qid)
+            assert q.is_deleted is True
+            spot = db.session.get(EventSpot, spot_id)
+            # tombstone: qualification still linked on the completed spot
+            assert any(rq.id == qid for rq in spot.required_qualifications)
 
     def test_delete_404_for_missing(self, admin_client):
         resp = admin_client.post("/qualifications/99999/delete")
