@@ -390,6 +390,11 @@ def create_invite() -> Response:
         flash("Zadejte platnou e-mailovou adresu.", "danger")
         return redirect(url_for("users.invites"))
 
+    # Block if a user account with this email already exists
+    if db.session.scalar(db.select(UserAccount).where(UserAccount.email == email)):
+        flash(f"Uživatel s e-mailem {email} již má účet v systému.", "warning")
+        return redirect(url_for("users.invites"))
+
     existing = db.session.scalar(
         db.select(RegistrationInvite).where(
             RegistrationInvite.email == email,
@@ -400,10 +405,15 @@ def create_invite() -> Response:
         flash(f"Platná pozvánka pro {email} již existuje.", "warning")
         return redirect(url_for("users.invites"))
 
+    custom_subject = request.form.get("custom_subject", "").strip() or None
+    custom_message = request.form.get("custom_message", "").strip() or None
+
     invite = RegistrationInvite(
         email=email,
         created_by_id=current_user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=INVITE_TOKEN_HOURS),
+        custom_subject=custom_subject,
+        custom_message=custom_message,
     )
     db.session.add(invite)
     db.session.flush()  # get invite.id before _queue_invite_email
@@ -426,11 +436,18 @@ def create_invite() -> Response:
 
 def _queue_invite_email(invite: RegistrationInvite) -> None:
     """Enqueue invite email into outbox and link it to the invite row."""
+    from app.config import INVITE_TOKEN_HOURS as _HOURS
     register_url = url_for("auth.register", token=invite.token, _external=True)
-    body = render_template("email/invite.txt", invite=invite, register_url=register_url)
+    body = render_template(
+        "email/invite.txt",
+        invite=invite,
+        register_url=register_url,
+        hours=_HOURS,
+    )
+    subject = invite.custom_subject or "MedCover — pozvánka k registraci"
     outbox = OutboxEmail(
         to_email=invite.email,
-        subject="MedCover — pozvánka k registraci",
+        subject=subject,
         body=body,
     )
     db.session.add(outbox)

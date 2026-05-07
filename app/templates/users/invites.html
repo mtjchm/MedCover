@@ -16,6 +16,21 @@
         <label for="email" class="form-label">E-mail pozvaného</label>
         <input type="email" class="form-control" id="email" name="email" required placeholder="jan.novak@example.com">
       </div>
+      <div class="col-12 col-md-6">
+        <label for="custom_subject" class="form-label">Předmět e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <input type="text" class="form-control" id="custom_subject" name="custom_subject"
+               placeholder="MedCover — pozvánka k registraci">
+        <div class="form-text">Ponechte prázdné pro výchozí předmět.</div>
+      </div>
+      <div class="col-12">
+        <label for="custom_message" class="form-label">Osobní zpráva <span class="text-muted fw-normal">(volitelné)</span></label>
+        <textarea class="form-control" id="custom_message" name="custom_message" rows="4"
+                  placeholder="Dobrý den, zveme Vás do systému MedCover..."></textarea>
+        <div class="form-text">
+          Váš text bude vložen do e-mailu před automaticky generovaným registračním odkazem.
+          Ponechte prázdné pro výchozí text.
+        </div>
+      </div>
       <div class="col-12 d-flex align-items-end">
         <button type="submit" class="btn btn-danger">Odeslat pozvánku</button>
       </div>

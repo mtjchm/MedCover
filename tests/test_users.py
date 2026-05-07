@@ -285,6 +285,45 @@ class TestInvites:
         )
         assert "již existuje".encode() in resp.data
 
+    def test_invite_blocked_for_existing_user(self, app: object, admin_client: object) -> None:
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            existing = UserAccount(email="existing@example.com", name="Existing", is_active=True)
+            existing.set_password("pass1234")
+            existing.roles = [role]
+            db.session.add(existing)
+            db.session.commit()
+        resp = admin_client.post(
+            "/users/invites/create",
+            data={"email": "existing@example.com"},
+            follow_redirects=True,
+        )
+        assert "již má účet".encode() in resp.data
+        with app.app_context():
+            inv = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.email == "existing@example.com"))
+            assert inv is None
+
+    def test_create_invite_with_custom_subject_and_message(self, app: object, admin_client: object) -> None:
+        admin_client.post(
+            "/users/invites/create",
+            data={
+                "email": "custom@example.com",
+                "custom_subject": "Vítejte v MedCoveru!",
+                "custom_message": "Zdravím, zvu tě do týmu.",
+            },
+            follow_redirects=True,
+        )
+        with app.app_context():
+            from app.models.outbox import OutboxEmail
+            inv = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.email == "custom@example.com"))
+            assert inv is not None
+            assert inv.custom_subject == "Vítejte v MedCoveru!"
+            assert inv.custom_message == "Zdravím, zvu tě do týmu."
+            outbox = db.session.get(OutboxEmail, inv.outbox_email_id)
+            assert outbox is not None
+            assert outbox.subject == "Vítejte v MedCoveru!"
+            assert "Zdravím, zvu tě do týmu." in outbox.body
+
     def test_create_invite_queues_outbox_email(self, app: object, admin_client: object) -> None:
         admin_client.post("/users/invites/create", data={"email": "outbox@example.com"}, follow_redirects=True)
         with app.app_context():

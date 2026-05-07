@@ -1,8 +1,15 @@
 Dobrý den,
 
-byli jste pozváni do systému MedCover.
+{% if invite.custom_message %}{{ invite.custom_message }}
 
-Svoji registraci dokončíte na odkazu níže (platný {{ hours }} hodin):
+{% else %}byli jste pozváni do systému MedCover.
+
+{% endif %}
+--------------------------------------------------
+Pro dokončení registrace klikněte na odkaz níže
+(platný {{ hours }} hodin):
+
 {{ register_url }}
+--------------------------------------------------
 
 Tým MedCover
