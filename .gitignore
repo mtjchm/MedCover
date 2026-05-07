@@ -34,3 +34,4 @@ htmlcov/
 # Docker
 *.log
 .env.prod
+zerver_scp.sh

@@ -254,6 +254,19 @@ def detail(event_id: int) -> str | Response:
         db.select(Credential).order_by(Credential.name)
     ).all()
 
+    # Precompute for JS eligibility check: for each credential R, which credential IDs can fill it?
+    # fillers_map[R.id] = {R.id} ∪ fillers of each of R's parents (transitively)
+    def _fillers(cred: Credential, _visited: frozenset[int] = frozenset()) -> set[int]:
+        if cred.id in _visited:
+            return set()
+        _visited = _visited | {cred.id}
+        result = {cred.id}
+        for parent in cred.parents:
+            result |= _fillers(parent, _visited)
+        return result
+
+    fillers_map = {str(c.id): list(_fillers(c)) for c in all_credentials}
+
     return render_template(
         "events/detail.html",
         event=event,
@@ -262,6 +275,7 @@ def detail(event_id: int) -> str | Response:
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
         all_credentials=all_credentials,
+        fillers_map=fillers_map,
     )
 
 
@@ -495,15 +509,55 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
     credentials = db.session.scalars(
         db.select(Credential).where(Credential.id.in_(cred_ids))
     ).all() if cred_ids else []
+    confirm_unassign = request.form.get("confirm_unassign") == "1"
+
+    # Check if the assigned user would become ineligible under the new credentials
+    unassign_needed = False
+    if spot.assignment:
+        assigned_user = spot.assignment.user
+        # Temporarily simulate new creds to check eligibility
+        old_creds = spot.required_credentials
+        spot.required_credentials = list(credentials)
+        if not spot.is_eligible(assigned_user):  # type: ignore[arg-type]
+            if not confirm_unassign:
+                spot.required_credentials = old_creds
+                flash(
+                    "Pozice nezměněna! Změna kvalifikací pro tuto pozici vyžaduje zaškrtnutí "
+                    "potvrzovacího políčka ve formuláři úpravy pozice, protože je na pozici "
+                    f"přihlášen uživatel {assigned_user.name}, který nesplňuje nové požadavky.",
+                    "warning",
+                )
+                return redirect(url_for("events.detail", event_id=event_id) + f"#edit-spot-{spot_id}")
+            unassign_needed = True
+        else:
+            spot.required_credentials = old_creds  # reset — will be set properly below
 
     spot.description = description
     spot.required_credentials = list(credentials)
     event.version += 1
     cred_names = ", ".join(c.name for c in credentials) if credentials else "žádná"
     _audit("edit", event, f"Upravena pozice '{description or '—'}' (kvalifikace: {cred_names})")
+
+    if unassign_needed:
+        assignment = spot.assignment
+        unassigned_user = assignment.user
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="delete",
+            entity_type="Assignment",
+            entity_id=str(assignment.id),
+            summary=f"Uživatel '{unassigned_user.name}' automaticky odhlášen — nesplňuje nové požadavky pozice",
+        ))
+        db.session.delete(assignment)
+        db.session.flush()
+
     db.session.commit()
 
-    flash("Pozice upravena.", "success")
+    if unassign_needed:
+        mailer.send_assignment_released(unassigned_user.email, unassigned_user.name, event)
+        flash(f"Pozice upravena. Uživatel {unassigned_user.name} byl automaticky odhlášen.", "warning")
+    else:
+        flash("Pozice upravena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
 
 

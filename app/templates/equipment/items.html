@@ -94,7 +94,7 @@
           <div class="collapse mt-1" id="issue-form-{{ item.id }}">
             <form method="POST" action="{{ url_for('equipment.item_issue', item_id=item.id) }}" class="d-flex gap-1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <select name="user_id" class="form-select form-select-sm">
+              <select name="user_id" class="form-select form-select-sm" required>
                 <option value="">— vyberte uživatele —</option>
                 {% for u in active_users %}
                   <option value="{{ u.id }}">{{ u.name }}</option>

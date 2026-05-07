@@ -19,6 +19,7 @@
         {{ event.status.value }}
       </span>
       {% if event.paid %}<span class="badge bg-success ms-1 fs-6">Placená</span>{% endif %}
+      <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1 fs-6">{{ event.staffing_status }}</span>
     </h2>
     <p class="text-muted mb-0">
       <a href="{{ url_for('master_events.detail', me_id=event.master_event_id) }}" class="text-decoration-none">
@@ -109,9 +110,6 @@
         <h6 class="card-subtitle text-muted mb-2">Obsazení</h6>
         <p class="mb-1">
           <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> pozic obsazeno
-          <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1">
-            {{ event.staffing_status }}
-          </span>
         </p>
         <p class="mb-0"><strong>Zodpovědný zdravotník:</strong> {{ event.responsible_person.name if event.responsible_person else '—' }}</p>
       </div>
@@ -195,25 +193,31 @@
     <tbody>
       {% for spot in event.spots %}
       <tr>
-        <td class="text-muted">{{ loop.index }}</td>
-        <td>{{ spot.description or '—' }}</td>
-        <td class="small text-muted">
+        <td class="text-muted small">{{ loop.index }}</td>
+        <td style="white-space: normal; word-break: break-word">{{ spot.description or '—' }}</td>
+        <td style="white-space: normal; word-break: break-word; max-width: 180px">
           {% if spot.required_credentials %}
-            {% for cred in spot.required_credentials %}
-              <span class="badge bg-secondary">{{ cred.name }}</span>
-            {% endfor %}
+            {{ spot.required_credentials | map(attribute='name') | join(', ') }}
           {% else %}
             —
           {% endif %}
         </td>
         <td>
           {% if spot.assignment %}
-            {{ spot.assignment.user.name }}
+            <a href="{{ url_for('users.detail', user_id=spot.assignment.user_id) }}" class="text-decoration-none">{{ spot.assignment.user.name }}</a>
           {% else %}
-            <span class="text-muted">Volné</span>
+            Volné
           {% endif %}
         </td>
         <td class="text-end">
+          {# Show ineligible message as plain text outside the button group #}
+          {% if not spot.assignment and event.status == EventStatus.ASSIGNMENTS_OPEN and current_user.has_permission('event.assign_own') %}
+            {% set already_assigned = namespace(val=false) %}
+            {% for s in event.spots %}{% if s.assignment and s.assignment.user_id == current_user.id %}{% set already_assigned.val = true %}{% endif %}{% endfor %}
+            {% if not already_assigned.val and not spot.is_eligible(current_user) %}
+              <span title="Nemáte požadovanou kvalifikaci">Nekvalifikován</span>
+            {% endif %}
+          {% endif %}
           <div class="d-flex gap-1 justify-content-end flex-wrap">
             {# Claim own spot #}
             {% if not spot.assignment and event.status == EventStatus.ASSIGNMENTS_OPEN and current_user.has_permission('event.assign_own') %}
@@ -225,8 +229,6 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
                   </form>
-                {% else %}
-                  <span class="text-muted small" title="Nemáte požadovanou kvalifikaci">Nekvalifikován</span>
                 {% endif %}
               {% endif %}
             {% endif %}
@@ -278,10 +280,12 @@
           <div class="collapse mt-1" id="assign-form-{{ spot.id }}">
             <form method="POST" action="{{ url_for('assignments.assign_other', spot_id=spot.id) }}" class="d-flex gap-1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <select name="user_id" class="form-select form-select-sm">
+              <select name="user_id" class="form-select form-select-sm" required>
                 <option value="">— vyberte uživatele —</option>
-                {% for u in eligible_users %}
+                {% for u in eligible_users if spot.is_eligible(u) %}
                   <option value="{{ u.id }}">{{ u.name }}</option>
+                {% else %}
+                  <option disabled>Žádní kvalifikovaní uživatelé</option>
                 {% endfor %}
               </select>
               <button type="submit" class="btn btn-primary btn-sm py-0">OK</button>
@@ -308,6 +312,38 @@
                 </div>
                 {% endfor %}
               </div>
+              {% if spot.assignment %}
+              <div class="alert alert-warning py-2 px-3 mb-2 small d-none" id="unassign-warning-{{ spot.id }}">
+                ⚠️ Uživatel <strong>{{ spot.assignment.user.name }}</strong> nesplňuje nové požadavky a bude automaticky odhlášen.
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" name="confirm_unassign" value="1"
+                         id="confirm_unassign_{{ spot.id }}">
+                  <label class="form-check-label" for="confirm_unassign_{{ spot.id }}">
+                    Rozumím, odhlásit uživatele pokud nebude kvalifikován
+                  </label>
+                </div>
+              </div>
+              <script>
+              (function() {
+                var userCredIds = {{ spot.assignment.user.credentials | map(attribute='id') | list | tojson }};
+                var fillersMap = {{ fillers_map | tojson }};
+                var warning = document.getElementById('unassign-warning-{{ spot.id }}');
+                var panel = document.getElementById('edit-spot-{{ spot.id }}');
+                function check() {
+                  var selected = Array.from(panel.querySelectorAll('input[name="credential_ids"]:checked'))
+                                      .map(function(cb) { return String(cb.value); });
+                  var eligible = selected.length === 0 || selected.every(function(reqId) {
+                    var fillers = fillersMap[reqId] || [parseInt(reqId)];
+                    return userCredIds.some(function(uid) { return fillers.indexOf(uid) !== -1; });
+                  });
+                  warning.classList.toggle('d-none', eligible);
+                }
+                panel.querySelectorAll('input[name="credential_ids"]').forEach(function(cb) {
+                  cb.addEventListener('change', check);
+                });
+              })();
+              </script>
+              {% endif %}
               <button type="submit" class="btn btn-sm btn-danger">Uložit</button>
               <button type="button" class="btn btn-sm btn-outline-secondary"
                       data-bs-toggle="collapse" data-bs-target="#edit-spot-{{ spot.id }}">Zrušit</button>
@@ -372,7 +408,7 @@
   {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_plan_add', event_id=event.id) }}" class="d-flex gap-2 mb-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="type_id" class="form-select form-select-sm" style="max-width: 200px">
+    <select name="type_id" class="form-select form-select-sm" style="max-width: 200px" required>
       <option value="">— typ —</option>
       {% for et in all_equipment_types %}
         <option value="{{ et.id }}">{{ et.name }}</option>
@@ -423,7 +459,7 @@
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="item_id" class="form-select form-select-sm" style="max-width: 250px">
+    <select name="item_id" class="form-select form-select-sm" style="max-width: 250px" required>
       <option value="">— položka —</option>
       {% for item in available_equipment_items %}
         <option value="{{ item.id }}">{{ item.name }} ({{ item.equipment_type.name }})</option>
