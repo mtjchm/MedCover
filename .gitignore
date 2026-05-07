@@ -35,3 +35,7 @@ htmlcov/
 *.log
 .env.prod
 zerver_scp.sh
+
+# Import script artefacts (may contain personal data)
+Dozory*.xlsx
+import_events.json

@@ -428,6 +428,25 @@
         - `outbox_email` rows provide a permanent delivery audit trail viewable by admins.
         - The scheduler's main loop sleep was reduced from 30 s to 5 s so the queue is drained promptly.
 
+- AD16 Google Sheets Event Import Strategy
+    - **Context:** The app replaces an existing Google Sheets ("Dozory") workflow. At launch, ~130 future events must be migrated without manual re-entry. A one-off migration path is needed; the GS sheet continues to be used as the booking source until all coordinators move to MedCover natively.
+    - **Options considered:**
+        - **Google Sheets API** — no download step, but requires OAuth credentials, API quota management, and a persistent integration that would be dead weight after migration.
+        - **CSV export** — simple, but the GS CSV export has inconsistent line endings that break standard parsers.
+        - **xlsx via openpyxl** — preserves native date/time Python objects, handles merged cells gracefully, zero server-side dependencies.
+    - **Decision:** **Two-step offline import using xlsx + JSON paste.**
+        1. Admin downloads the sheet as `.xlsx` and runs `scripts/import_events.py` locally (requires `pip install openpyxl`). The script filters past events, maps GS columns to the MedCover JSON interchange format, and auto-appends dates to disambiguate duplicate names.
+        2. Admin pastes the JSON into `/import/events/` (admin-only, `event.create` permission). The web app validates each row, fuzzy-matches responsible-person names against DB users, flags duplicates (same name + date already in DB), and renders an editable preview table.
+        3. Admin reviews and confirms. All events are created in a **single all-or-nothing transaction** as `DRAFT`. 3 spots per event (1 mandatory Zdravotník, 1 mandatory Zelenáč, 1 optional Zelenáč) unless start time was missing.
+    - **Bulk lifecycle actions (companion feature):** A `POST /events/bulk` route enables multi-select in the events list and batch status transitions (Zveřejnit, Otevřít přihlášky, Zrušit). Bulk actions intentionally skip email notifications to prevent notification storms when publishing a large import batch. Individual status changes via the event detail page still send emails.
+    - **Column mapping (GS → MedCover):**
+        - A (name), B (date), C (location), G (start_time), H (end_time), K (paid), M (responsible_person) → dedicated fields
+        - D (vehicle/tent), E (event type), F (organiser contact), N+ (pre-import signups) → stored as text in `description`
+    - **Consequences:**
+        - No permanent GS integration to maintain.
+        - The script is idempotent; duplicate detection in the web app prevents double-imports.
+        - Responsible-person matching is best-effort (exact → case-insensitive → reversed "Lastname Firstname"); unmatched names are highlighted for manual correction in the preview.
+        - Bulk status transitions make post-import workflow (publish all, open assignments) feasible in seconds.
 
 MedCover is a standard three-tier web application:
 

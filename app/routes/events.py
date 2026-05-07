@@ -488,7 +488,79 @@ def restore(event_id: int) -> Response:
     return redirect(url_for("events.detail", event_id=event_id))
 
 
-# ── Spot management ───────────────────────────────────────────────────────────
+# ── Bulk lifecycle actions ────────────────────────────────────────────────────
+
+# Maps action name → (target_status, required_permission, valid_from_statuses)
+_BULK_ACTIONS: dict[str, tuple[EventStatus, str, set[EventStatus]]] = {
+    "publish": (
+        EventStatus.PUBLISHED,
+        "event.publish",
+        {EventStatus.DRAFT},
+    ),
+    "open_assignments": (
+        EventStatus.ASSIGNMENTS_OPEN,
+        "event.assignments.open",
+        {EventStatus.PUBLISHED, EventStatus.ASSIGNMENTS_CLOSED},
+    ),
+    "cancel": (
+        EventStatus.CANCELLED,
+        "event.cancel",
+        {EventStatus.DRAFT, EventStatus.PUBLISHED, EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED},
+    ),
+}
+
+
+@events_bp.post("/bulk")
+@login_required
+def bulk_action() -> Response:
+    action = request.form.get("action", "")
+    if action not in _BULK_ACTIONS:
+        abort(400)
+
+    target_status, perm, valid_from = _BULK_ACTIONS[action]
+
+    if not current_user.has_permission(perm):
+        abort(403)
+
+    raw_ids = request.form.getlist("event_ids")
+    try:
+        event_ids = [int(x) for x in raw_ids if x.isdigit()]
+    except ValueError:
+        abort(400)
+
+    if not event_ids:
+        flash("Žádné akce nebyly vybrány.", "warning")
+        return redirect(url_for("events.index"))
+
+    changed = 0
+    skipped = 0
+
+    for eid in event_ids:
+        event = db.session.get(Event, eid)
+        if event is None or event.status not in valid_from:
+            skipped += 1
+            continue
+        prev_status = event.status.value
+        event.status = target_status
+        if target_status == EventStatus.CANCELLED:
+            event.archived = True
+        event.version += 1
+        _audit(
+            "status_change",
+            event,
+            f"Hromadná akce: stav akce '{event.name}' změněn na '{target_status.value}'",
+            {"before": {"status": prev_status}, "after": {"status": target_status.value}},
+        )
+        changed += 1
+
+    db.session.commit()
+
+    msg = f"Změněno {changed} akcí."
+    if skipped:
+        msg += f" Přeskočeno {skipped} (nevhodný stav nebo nenalezeno)."
+    flash(msg, "success" if changed else "warning")
+    return redirect(url_for("events.index"))
+
 
 @events_bp.post("/<int:event_id>/spots/add")
 @login_required

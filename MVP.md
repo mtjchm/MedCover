@@ -131,6 +131,25 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 
 ---
 
+## Phase 6 — Import & Bulk Operations ✅
+
+### Google Sheets Event Import
+- ✅ Extraction script `scripts/import_events.py` — reads `.xlsx` export, filters past events, maps GS columns, disambiguates duplicate names by appending date, outputs JSON
+- ✅ Script documentation `scripts/README_import.md` — step-by-step usage guide, column mapping table, format reference
+- ✅ Admin-only import page `/import/events/` — paste JSON, step-by-step instructions, help popovers
+- ✅ Validation + preview: server-side validation of each row, fuzzy RP name matching (exact → case-insensitive → reversed "Lastname Firstname"), duplicate detection (same name + date in DB)
+- ✅ Editable preview table — per-row overrides for name, start/end time, location, paid flag, master event, responsible person; global default qualifications for spot creation
+- ✅ Confirm import: all-or-nothing transaction, 3 spots per event (1 mandatory Zdravotník, 1 mandatory Zelenáč, 1 optional Zelenáč), events created as DRAFT, audit log entry per event
+- ✅ "Import akcí" link added to Administrace dropdown (admin/coordinator only)
+
+### Bulk Lifecycle Actions
+- ✅ Multi-select checkboxes in events list table (check-all + per-row)
+- ✅ Bulk action toolbar (shown when ≥1 row selected): Zveřejnit, Otevřít přihlášky, Zrušit
+- ✅ Server-side `POST /events/bulk` — skips events in wrong state, reports changed vs skipped count
+- ✅ No email notifications on bulk actions (prevents notification storms on large import batches)
+
+---
+
 ## Future / Post-MVP Ideas
 
 - In-app notification inbox (bell icon in navbar)

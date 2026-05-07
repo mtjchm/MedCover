@@ -75,6 +75,38 @@
   'Zrušena': 'secondary'
 } %}
 
+{# ── Bulk action toolbar (hidden until rows are selected) ───────────────── #}
+{% if current_user.has_any_permission('event.publish', 'event.assignments.open', 'event.cancel') %}
+<div id="bulk-toolbar" class="d-none mb-3">
+  <form method="POST" action="{{ url_for('events.bulk_action') }}" id="bulk-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" id="bulk-action-input" value="">
+    <div id="bulk-ids-container"></div>{# dynamic hidden event_ids inputs #}
+    <div class="d-flex gap-2 align-items-center flex-wrap p-2 rounded border border-secondary-subtle bg-body-secondary">
+      <span class="text-muted small me-1" id="bulk-count-label">0 vybráno</span>
+      {% if current_user.has_permission('event.publish') %}
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="submitBulk('publish')">
+        Zveřejnit
+      </button>
+      {% endif %}
+      {% if current_user.has_permission('event.assignments.open') %}
+      <button type="button" class="btn btn-sm btn-outline-success" onclick="submitBulk('open_assignments')">
+        Otevřít přihlášky
+      </button>
+      {% endif %}
+      {% if current_user.has_permission('event.cancel') %}
+      <button type="button" class="btn btn-sm btn-outline-danger" onclick="submitBulk('cancel')">
+        Zrušit vybrané
+      </button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-auto" onclick="clearSelection()">
+        Zrušit výběr
+      </button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 {# ── Table view ─────────────────────────────────────────────────────────── #}
 <div id="view-table">
   {% if events %}
@@ -82,6 +114,10 @@
     <table class="table table-hover align-middle" id="events-table">
       <thead class="table-light">
         <tr>
+          <th style="width:2rem;" class="px-2">
+            <input type="checkbox" class="form-check-input" id="check-all-events"
+                   title="Vybrat / odebrat vše viditelné">
+          </th>
           <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap;min-width:12rem">
             Název <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
@@ -105,7 +141,12 @@
         {% set staffing_ratio = (mand_filled / mand_total) if mand_total > 0 else 0 %}
         <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
             data-status="{{ event.status.name }}"
+            data-event-id="{{ event.id }}"
             data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
+          <td class="px-2">
+            <input type="checkbox" class="form-check-input row-event-check" value="{{ event.id }}"
+                   title="Vybrat akci">
+          </td>
           <td>
             <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
@@ -432,8 +473,87 @@
     // Restore saved view
     const saved = localStorage.getItem(STORAGE_VIEW) || "table";
     setView(saved);
+
+    // ── Bulk selection ──────────────────────────────────────────────────────
+
+    const checkAll   = document.getElementById("check-all-events");
+    const toolbar    = document.getElementById("bulk-toolbar");
+    const countLabel = document.getElementById("bulk-count-label");
+
+    function visibleChecks() {
+      return Array.from(document.querySelectorAll(".row-event-check")).filter(cb => {
+        const tr = cb.closest("tr");
+        return tr && tr.style.display !== "none";
+      });
+    }
+
+    function updateBulkToolbar() {
+      if (!toolbar) return;
+      const checked = visibleChecks().filter(cb => cb.checked);
+      const total   = visibleChecks().length;
+      toolbar.classList.toggle("d-none", checked.length === 0);
+      if (countLabel) countLabel.textContent = `${checked.length} vybráno`;
+      if (checkAll) {
+        checkAll.indeterminate = checked.length > 0 && checked.length < total;
+        checkAll.checked = total > 0 && checked.length === total;
+      }
+    }
+
+    if (checkAll) {
+      checkAll.addEventListener("change", function () {
+        visibleChecks().forEach(cb => { cb.checked = checkAll.checked; });
+        updateBulkToolbar();
+      });
+    }
+
+    document.querySelectorAll(".row-event-check").forEach(cb => {
+      cb.addEventListener("change", updateBulkToolbar);
+    });
+
+    // Re-run after filter changes so check-all reflects only visible rows
+    const origApplyFilters = applyFilters;
+    window.applyFiltersWithBulk = function(f) {
+      origApplyFilters(f);
+      updateBulkToolbar();
+    };
   });
-</script>
+
+  function clearSelection() {
+    document.querySelectorAll(".row-event-check").forEach(cb => { cb.checked = false; });
+    const ca = document.getElementById("check-all-events");
+    if (ca) { ca.checked = false; ca.indeterminate = false; }
+    const tb = document.getElementById("bulk-toolbar");
+    if (tb) tb.classList.add("d-none");
+  }
+
+  function submitBulk(action) {
+    const ids = Array.from(document.querySelectorAll(".row-event-check:checked")).map(cb => cb.value);
+    if (ids.length === 0) return;
+
+    const actionLabels = {
+      "publish":          "Zveřejnit",
+      "open_assignments": "Otevřít přihlášky",
+      "cancel":           "Zrušit"
+    };
+    const label = actionLabels[action] || action;
+    if (!confirm(`Akce: ${label}\nPočet vybraných akcí: ${ids.length}\n\nPokračovat?`)) return;
+
+    const form = document.getElementById("bulk-form");
+    document.getElementById("bulk-action-input").value = action;
+
+    // Populate hidden event_ids inputs
+    const container = document.getElementById("bulk-ids-container");
+    container.innerHTML = "";
+    ids.forEach(id => {
+      const inp = document.createElement("input");
+      inp.type = "hidden";
+      inp.name = "event_ids";
+      inp.value = id;
+      container.appendChild(inp);
+    });
+
+    form.submit();
+  }</script>
 
 <script>
 (function () {
