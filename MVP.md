@@ -76,8 +76,8 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 ## Phase 4 — Audit, Equipment & Reports 🔲
 
 ### Audit Log UI
-- 🔲 Audit log list page (admin only): paginated table, filter by entity type / actor / date range
-- 🔲 Audit log detail view: before/after diff for edit actions
+- ✅ Audit log list page (admin only): paginated table, filter by entity type / actor / date range
+- ✅ Audit log detail view: before/after diff for edit actions
 
 ### Equipment Inventory
 - 🔲 EquipmentType CRUD (name, description, category: personal / shared)
