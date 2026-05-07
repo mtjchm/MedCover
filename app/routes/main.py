@@ -114,7 +114,7 @@ def dashboard() -> str:
         attention_events = [
             e for e in attention_events
             if e.status in (EventStatus.DRAFT, EventStatus.PUBLISHED)
-            or (e.status == EventStatus.ASSIGNMENTS_OPEN and e.filled_spots < e.total_spots)
+            or (e.status == EventStatus.ASSIGNMENTS_OPEN and e.mandatory_filled_spots < e.mandatory_total_spots)
         ]
 
     # ── Admin: čekající aktivace ──────────────────────────────────────────

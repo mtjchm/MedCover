@@ -33,6 +33,21 @@
   box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
 }
 
+/* ── Mobile: compact tables ── */
+@media (max-width: 767.98px) {
+  .table {
+    font-size: 0.8rem;
+  }
+  .table th,
+  .table td {
+    padding: 0.3rem 0.4rem;
+  }
+  .table .badge {
+    font-size: 0.7rem;
+    padding: 0.2em 0.4em;
+  }
+}
+
 /* ── Mobile: make tables horizontally scrollable ── */
 @media (max-width: 767.98px) {
   .table-responsive-stack thead {
@@ -98,4 +113,15 @@
 .navbar-dark .nav-link:hover,
 .navbar-dark .nav-link:focus {
   color: #ffffff;
+}
+
+/* Dark mode: table-light / table-foot overrides */
+[data-bs-theme="dark"] .table-light,
+[data-bs-theme="dark"] .table-light > * {
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: transparent;
+  --bs-table-hover-bg: rgba(255,255,255,0.05);
+  --bs-table-color: var(--bs-body-color);
+  background-color: transparent !important;
+  color: var(--bs-body-color) !important;
 }

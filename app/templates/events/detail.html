@@ -137,7 +137,7 @@
   <h5 class="mb-0">Pozice ({{ event.total_spots }})</h5>
   {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
     <button class="btn btn-outline-danger btn-sm" type="button"
-            data-bs-toggle="collapse" data-bs-target="#addSpotPanel">+ Přidat pozici</button>
+            data-bs-toggle="collapse" data-bs-target="#addSpotPanel">Přidat pozici</button>
   {% endif %}
 </div>
 
@@ -169,6 +169,12 @@
             {% endfor %}
           </div>
         </div>
+        <div class="col-auto align-self-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="is_optional" value="1" id="add_spot_optional">
+            <label class="form-check-label small text-muted" for="add_spot_optional">Volitelná pozice</label>
+          </div>
+        </div>
         <div class="col-auto">
           <button class="btn btn-danger btn-sm">Přidat</button>
         </div>
@@ -194,7 +200,12 @@
       {% for spot in event.spots %}
       <tr>
         <td class="text-muted small">{{ loop.index }}</td>
-        <td style="white-space: normal; word-break: break-word">{{ spot.description or '—' }}</td>
+        <td style="white-space: normal; word-break: break-word">
+          {{ spot.description or '—' }}
+          {% if spot.is_optional %}
+            <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">volitelná</span>
+          {% endif %}
+        </td>
         <td style="white-space: normal; word-break: break-word; max-width: 180px">
           {% if spot.required_qualifications %}
             {% for q in spot.required_qualifications %}
@@ -309,6 +320,11 @@
                 <input type="text" class="form-control form-control-sm" name="description"
                        value="{{ spot.description or '' }}" placeholder="Popis pozice">
               </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="is_optional" value="1"
+                       id="edit_optional_{{ spot.id }}" {{ 'checked' if spot.is_optional }}>
+                <label class="form-check-label small text-muted" for="edit_optional_{{ spot.id }}">Volitelná pozice</label>
+              </div>
               <div class="d-flex flex-wrap gap-2 mb-2">
                 {% for cred in all_qualifications %}
                 <div class="form-check form-check-inline">
@@ -422,7 +438,7 @@
       {% endfor %}
     </select>
     <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm" style="max-width: 80px">
-    <button class="btn btn-outline-danger btn-sm">+ Přidat</button>
+    <button class="btn btn-outline-danger btn-sm">Přidat</button>
   </form>
   {% endif %}
 
@@ -472,7 +488,7 @@
         <option value="{{ item.id }}">{{ item.name }} ({{ item.equipment_type.name }})</option>
       {% endfor %}
     </select>
-    <button class="btn btn-outline-danger btn-sm">+ Přiřadit</button>
+    <button class="btn btn-outline-danger btn-sm">Přiřadit</button>
   </form>
   {% endif %}
 </div>

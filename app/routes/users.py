@@ -168,7 +168,21 @@ def index() -> str:
     _require_permission("user.view")
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
-    query = db.select(UserAccount).order_by(UserAccount.name)
+    sort = request.args.get("sort", "name")
+    sort_dir = request.args.get("dir", "asc")
+    if sort not in ("name", "email", "status"):
+        sort = "name"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
+
+    sort_col = {
+        "name": UserAccount.name,
+        "email": UserAccount.email,
+        "status": UserAccount.is_active,
+    }[sort]
+    order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
+
+    query = db.select(UserAccount).order_by(order)
     if q:
         query = query.where(
             db.or_(
@@ -190,6 +204,8 @@ def index() -> str:
         total_pages=total_pages,
         q=q,
         roles=roles,
+        sort=sort,
+        sort_dir=sort_dir,
     )
 
 

@@ -64,6 +64,10 @@ class EventTemplate(db.Model):  # type: ignore[misc]
         "EventSpotTemplate", back_populates="template", cascade="all, delete-orphan",
         lazy="selectin",
     )
+    equipment_plans = db.relationship(
+        "EventTemplateEquipmentPlan", back_populates="template", cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def reminder_hours(self) -> list[int]:
         if not self.reminder_schedule:
@@ -80,6 +84,7 @@ class EventSpotTemplate(db.Model):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     template_id = db.Column(db.Integer, db.ForeignKey("event_template.id"), nullable=False)
     description = db.Column(db.String(255), nullable=True)
+    is_optional = db.Column(db.Boolean, default=False, nullable=False)
 
     template = db.relationship("EventTemplate", back_populates="spot_templates")
     required_qualifications: Mapped[list[Qualification]] = db.relationship(
@@ -145,18 +150,28 @@ class Event(db.Model):  # type: ignore[misc]
         return sum(1 for s in self.spots if s.assignment is not None)
 
     @property
+    def mandatory_total_spots(self) -> int:
+        return sum(1 for s in self.spots if not s.is_optional)
+
+    @property
+    def mandatory_filled_spots(self) -> int:
+        return sum(1 for s in self.spots if not s.is_optional and s.assignment is not None)
+
+    @property
+    def optional_total_spots(self) -> int:
+        return sum(1 for s in self.spots if s.is_optional)
+
+    @property
     def staffing_status(self) -> str:
-        total = self.total_spots
-        filled = self.filled_spots
-        if total == 0:
+        mandatory_total = self.mandatory_total_spots
+        mandatory_filled = self.mandatory_filled_spots
+        if mandatory_total == 0:
             return "Žádné pozice"
-        if filled == 0:
+        if mandatory_filled == 0:
             return "Neobsazeno"
-        if filled < total:
+        if mandatory_filled < mandatory_total:
             return "Částečně obsazeno"
-        if filled == total:
-            return "Plně obsazeno"
-        return "Přeplněno"
+        return "Plně obsazeno"
 
     def reminder_hours(self) -> list[int]:
         if not self.reminder_schedule:
@@ -173,6 +188,7 @@ class EventSpot(db.Model):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey("event.id"), nullable=False)
     description = db.Column(db.String(255), nullable=True)
+    is_optional = db.Column(db.Boolean, default=False, nullable=False)
     # Optimistic locking — used in combination with with_for_update() for assignment
     version = db.Column(db.Integer, default=1, nullable=False)
 

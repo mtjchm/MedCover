@@ -5,6 +5,7 @@ from app.extensions import db
 from app.models.event import Event, EventTemplate, EventSpotTemplate
 from app.models.master_event import MasterEvent
 from app.models.audit import AuditLogEntry
+from app.models.qualification import Qualification
 
 
 def _make_master_event(app) -> int:
@@ -118,8 +119,9 @@ class TestTemplateCreate:
             data={
                 "name": "Se pozicemi",
                 "reminder_schedule": "24",
-                "spot_desc[0]": "Záchranář",
-                "spot_desc[1]": "Řidič",
+                "spot_desc_0": "Záchranář",
+                "spot_desc_1": "Řidič",
+                "spot_total": "2",
             },
             follow_redirects=False,
         )
@@ -200,7 +202,8 @@ class TestTemplateEdit:
                 "name": "Rebuild Spots",
                 "reminder_schedule": "24",
                 "version": str(ver),
-                "spot_desc[0]": "Nová pozice",
+                "spot_desc_0": "Nová pozice",
+                "spot_total": "1",
             },
             follow_redirects=False,
         )
@@ -209,6 +212,72 @@ class TestTemplateEdit:
             tmpl = db.session.get(EventTemplate, tmpl_id)
             assert len(tmpl.spot_templates) == 1
             assert tmpl.spot_templates[0].description == "Nová pozice"
+
+    def test_create_saves_spot_qualifications(self, app, admin_client):
+        """Regression: spot_cred_N name must use the spot index, not the
+        inner qualification loop index, so qualifications are stored correctly."""
+        with app.app_context():
+            q1 = Qualification(name="Zelenáč")
+            q2 = Qualification(name="Záchranář")
+            db.session.add_all([q1, q2])
+            db.session.commit()
+            q1_id, q2_id = q1.id, q2.id
+
+        response = admin_client.post(
+            "/templates/create",
+            data={
+                "name": "Qual Save Test",
+                "reminder_schedule": "24",
+                "spot_desc_0": "Pozice A",
+                "spot_cred_0": str(q1_id),
+                "spot_desc_1": "Pozice B",
+                "spot_cred_1": str(q2_id),
+                "spot_total": "2",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            tmpl = db.session.scalar(db.select(EventTemplate).where(EventTemplate.name == "Qual Save Test"))
+            assert tmpl is not None
+            assert len(tmpl.spot_templates) == 2
+            by_desc = {st.description: st for st in tmpl.spot_templates}
+            assert len(by_desc["Pozice A"].required_qualifications) == 1
+            assert by_desc["Pozice A"].required_qualifications[0].id == q1_id
+            assert len(by_desc["Pozice B"].required_qualifications) == 1
+            assert by_desc["Pozice B"].required_qualifications[0].id == q2_id
+
+    def test_edit_saves_spot_qualifications(self, app, admin_client):
+        """Regression: editing a template preserves qualifications per spot."""
+        with app.app_context():
+            q = Qualification(name="EditQualTest")
+            db.session.add(q)
+            db.session.commit()
+            q_id = q.id
+
+        tmpl_id = _make_template(app, name="Edit Qual Save", spot_count=1)
+        with app.app_context():
+            ver = db.session.get(EventTemplate, tmpl_id).version
+
+        response = admin_client.post(
+            f"/templates/{tmpl_id}/edit",
+            data={
+                "name": "Edit Qual Save",
+                "reminder_schedule": "24",
+                "version": str(ver),
+                "spot_desc_0": "Pozice 1",
+                "spot_cred_0": str(q_id),
+                "spot_total": "1",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            tmpl = db.session.get(EventTemplate, tmpl_id)
+            assert len(tmpl.spot_templates) == 1
+            st = tmpl.spot_templates[0]
+            assert len(st.required_qualifications) == 1
+            assert st.required_qualifications[0].id == q_id
 
 
 # ── Delete ────────────────────────────────────────────────────────────────────
