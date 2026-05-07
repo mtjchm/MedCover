@@ -1,12 +1,161 @@
 {% extends "base.html" %}
 {% block title %}Admin — MedCover{% endblock %}
+
 {% block content %}
-<div class="py-4">
-  <h3>Administrace</h3>
-  <div class="list-group mt-3" style="max-width: 400px;">
-    <a href="{{ url_for('admin.pending_users') }}" class="list-group-item list-group-item-action">
-      👤 Čekající aktivace uživatelů
-    </a>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Administrace</h2>
+  <a href="{{ url_for('app_settings.index') }}" class="btn btn-outline-secondary btn-sm">⚙ Nastavení</a>
+</div>
+
+{# ── Service status ──────────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+
+  {# DB #}
+  <div class="col-6 col-md-3">
+    <div class="card h-100 border-{{ 'success' if db_ok else 'danger' }}">
+      <div class="card-body py-2 px-3">
+        <div class="small text-muted">Databáze</div>
+        {% if db_ok %}
+          <span class="text-success fw-semibold">✔ Online</span>
+        {% else %}
+          <span class="text-danger fw-semibold">✘ Nedostupná</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Scheduler #}
+  <div class="col-6 col-md-3">
+    {% set sc = {'ok': 'success', 'warning': 'warning', 'error': 'danger', 'unknown': 'secondary'}[sched_status] %}
+    <div class="card h-100 border-{{ sc }}">
+      <div class="card-body py-2 px-3">
+        <div class="small text-muted">Plánovač</div>
+        {% if sched_status == 'ok' %}
+          <span class="text-success fw-semibold">✔ Běží</span>
+        {% elif sched_status == 'warning' %}
+          <span class="text-warning fw-semibold">⚠ Pomalý</span>
+        {% elif sched_status == 'error' %}
+          <span class="text-danger fw-semibold">✘ Neodpovídá</span>
+        {% else %}
+          <span class="text-secondary fw-semibold">? Neznámý</span>
+        {% endif %}
+        {% if sched_age_s is not none %}
+          <div class="text-muted" style="font-size:0.75rem">před {{ sched_age_s }} s</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# SMTP #}
+  <div class="col-6 col-md-3">
+    {% if not smtp_configured %}
+      {% set smtp_border = 'secondary' %}
+    {% elif smtp_reachable %}
+      {% set smtp_border = 'success' %}
+    {% else %}
+      {% set smtp_border = 'danger' %}
+    {% endif %}
+    <div class="card h-100 border-{{ smtp_border }}">
+      <div class="card-body py-2 px-3">
+        <div class="small text-muted">SMTP</div>
+        {% if not smtp_configured %}
+          <span class="text-secondary fw-semibold">— Nenakonfigurováno</span>
+        {% elif smtp_reachable %}
+          <span class="text-success fw-semibold">✔ Dostupné</span>
+          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }}</div>
+        {% else %}
+          <span class="text-danger fw-semibold">✘ Nedostupné</span>
+          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# E-mail fronta #}
+  <div class="col-6 col-md-3">
+    {% set q_border = 'danger' if outbox_failed > 0 else ('warning' if outbox_pending > 0 else 'success') %}
+    <div class="card h-100 border-{{ q_border }}">
+      <div class="card-body py-2 px-3">
+        <div class="small text-muted">Fronta e-mailů</div>
+        <span class="fw-semibold">{{ outbox_pending }} čeká</span>
+        {% if outbox_failed > 0 %}
+          <span class="badge bg-danger ms-1">{{ outbox_failed }} selhalo</span>
+        {% endif %}
+        {% if outbox_last_sent %}
+          <div class="text-muted" style="font-size:0.75rem">posl. odesláno {{ outbox_last_sent | localdt }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Statistics ──────────────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-header py-2 fw-semibold">Uživatelé</div>
+      <div class="card-body py-2">
+        <div class="d-flex justify-content-between small mb-1">
+          <span>Celkem</span><strong>{{ user_total }}</strong>
+        </div>
+        <div class="d-flex justify-content-between small mb-1">
+          <span>Aktivní</span><strong>{{ user_active }}</strong>
+        </div>
+        <div class="d-flex justify-content-between small">
+          <span>Čekají na aktivaci</span>
+          <strong class="{{ 'text-warning' if user_pending > 0 }}">{{ user_pending }}</strong>
+        </div>
+      </div>
+      <div class="card-footer py-1">
+        <a href="{{ url_for('admin.pending_users') }}" class="small">Správa uživatelů →</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-header py-2 fw-semibold">Akce (celkem {{ event_total }})</div>
+      <div class="card-body py-2">
+        {% for status_label, count in event_counts.items() %}
+        {% if count > 0 %}
+        <div class="d-flex justify-content-between small mb-1">
+          <span>{{ status_label }}</span><strong>{{ count }}</strong>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% if event_total == 0 %}
+        <span class="text-muted small">Žádné akce.</span>
+        {% endif %}
+      </div>
+      <div class="card-footer py-1">
+        <a href="{{ url_for('events.index') }}" class="small">Přejít na akce →</a>
+      </div>
+    </div>
   </div>
 </div>
+
+{# ── Recent audit log ────────────────────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center">
+    <span>Poslední záznamy v audit logu</span>
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for entry in recent_audit %}
+    <li class="list-group-item py-1 small">
+      <div class="d-flex justify-content-between">
+        <span>
+          <span class="text-muted">{{ entry.timestamp | localdt }}</span>
+          &nbsp;
+          <strong>{{ entry.actor.name if entry.actor else '[systém]' }}</strong>
+          — {{ entry.summary }}
+        </span>
+      </div>
+    </li>
+    {% else %}
+    <li class="list-group-item py-2 text-muted small">Žádné záznamy.</li>
+    {% endfor %}
+  </ul>
+</div>
+
 {% endblock %}

@@ -43,6 +43,7 @@ class AppSettings(db.Model):
 
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
+    scheduler_last_seen = db.Column(db.DateTime(timezone=True), nullable=True)
     updated_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -63,7 +64,11 @@ class AppSettings(db.Model):
     def get_smtp_password(self) -> str | None:
         if not self.smtp_password_enc:
             return None
-        return _fernet().decrypt(self.smtp_password_enc.encode()).decode()
+        try:
+            return _fernet().decrypt(self.smtp_password_enc.encode()).decode()
+        except Exception:
+            # Key mismatch (e.g. SECRET_KEY changed) — treat as no password
+            return None
 
     # ------------------------------------------------------------------ #
     # Convenience                                                          #

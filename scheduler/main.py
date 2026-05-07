@@ -185,5 +185,15 @@ log.info("Scheduler started (mail queue interval: %ds)", MAIL_QUEUE_INTERVAL_SEC
 
 while True:
     schedule.run_pending()
+    # Write heartbeat so the admin dashboard can confirm the scheduler is alive
+    try:
+        with app.app_context():
+            from app.extensions import db
+            from app.models.settings import get_settings
+            s = get_settings()
+            s.scheduler_last_seen = datetime.now(timezone.utc)
+            db.session.commit()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Heartbeat write failed: %s", exc)
     time.sleep(5)  # short sleep so email queue is drained promptly
 
