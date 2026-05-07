@@ -72,13 +72,25 @@ class AppSettings(db.Model):  # type: ignore[misc]
         return bool(self.smtp_server and self.smtp_username and self.smtp_password_enc)
 
     def apply_to_app(self, app: Flask) -> None:
-        """Push settings into Flask-Mail config so mail is sent using DB values."""
+        """Push settings into Flask-Mail config so mail is sent using DB values.
+
+        Port 465 uses implicit SSL (SMTP_SSL); port 587/25 use STARTTLS.
+        Flask-Mail caches config in a _Mail state object at init_app time, so we
+        must call mail.init_app(app) again after updating app.config to regenerate
+        the cached state.
+        """
+        use_ssl = self.smtp_port == 465
         app.config["MAIL_SERVER"] = self.smtp_server
         app.config["MAIL_PORT"] = self.smtp_port
-        app.config["MAIL_USE_TLS"] = self.smtp_use_tls
+        app.config["MAIL_USE_SSL"] = use_ssl
+        app.config["MAIL_USE_TLS"] = self.smtp_use_tls and not use_ssl
         app.config["MAIL_USERNAME"] = self.smtp_username
         app.config["MAIL_PASSWORD"] = self.get_smtp_password()
         app.config["MAIL_DEFAULT_SENDER"] = self.smtp_default_sender
+
+        # Reinitialise Flask-Mail so the cached _Mail state picks up new values
+        from app.extensions import mail as _mail
+        _mail.init_app(app)
 
     def __repr__(self) -> str:
         return f"<AppSettings org={self.org_name!r} setup_complete={self.setup_complete}>"

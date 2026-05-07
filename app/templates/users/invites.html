@@ -16,6 +16,27 @@
         <label for="email" class="form-label">E-mail pozvaného</label>
         <input type="email" class="form-control" id="email" name="email" required placeholder="jan.novak@example.com">
       </div>
+      <div class="col-12 col-md-6">
+        <label for="custom_subject" class="form-label">Předmět e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <input type="text" class="form-control" id="custom_subject" name="custom_subject"
+               placeholder="MedCover — pozvánka k registraci">
+        <div class="form-text">Ponechte prázdné pro výchozí předmět.</div>
+      </div>
+      <div class="col-12">
+        <label for="custom_message" class="form-label">Text e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <textarea class="form-control font-monospace" id="custom_message" name="custom_message" rows="7"
+                  placeholder="Dobrý den,
+
+zveme Vás do systému MedCover pro plánování zdravotního zabezpečení.
+
+S pozdravem,
+Tým MedCover"></textarea>
+        <div class="form-text">
+          Napište celý text e-mailu včetně pozdravu a podpisu.
+          Na konec bude automaticky připojen pouze registrační odkaz.
+          Ponechte prázdné pro výchozí text.
+        </div>
+      </div>
       <div class="col-12 d-flex align-items-end">
         <button type="submit" class="btn btn-danger">Odeslat pozvánku</button>
       </div>
@@ -31,28 +52,79 @@
         <th>Vytvořena</th>
         <th>Vyprší</th>
         <th>Vytvořil/a</th>
-        <th>Stav</th>
+        <th>E-mail</th>
+        <th>Odkaz</th>
+        <th>Registrace</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for inv in invites %}
       <tr>
         <td>{{ inv.email }}</td>
-        <td>{{ inv.created_at | localdt }}</td>
-        <td>{{ inv.expires_at | localdt if inv.expires_at else '—' }}</td>
+        <td class="text-nowrap">{{ inv.created_at | localdt }}</td>
+        <td class="text-nowrap">{{ inv.expires_at | localdt if inv.expires_at else '—' }}</td>
         <td>{{ inv.created_by.name if inv.created_by else '—' }}</td>
+
+        {# ── Email delivery status ── #}
+        <td>
+          {% if inv.outbox_email is none %}
+            <span class="badge bg-secondary">Nezařazeno</span>
+          {% elif inv.outbox_email.status == 'sent' %}
+            <span class="badge bg-success" title="{{ inv.outbox_email.sent_at | localdt if inv.outbox_email.sent_at else '' }}">Odesláno</span>
+          {% elif inv.outbox_email.status == 'failed' %}
+            <span class="badge bg-danger">Chyba</span>
+            {% if inv.outbox_email.last_error %}
+            <br><small class="text-danger" style="font-size:0.7rem" title="{{ inv.outbox_email.last_error }}">
+              {{ inv.outbox_email.last_error | truncate(80) }}
+            </small>
+            {% endif %}
+          {% else %}
+            <span class="badge bg-warning text-dark">Ve frontě</span>
+          {% endif %}
+        </td>
+
+        {# ── Link clicked ── #}
+        <td>
+          {% if inv.link_clicked_at %}
+            <span class="badge bg-success" title="{{ inv.link_clicked_at | localdt }}">Otevřen</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        {# ── Registration status ── #}
         <td>
           {% if inv.is_used %}
-            <span class="badge bg-secondary">Použita</span>
+            <span class="badge bg-success" title="{{ inv.used_at | localdt }}">Dokončena</span>
+          {% elif inv.is_cancelled %}
+            <span class="badge bg-dark" title="{{ inv.cancelled_at | localdt }}">Zrušena</span>
           {% elif inv.is_expired %}
             <span class="badge bg-danger">Expirovaná</span>
           {% else %}
-            <span class="badge bg-success">Platná</span>
+            <span class="badge bg-success">Čeká</span>
+          {% endif %}
+        </td>
+
+        {# ── Actions ── #}
+        <td class="text-nowrap">
+          {% if not inv.is_used and not inv.is_cancelled and (inv.outbox_email is none or inv.outbox_email.status == 'failed') %}
+          <form method="POST" action="{{ url_for('users.resend_invite', invite_id=inv.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-warning">Znovu odeslat</button>
+          </form>
+          {% endif %}
+          {% if not inv.is_used and not inv.is_cancelled %}
+          <form method="POST" action="{{ url_for('users.cancel_invite', invite_id=inv.id) }}" class="d-inline"
+                onsubmit="return confirm('Opravdu chcete zrušit tuto pozvánku?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Zrušit</button>
+          </form>
           {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-muted text-center">Žádné pozvánky.</td></tr>
+      <tr><td colspan="8" class="text-muted text-center">Žádné pozvánky.</td></tr>
       {% endfor %}
     </tbody>
   </table>

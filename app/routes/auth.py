@@ -9,6 +9,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from app.extensions import db, mail
 from app.models.invite import RegistrationInvite
 from app.models.user import UserAccount
+from app.models.audit import AuditLogEntry
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -139,6 +140,18 @@ def register(token: str) -> str | Response:
         flash("Pozvánka je neplatná nebo vypršela.", "danger")
         return redirect(url_for("auth.login"))
 
+    if request.method == "GET" and invite.link_clicked_at is None:
+        invite.link_clicked_at = datetime.now(timezone.utc)
+        db.session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="link_clicked",
+            entity_type="RegistrationInvite",
+            entity_id=str(invite.id),
+            summary=f"Registrační odkaz otevřen pro {invite.email}",
+            changes_json={},
+        ))
+        db.session.commit()
+
     if request.method == "POST":
         full_name = request.form.get("full_name", "").strip()
         password = request.form.get("password", "")
@@ -157,6 +170,15 @@ def register(token: str) -> str | Response:
             user.set_password(password)
             invite.used_at = datetime.now(timezone.utc)
             db.session.add(user)
+            db.session.flush()
+            db.session.add(AuditLogEntry(
+                actor_id=user.id,
+                action_type="complete",
+                entity_type="RegistrationInvite",
+                entity_id=str(invite.id),
+                summary=f"Registrace dokončena pro {invite.email} jako '{full_name}'",
+                changes_json={},
+            ))
             db.session.commit()
             flash("Registrace dokončena. Účet aktivuje administrátor.", "success")
             return redirect(url_for("auth.login"))

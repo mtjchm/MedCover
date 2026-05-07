@@ -68,6 +68,7 @@
               <label class="form-label" for="edit_phone">Telefon</label>
               <input class="form-control" type="tel" id="edit_phone" name="phone"
                      value="{{ user.phone or '' }}">
+              <div class="invalid-feedback">Neplatný formát. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).</div>
             </div>
             <button type="submit" class="btn btn-primary">Uložit</button>
             <button type="button" class="btn btn-outline-secondary"
@@ -128,4 +129,38 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  function validatePhoneInput(input) {
+    const val = input.value.trim();
+    if (val === '') {
+      input.classList.remove('is-invalid', 'is-valid');
+      return true;
+    }
+    const stripped = val.replace(/\s+/g, '');
+    const ok = /^\d{9}$/.test(stripped) || /^(\+|00)\d{10,15}$/.test(stripped);
+    input.classList.toggle('is-invalid', !ok);
+    input.classList.toggle('is-valid', ok);
+    return ok;
+  }
+
+  const phoneInput = document.getElementById('edit_phone');
+  if (!phoneInput) return;
+  phoneInput.addEventListener('input', () => validatePhoneInput(phoneInput));
+  phoneInput.addEventListener('blur', () => validatePhoneInput(phoneInput));
+
+  const form = phoneInput.closest('form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!validatePhoneInput(phoneInput)) {
+        e.preventDefault();
+        phoneInput.focus();
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

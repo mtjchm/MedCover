@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
@@ -16,6 +17,7 @@ from app.extensions import db, mail
 from app.models.user import UserAccount, CalendarView
 from app.models.role import Role
 from app.models.invite import RegistrationInvite
+from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
 from app.utils import diff_changes
 from app.config import INVITE_TOKEN_HOURS
@@ -23,6 +25,15 @@ from app.config import INVITE_TOKEN_HOURS
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 
 _PAGE_SIZE = 30
+
+# Phone: 9 bare digits, OR +/00 followed by 10-15 digits (spaces stripped before check)
+_PHONE_RE = re.compile(r"^\d{9}$|^(\+|00)\d{10,15}$")
+
+
+def _validate_phone(raw: str) -> bool:
+    """Return True if raw phone is empty (optional) or matches allowed formats."""
+    stripped = raw.strip().replace(" ", "")
+    return stripped == "" or bool(_PHONE_RE.match(stripped))
 
 
 def _require_permission(code: str) -> None:
@@ -84,8 +95,12 @@ def _update_profile(user: UserAccount) -> Response:
     if not name:
         flash("Jméno nesmí být prázdné.", "danger")
         return redirect(url_for("users.profile"))
+    phone_raw = request.form.get("phone", "").strip()
+    if not _validate_phone(phone_raw):
+        flash("Neplatný formát telefonního čísla.", "danger")
+        return redirect(url_for("users.profile"))
     user.name = name
-    user.phone = request.form.get("phone", "").strip() or None
+    user.phone = phone_raw or None
     cv = request.form.get("preferred_calendar_view", CalendarView.LIST.value)
     try:
         user.preferred_calendar_view = CalendarView(cv)
@@ -203,13 +218,17 @@ def edit_user(user_id: uuid.UUID) -> Response:
 
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip().lower()
-    phone = request.form.get("phone", "").strip() or None
+    phone_raw = request.form.get("phone", "").strip()
+    phone = phone_raw or None
 
     if not name:
         flash("Jméno nesmí být prázdné.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
     if not email:
         flash("E-mail nesmí být prázdný.", "danger")
+        return redirect(url_for("users.detail", user_id=user_id))
+    if not _validate_phone(phone_raw):
+        flash("Neplatný formát telefonního čísla.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
 
     if email != user.email:
@@ -355,7 +374,9 @@ def update_qualifications(user_id: uuid.UUID) -> Response:
 def invites() -> str:
     _require_permission("invite.create")
     items = db.session.scalars(
-        db.select(RegistrationInvite).order_by(RegistrationInvite.created_at.desc())
+        db.select(RegistrationInvite)
+        .options(selectinload(RegistrationInvite.outbox_email))  # type: ignore[arg-type]
+        .order_by(RegistrationInvite.created_at.desc())
     ).all()
     return render_template("users/invites.html", invites=items)
 
@@ -369,49 +390,126 @@ def create_invite() -> Response:
         flash("Zadejte platnou e-mailovou adresu.", "danger")
         return redirect(url_for("users.invites"))
 
+    # Block if a user account with this email already exists
+    if db.session.scalar(db.select(UserAccount).where(UserAccount.email == email)):
+        flash(f"Uživatel s e-mailem {email} již má účet v systému.", "warning")
+        return redirect(url_for("users.invites"))
+
+    # Block if a valid (non-cancelled) invite already exists for this email
     existing = db.session.scalar(
         db.select(RegistrationInvite).where(
             RegistrationInvite.email == email,
             RegistrationInvite.used_at.is_(None),
+            RegistrationInvite.cancelled_at.is_(None),
         )
     )
     if existing and existing.is_valid:
         flash(f"Platná pozvánka pro {email} již existuje.", "warning")
         return redirect(url_for("users.invites"))
 
+    custom_subject = request.form.get("custom_subject", "").strip() or None
+    custom_message = request.form.get("custom_message", "").strip() or None
+
     invite = RegistrationInvite(
         email=email,
         created_by_id=current_user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=INVITE_TOKEN_HOURS),
+        custom_subject=custom_subject,
+        custom_message=custom_message,
     )
     db.session.add(invite)
+    db.session.flush()  # get invite.id before _queue_invite_email
+
+    _queue_invite_email(invite)
+
     db.session.add(AuditLogEntry(
         actor_id=current_user.id,
         action_type="create",
         entity_type="RegistrationInvite",
-        entity_id=email,
-        summary=f"Pozvánka vytvořena pro {email}",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka vytvořena a zařazena do fronty pro {email}",
         changes_json={},
     ))
     db.session.commit()
 
-    _send_invite_email(invite)
-    flash(f"Pozvánka odeslána na {email}.", "success")
+    flash(f"Pozvánka zařazena do fronty odchozích zpráv pro {email}.", "success")
     return redirect(url_for("users.invites"))
 
 
-def _send_invite_email(invite: RegistrationInvite) -> None:
+def _queue_invite_email(invite: RegistrationInvite) -> None:
+    """Enqueue invite email into outbox and link it to the invite row."""
+    from app.config import INVITE_TOKEN_HOURS as _HOURS
     register_url = url_for("auth.register", token=invite.token, _external=True)
-    body = render_template("email/invite.txt", invite=invite, register_url=register_url)
-    msg = Message(
-        subject="MedCover — pozvánka k registraci",
-        recipients=[invite.email],
+    body = render_template(
+        "email/invite.txt",
+        invite=invite,
+        register_url=register_url,
+        hours=_HOURS,
+    )
+    subject = invite.custom_subject or "MedCover — pozvánka k registraci"
+    outbox = OutboxEmail(
+        to_email=invite.email,
+        subject=subject,
         body=body,
     )
-    try:
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.warning("Invite email failed for %s: %s", invite.email, exc)
+    db.session.add(outbox)
+    db.session.flush()
+    invite.outbox_email_id = outbox.id
+
+
+@users_bp.route("/invites/<int:invite_id>/resend", methods=["POST"])
+@login_required
+def resend_invite(invite_id: int) -> Response:
+    _require_permission("invite.create")
+    invite = db.session.get(RegistrationInvite, invite_id)
+    if not invite:
+        abort(404)
+    if invite.is_used:
+        flash("Tato pozvánka již byla použita.", "warning")
+        return redirect(url_for("users.invites"))
+
+    _queue_invite_email(invite)
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="resend",
+        entity_type="RegistrationInvite",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka pro {invite.email} znovu zařazena do fronty",
+        changes_json={},
+    ))
+    db.session.commit()
+
+    flash(f"Pozvánka pro {invite.email} byla znovu zařazena do fronty.", "success")
+    return redirect(url_for("users.invites"))
+
+
+@users_bp.route("/invites/<int:invite_id>/cancel", methods=["POST"])
+@login_required
+def cancel_invite(invite_id: int) -> Response:
+    _require_permission("invite.create")
+    invite = db.session.get(RegistrationInvite, invite_id)
+    if not invite:
+        abort(404)
+    if invite.is_used:
+        flash("Tato pozvánka již byla použita — nelze zrušit.", "warning")
+        return redirect(url_for("users.invites"))
+    if invite.is_cancelled:
+        flash("Tato pozvánka již byla zrušena.", "warning")
+        return redirect(url_for("users.invites"))
+
+    invite.cancelled_at = datetime.now(timezone.utc)
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="cancel",
+        entity_type="RegistrationInvite",
+        entity_id=str(invite.id),
+        summary=f"Pozvánka pro {invite.email} zrušena",
+        changes_json={},
+    ))
+    db.session.commit()
+
+    flash(f"Pozvánka pro {invite.email} byla zrušena.", "success")
+    return redirect(url_for("users.invites"))
 
 
 def _send_activation_email(user: UserAccount) -> None:

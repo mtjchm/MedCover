@@ -218,11 +218,8 @@ Copy `.env.example` to `.env` for local development. Never commit `.env`.
 | `FLASK_ENV` | `development` or `production` | `development` |
 | `SECRET_KEY` | Flask session secret — generate a strong random value | `openssl rand -hex 32` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://medcover:devpassword@db:5432/medcover_dev` |
-| `MAIL_SERVER` | SMTP relay hostname | `smtp.example.com` |
-| `MAIL_PORT` | SMTP port | `587` |
-| `MAIL_USERNAME` | SMTP auth username | `noreply@example.com` |
-| `MAIL_PASSWORD` | SMTP auth password | *(secret)* |
-| `MAIL_DEFAULT_SENDER` | From address for all outbound email | `MedCover <noreply@example.com>` |
+
+> **Email / SMTP:** SMTP credentials are configured through the web UI setup wizard on first run and stored Fernet-encrypted in the `app_settings` database table. No `MAIL_*` environment variables are required.
 
 ---
 
@@ -248,16 +245,7 @@ services:
         fromDatabase:
           name: medcover-db
           property: connectionString
-      - key: MAIL_SERVER
-        sync: false          # Set manually in Render dashboard
-      - key: MAIL_PORT
-        sync: false
-      - key: MAIL_USERNAME
-        sync: false
-      - key: MAIL_PASSWORD
-        sync: false
-      - key: MAIL_DEFAULT_SENDER
-        sync: false
+      # No MAIL_* vars needed — SMTP is configured via the setup wizard and stored encrypted in the DB
 
   - name: medcover-scheduler
     type: worker
@@ -273,16 +261,7 @@ services:
         fromDatabase:
           name: medcover-db
           property: connectionString
-      - key: MAIL_SERVER
-        sync: false
-      - key: MAIL_PORT
-        sync: false
-      - key: MAIL_USERNAME
-        sync: false
-      - key: MAIL_PASSWORD
-        sync: false
-      - key: MAIL_DEFAULT_SENDER
-        sync: false
+      # No MAIL_* vars needed — SMTP is configured via the setup wizard and stored encrypted in the DB
 
 databases:
   - name: medcover-db
