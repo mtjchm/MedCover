@@ -35,6 +35,9 @@ class UserAccount(UserMixin, db.Model):
         default=CalendarView.LIST,
         nullable=False,
     )
+    dashboard_horizon_days = db.Column(db.Integer, default=30, nullable=False, server_default="30")
+    # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
+    version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Akce — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="mb-0">Akce</h2>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    {# View toggle #}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Zobrazení">
+      <button type="button" class="btn btn-outline-secondary" id="btn-table-view"
+              onclick="setView('table')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm8.5 9.5v-3h3v3zm-4 0v-3h3v3zm-1 0H1v-3h2.5zm8.5-4v-3h3v3zm-4 0v-3h3v3zm-1 0H1v-3h2.5zm8.5-4V1H15v2.5zm-4 0V1h3v2.5zm-1 0H1V1h5.5z"/>
+        </svg>
+        Tabulka
+      </button>
+      <button type="button" class="btn btn-outline-secondary" id="btn-calendar-view"
+              onclick="setView('calendar')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/>
+        </svg>
+        Kalendář
+      </button>
+    </div>
+
+    {% if show_archived %}
+      <a href="{{ url_for('events.index') }}" class="btn btn-outline-secondary btn-sm">Skrýt archivované</a>
+    {% else %}
+      <a href="{{ url_for('events.index', archived=1) }}" class="btn btn-outline-secondary btn-sm">Zobrazit archivované</a>
+    {% endif %}
+    {% if current_user.has_permission('event.create') %}
+      <a href="{{ url_for('events.create') }}" class="btn btn-danger btn-sm">+ Nová akce</a>
+    {% endif %}
+  </div>
+</div>
+
+{# Status legend #}
+<div class="d-flex gap-2 flex-wrap mb-3 small" id="status-legend">
+  <span class="badge bg-secondary">Koncept</span>
+  <span class="badge bg-primary">Zveřejněna</span>
+  <span class="badge bg-success">Přihlášky otevřeny</span>
+  <span class="badge" style="background:#ffc107;color:#000">Přihlášky uzavřeny</span>
+  <span class="badge bg-dark">Dokončena</span>
+  <span class="badge bg-danger">Zrušena</span>
+</div>
+
+{% set status_colors = {
+  'Draft': 'secondary',
+  'Published': 'primary',
+  'Assignments Open': 'success',
+  'Assignments Closed': 'warning',
+  'Completed': 'dark',
+  'Cancelled': 'danger'
+} %}
+
+{# ── Table view ─────────────────────────────────────────────────────────── #}
+<div id="view-table">
+  {% if events %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Název</th>
+          <th>Nadřazená akce</th>
+          <th>Začátek</th>
+          <th>Stav</th>
+          <th>Obsazení</th>
+          <th>RP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        <tr class="{{ 'text-muted' if event.archived }}">
+          <td>
+            <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold">
+              {{ event.name }}
+            </a>
+            {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
+          </td>
+          <td>{{ event.master_event.name }}</td>
+          <td class="text-nowrap">{{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</td>
+          <td>
+            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
+              {{ event.status.value }}
+            </span>
+          </td>
+          <td>{{ event.filled_spots }}/{{ event.total_spots }}</td>
+          <td>{{ event.responsible_person.name if event.responsible_person else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted">Žádné akce nenalezeny.</p>
+  {% endif %}
+</div>
+
+{# ── Calendar view ──────────────────────────────────────────────────────── #}
+<div id="view-calendar" style="display:none">
+  <div id="fullcalendar"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{# FullCalendar v6 (CDN) #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+  const FEED_URL = "{{ url_for('events.feed') }}";
+  const STORAGE_KEY = "medcover_events_view";
+  let calendarInitialized = false;
+  let calendar = null;
+
+  function setView(view) {
+    localStorage.setItem(STORAGE_KEY, view);
+    document.getElementById("view-table").style.display    = view === "table"    ? "" : "none";
+    document.getElementById("view-calendar").style.display = view === "calendar" ? "" : "none";
+    document.getElementById("btn-table-view").classList.toggle("active", view === "table");
+    document.getElementById("btn-calendar-view").classList.toggle("active", view === "calendar");
+
+    if (view === "calendar" && !calendarInitialized) {
+      initCalendar();
+    }
+  }
+
+  function initCalendar() {
+    calendarInitialized = true;
+    const el = document.getElementById("fullcalendar");
+    calendar = new FullCalendar.Calendar(el, {
+      initialView: "dayGridMonth",
+      locale: "cs",
+      headerToolbar: {
+        left:   "prev,next today",
+        center: "title",
+        right:  "dayGridMonth,timeGridWeek,listMonth"
+      },
+      buttonText: {
+        today:     "Dnes",
+        month:     "Měsíc",
+        week:      "Týden",
+        list:      "Seznam"
+      },
+      events: FEED_URL,
+      eventClick: function(info) {
+        info.jsEvent.preventDefault();
+        window.location.href = info.event.url;
+      },
+      eventDidMount: function(info) {
+        const p = info.event.extendedProps;
+        info.el.setAttribute("title",
+          `${info.event.title}\nObsazení: ${p.filled}/${p.total}\nStav: ${p.status}`
+        );
+      },
+      height: "auto"
+    });
+    calendar.render();
+  }
+
+  // Restore saved view on page load
+  document.addEventListener("DOMContentLoaded", function() {
+    const saved = localStorage.getItem(STORAGE_KEY) || "table";
+    setView(saved);
+  });
+</script>
+{% endblock %}
+

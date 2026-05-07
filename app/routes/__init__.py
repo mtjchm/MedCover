@@ -4,10 +4,12 @@ from .main import main_bp
 from .setup import setup_bp
 from .events import events_bp
 from .master_events import master_events_bp
+from .credentials import credentials_bp
 from .equipment import equipment_bp
 from .users import users_bp
 from .reports import reports_bp
 from .admin import admin_bp
+from .assignments import assignments_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -16,6 +18,8 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(main_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(master_events_bp)
+    app.register_blueprint(credentials_bp)
+    app.register_blueprint(assignments_bp)
     app.register_blueprint(equipment_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(reports_bp)

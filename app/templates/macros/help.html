@@ -1,0 +1,20 @@
+{#
+  help_icon(text, title="")
+  Renders a small ⓘ button that opens a Bootstrap popover on click/tap.
+  Works on both desktop and mobile devices.
+
+  Usage:
+    {% from 'macros/help.html' import help_icon %}
+    <label class="form-label">Název {{ help_icon("Zadejte celý název akce.") }}</label>
+#}
+{% macro help_icon(text, title="Nápověda") %}
+<button type="button"
+        class="btn-help"
+        data-bs-toggle="popover"
+        data-bs-trigger="focus"
+        data-bs-placement="top"
+        data-bs-title="{{ title }}"
+        data-bs-content="{{ text }}"
+        tabindex="0"
+        aria-label="Nápověda">ⓘ</button>
+{% endmacro %}

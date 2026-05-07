@@ -1,1 +1,54 @@
 /* MedCover custom styles */
+
+/* ── Help popover trigger button ── */
+.btn-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: #6c757d;
+  background: transparent;
+  border: 1px solid #adb5bd;
+  border-radius: 50%;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+  /* Ensure tap target is comfortable on mobile */
+  position: relative;
+}
+.btn-help::after {
+  content: '';
+  position: absolute;
+  inset: -6px;   /* expand tap area without expanding the visual element */
+}
+.btn-help:hover,
+.btn-help:focus {
+  color: #0d6efd;
+  border-color: #0d6efd;
+  outline: none;
+  box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
+}
+
+/* ── FullCalendar — mobile-only adjustments ── */
+@media (max-width: 575.98px) {
+  .fc .fc-toolbar-title {
+    font-size: 1rem;
+  }
+  .fc .fc-button {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+  }
+  .fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    gap: 0.2rem;
+  }
+}
+

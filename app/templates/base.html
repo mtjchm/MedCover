@@ -14,6 +14,9 @@
   <!-- Custom styles -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 
+  <!-- Flatpickr (24h datetime picker) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -27,8 +30,8 @@
       <div class="collapse navbar-collapse" id="navbarMain">
         <ul class="navbar-nav me-auto">
           {% if current_user.is_authenticated %}
-          <li class="nav-item"><a class="nav-link" href="#">Akce</a></li>
-          <li class="nav-item"><a class="nav-link" href="#">Nadřazené akce</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('events.index') }}">Akce</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('master_events.index') }}">Nadřazené akce</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Vybavení</a></li>
           <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
           {% endif %}
@@ -62,6 +65,28 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
           integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
           crossorigin="anonymous"></script>
+
+  <!-- Flatpickr JS + global init for all .flatpickr-dt inputs -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/cs.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Initialise all Bootstrap popovers (used by help_icon macro)
+      document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
+        new bootstrap.Popover(el, { html: false });
+      });
+      // Initialise all flatpickr datetime inputs
+      flatpickr(".flatpickr-dt", {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-dTH:i",
+        altInput: true,
+        altFormat: "d.m.Y H:i",
+        locale: "cs",
+        allowInput: true,
+      });
+    });
+  </script>
 
   {% block extra_scripts %}{% endblock %}
 </body>

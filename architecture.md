@@ -165,6 +165,38 @@
 - The infrastructure used by the app should allow backup/restore of the app. Daily backups with 60 days retention, 1day RPO, 12 hours RTO
 - **Concurrent users:** The application must correctly handle **10 or more simultaneous users**. Race conditions — especially two users claiming the same EventSpot at the same time — must be prevented at the application level (row-level locking) and enforced at the database level (UNIQUE constraint). See AD12 for the concurrency strategy.
 
+### Security Requirements
+
+**Transport security**
+- All traffic between end users and the application must be encrypted with TLS (HTTPS). Render.com handles TLS termination at the edge; no additional configuration is needed in the app itself.
+- The connection between the application and PostgreSQL must use TLS (`sslmode=require`) in production. This is enforced via the `DATABASE_URL` environment variable in the production config.
+- Container-to-container traffic within the same Render private network is isolated from the public internet (private service network, non-routable externally). We rely on Render's network isolation as the primary protection for intra-service traffic; DB SSL provides defence in depth. This is considered an acceptable risk for a non-critical internal application. If the deployment platform changes, this assumption must be re-evaluated.
+- The web ↔ scheduler pair communicates only through the shared database (no HTTP calls between them), so no inter-service TLS is needed.
+- We do **not** plan a multi-server / distributed deployment for MVP. If this changes, intra-cluster mTLS must be re-evaluated.
+
+**CSRF protection**
+- All state-changing HTTP requests (POST/PUT/DELETE) must be protected by CSRF tokens. Flask-WTF provides per-session CSRF tokens automatically when `WTF_CSRF_ENABLED = True`. See AD13.
+- The `WTF_CSRF_ENABLED = False` override in `TestingConfig` is intentional and safe (tests only).
+
+**Cross-site scripting (XSS)**
+- Jinja2 auto-escapes all template variables by default. This must never be disabled. Use `{{ var | safe }}` only for explicitly trusted, admin-sourced HTML — never for user-supplied content.
+- A `Content-Security-Policy` response header is added as additional defence (see AD14).
+
+**SQL injection**
+- All database access uses SQLAlchemy ORM with parameterised queries. Raw SQL via `db.engine.execute()` or `text()` with string interpolation is prohibited.
+
+**Input validation strategy**
+- **Server-side validation is the authoritative security control** and must always be present. Client-side validation is a UX enhancement only — it can be bypassed and must never be the sole check.
+- Every user-submitted value must be validated server-side: type, length, range, format, and business logic constraints.
+- Client-side: HTML5 constraint attributes (`required`, `type`, `maxlength`, `min`, `max`) provide immediate feedback. A lightweight JS validation layer (see AD14) runs before form submission to catch common errors and improve UX on mobile without a round-trip.
+
+**Authentication and credential security**
+- Passwords are hashed with Werkzeug (`pbkdf2:sha256`). Plaintext passwords are never stored or logged.
+- Password reset and invite tokens use `itsdangerous` TimedSerializer with a configurable expiry. Tokens are single-use.
+- Registration is invite-only (AD03). No open self-registration exists.
+- SMTP credentials are Fernet-encrypted in the database. They are decrypted only at send time and never exposed in logs, API responses, or templates (AD11).
+- `SECRET_KEY` must be a strong random value (minimum 32 bytes of entropy) in all non-dev environments. The dev default in `.env.example` must never be used in production.
+
 
 ## Architectural Decisions
 - AD01 User Roles Customization
@@ -354,6 +386,28 @@
         - Spot assignment: `EventSpot.query.filter_by(id=spot_id).with_for_update().one()` inside an explicit transaction; check assignment is still `None` after acquiring lock; create `Assignment`; commit.
         - Optimistic locking: add `version = db.Column(db.Integer, default=0, nullable=False)` to contended models; use SQLAlchemy's `version_id_col` mapper argument or manual increment; catch `sqlalchemy.exc.StaleDataError` and return HTTP 409 with Czech message "Záznam byl mezitím změněn. Načtěte stránku znovu.".
         - Implement before any Phase 2 assignment logic is written.
+
+- AD13 Transport Security and Container Networking
+    - **Status:** Decided
+    - **Context:** The application is deployed as multiple containers (web, scheduler, database). The question is: what encryption and isolation is needed for traffic between containers, and is TLS between containers necessary?
+    - **Decision:**
+        1. **External traffic (user ↔ web):** TLS is terminated at Render's edge proxy. No in-app TLS configuration needed.
+        2. **Web ↔ PostgreSQL:** TLS (`sslmode=require`) is enforced via `DATABASE_URL` in production. The `ProductionConfig` asserts this. Dev/test use plaintext (acceptable; no real data).
+        3. **Web ↔ Scheduler:** These containers communicate exclusively through the shared database. No HTTP calls exist between them. No inter-service TLS is needed.
+        4. **Container-to-container isolation:** Render's private service network (`.internal` hostnames) is non-routable from the public internet. We rely on this network isolation as the primary protection for intra-service traffic. We do **not** implement mTLS between containers — it is not justified for a single-region, non-distributed, non-critical internal app of this scale.
+        5. **If deployment platform changes:** The transport security assumptions must be re-evaluated. A cloud platform with a true VPC and private subnets (AWS, Azure, GCP) provides equivalent or stronger isolation.
+    - **Consequences:** Simple deployment with no certificate management overhead inside the cluster. DB SSL adds a small handshake overhead (negligible). If a future requirement demands zero-trust networking, mTLS (e.g. via a service mesh) can be added without application code changes.
+
+- AD14 CSRF Protection and Input Validation
+    - **Status:** Decided
+    - **Context:** All state-changing routes (POST/PUT/DELETE) are vulnerable to Cross-Site Request Forgery without token protection. Plain HTML forms without CSRF tokens allow a malicious page to submit requests on behalf of a logged-in user. Additionally, user-supplied inputs must be validated both on the client (UX) and server (security).
+    - **Decision:**
+        1. **CSRF:** Use **Flask-WTF** (`flask-wtf` package) with `WTF_CSRF_ENABLED = True` in all non-test configs. Flask-WTF injects a `csrf_token()` into every form automatically. All POST forms include `{{ csrf_token() }}` as a hidden input. The AJAX endpoint for FullCalendar event creation will send the token in the `X-CSRFToken` request header.
+        2. **Server-side validation:** Every route that accepts user input validates all fields server-side (type, length, range, format, business logic). This is the authoritative security control. Client-side checks are never the only validation.
+        3. **Client-side validation:** HTML5 constraint attributes (`required`, `type`, `maxlength`, `min`, `max`) provide immediate feedback. A lightweight vanilla-JS validation module (`app/static/js/validate.js`) runs `submit` event handlers on all forms to check common constraints (required fields, date ordering, numeric limits) before the request is sent, improving UX especially on mobile without a server round-trip.
+        4. **XSS:** Jinja2 auto-escape is always on. `{{ var | safe }}` is prohibited for user-supplied content. A `Content-Security-Policy` header (`default-src 'self'; script-src 'self' cdn.jsdelivr.net; style-src 'self' cdn.jsdelivr.net`) is added via a `@app.after_request` hook in non-dev environments.
+        5. **SQL injection:** All DB access via SQLAlchemy ORM. Raw `text()` with f-strings is prohibited.
+    - **Consequences:** Small overhead: every form requires `{{ csrf_token() }}` in the template and Flask-WTF registered on the app. AJAX calls require the token header. The `validate.js` module must be kept in sync with server-side rules (duplication accepted; server rules are authoritative).
 
 
 MedCover is a standard three-tier web application:
