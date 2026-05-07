@@ -95,9 +95,9 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 - 🔲 Reminder schedule inherited from template
 
 ### Reports
-- 🔲 Per-user report: events attended, hours, credentials used
-- 🔲 Per-ME report: all events under a master event, staffing summary
-- 🔲 Date-range report: all events in a configurable date range (replaces yearly ME hierarchy for reporting)
+- ✅ Per-user report: events attended, hours, credentials used
+- ✅ Per-ME report: all events under a master event, staffing summary
+- ✅ Date-range report: all events in a configurable date range (replaces yearly ME hierarchy for reporting)
 - 🔲 Export to CSV / PDF (nice-to-have)
 
 ---
