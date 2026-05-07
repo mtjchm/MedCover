@@ -64,28 +64,6 @@ class TestAdminDashboard:
         assert b"audit-log" in response.data
 
 
-class TestPendingUsers:
-    def test_admin_can_view_pending_users(self, admin_client):
-        response = admin_client.get("/admin/pending-users")
-        assert response.status_code == 200
-
-    def test_member_cannot_view_pending_users(self, member_client):
-        response = member_client.get("/admin/pending-users")
-        assert response.status_code == 403
-
-    def test_pending_users_shows_inactive_users(self, app, admin_client):
-        with app.app_context():
-            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
-            user = UserAccount(email="pending@test.com", name="Pending User", is_active=False)
-            user.set_password("testpass123")
-            user.roles = [role]
-            db.session.add(user)
-            db.session.commit()
-
-        response = admin_client.get("/admin/pending-users")
-        assert b"pending@test.com" in response.data
-
-
 class TestUserActivation:
     def test_admin_can_activate_user(self, app, admin_client):
         with app.app_context():

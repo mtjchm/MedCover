@@ -156,6 +156,90 @@ class TestAdminUserList:
             assert user.is_active is False
 
 
+class TestAdminEditUser:
+    def _create_user(self, app: object, email: str = "editable@test.com") -> str:
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            user = UserAccount(email=email, name="Editable User", is_active=True)
+            user.set_password("pass1234")
+            user.roles = [role]
+            db.session.add(user)
+            db.session.commit()
+            return str(user.id)
+
+    def test_admin_can_edit_name_email_phone(self, app: object, admin_client: object) -> None:
+        uid = self._create_user(app)
+        resp = admin_client.post(f"/users/{uid}/edit", data={
+            "name": "New Name",
+            "email": "newemail@test.com",
+            "phone": "+420123456789",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            user = db.session.get(UserAccount, uid)
+            assert user is not None
+            assert user.name == "New Name"
+            assert user.email == "newemail@test.com"
+            assert user.phone == "+420123456789"
+
+    def test_member_cannot_edit_user(self, app: object, member_client: object) -> None:
+        uid = self._create_user(app, "member_edit_target@test.com")
+        resp = member_client.post(f"/users/{uid}/edit", data={
+            "name": "Hacker",
+            "email": "hacked@test.com",
+            "phone": "",
+        })
+        assert resp.status_code == 403
+
+    def test_duplicate_email_rejected(self, app: object, admin_client: object) -> None:
+        uid = self._create_user(app, "orig@test.com")
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            other = UserAccount(email="taken@test.com", name="Other", is_active=True)
+            other.set_password("pass1234")
+            other.roles = [role]
+            db.session.add(other)
+            db.session.commit()
+        resp = admin_client.post(f"/users/{uid}/edit", data={
+            "name": "Orig",
+            "email": "taken@test.com",
+            "phone": "",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert "již použit".encode() in resp.data
+        with app.app_context():
+            user = db.session.get(UserAccount, uid)
+            assert user is not None
+            assert user.email == "orig@test.com"
+
+    def test_empty_name_rejected(self, app: object, admin_client: object) -> None:
+        uid = self._create_user(app, "noname@test.com")
+        resp = admin_client.post(f"/users/{uid}/edit", data={
+            "name": "",
+            "email": "noname@test.com",
+            "phone": "",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert "prázdné".encode() in resp.data
+
+    def test_audit_log_entry_created(self, app: object, admin_client: object) -> None:
+        from app.models.audit import AuditLogEntry
+        uid = self._create_user(app, "audit_edit@test.com")
+        admin_client.post(f"/users/{uid}/edit", data={
+            "name": "Audited Name",
+            "email": "audit_edit@test.com",
+            "phone": "",
+        })
+        with app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLogEntry)
+                .where(AuditLogEntry.entity_type == "UserAccount", AuditLogEntry.entity_id == uid)
+                .order_by(AuditLogEntry.timestamp.desc())
+            )
+            assert entry is not None
+            assert entry.action_type == "edit"
+
+
 # ── Invites ───────────────────────────────────────────────────────────────────
 
 class TestInvites:

@@ -48,7 +48,7 @@ cp .env.example .env  # then fill in your values
 docker compose up -d
 
 # 5. Seed dev users (admin, coordinator, member, viewer + reference data)
-python scripts/seed_dev.py
+docker compose exec web python scripts/seed_dev.py
 
 # 6. Install pre-commit hooks
 pre-commit install

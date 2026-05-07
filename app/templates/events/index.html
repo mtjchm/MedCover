@@ -76,7 +76,7 @@
       </thead>
       <tbody>
         {% for event in events %}
-        <tr class="{{ 'table-secondary text-muted' if event.status == EventStatus.CANCELLED else ('text-muted' if event.archived) }}">
+        <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}">
           <td>
             <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}

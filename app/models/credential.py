@@ -44,11 +44,21 @@ class Credential(db.Model):  # type: ignore[misc]
         lazy="dynamic",
     )
 
-    def can_be_filled_by(self, credential: Credential) -> bool:
-        """Return True if a holder of `credential` can fill a spot requiring self."""
+    def can_be_filled_by(self, credential: Credential, _visited: frozenset[int] | None = None) -> bool:
+        """Return True if a holder of `credential` can fill a spot requiring self.
+
+        Walks up the parent chain: if credential is self, or credential can fill
+        any of self's parents (which can directly substitute for self), return True.
+        _visited guards against cycles in the credential hierarchy.
+        """
+        if _visited is None:
+            _visited = frozenset()
+        if self.id in _visited:
+            return False
+        _visited = _visited | {self.id}
         if credential.id == self.id:
             return True
-        return any(self.can_be_filled_by(parent) for parent in self.parents)
+        return any(parent.can_be_filled_by(credential, _visited) for parent in self.parents)
 
     def __repr__(self) -> str:
         return f"<Credential {self.name}>"

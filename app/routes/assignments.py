@@ -173,9 +173,10 @@ def assign_other(spot_id: int) -> Response:
     if not current_user.has_permission("event.assign_other"):
         abort(403)
 
-    user_id = request.form.get("user_id")
+    user_id = request.form.get("user_id", "").strip()
     if not user_id:
-        abort(400)
+        flash("Vyberte uživatele.", "warning")
+        return redirect(request.referrer or url_for("events.index"))
 
     user = db.session.get(UserAccount, user_id)
     if user is None or not user.is_active:
