@@ -165,7 +165,18 @@ def create() -> str | Response:
 
         db.session.add(event)
         db.session.flush()
-        _build_spots(event, request.form)
+
+        template_id_str = request.form.get("template_id", "").strip()
+        if template_id_str:
+            from app.models.event import EventTemplate
+            tmpl = db.session.get(EventTemplate, int(template_id_str))
+            if tmpl:
+                _build_spots_from_template(event, tmpl)
+            else:
+                _build_spots(event, request.form)
+        else:
+            _build_spots(event, request.form)
+
         _audit("create", event, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
@@ -173,6 +184,34 @@ def create() -> str | Response:
         return redirect(url_for("events.detail", event_id=event.id))
 
     return render_template("events/create.html", master_events=master_events, users=users)
+
+
+# ── Create from template ──────────────────────────────────────────────────────
+
+@events_bp.get("/create-from-template/<int:template_id>")
+@login_required
+def create_from_template(template_id: int) -> str | Response:
+    if not current_user.has_permission("event.create"):
+        abort(403)
+
+    from app.models.event import EventTemplate
+    tmpl = db.session.get(EventTemplate, template_id)
+    if tmpl is None:
+        abort(404)
+
+    master_events = db.session.scalars(
+        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
+    ).all()
+    users = db.session.scalars(
+        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
+    ).all()
+
+    return render_template(
+        "events/create.html",
+        master_events=master_events,
+        users=users,
+        template=tmpl,
+    )
 
 
 # ── Detail ────────────────────────────────────────────────────────────────────
@@ -525,6 +564,17 @@ def _build_spots(event: Event, form: dict) -> None:
     spot_count = int(form.get("spot_count", 0) or 0)
     for _ in range(spot_count):
         db.session.add(EventSpot(event_id=event.id))
+
+
+def _build_spots_from_template(event: Event, template: object) -> None:
+    """Create event spots matching a template's spot templates."""
+    from app.models.event import EventTemplate
+    if not isinstance(template, EventTemplate):
+        return
+    for st in template.spot_templates:
+        spot = EventSpot(event_id=event.id, description=st.description)
+        spot.required_credentials = list(st.required_credentials)
+        db.session.add(spot)
 
 
 # ── Event Equipment: Plan ─────────────────────────────────────────────────────

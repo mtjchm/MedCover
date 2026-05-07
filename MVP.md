@@ -80,13 +80,13 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 - ✅ Audit log detail view: before/after diff for edit actions
 
 ### Equipment Inventory
-- 🔲 EquipmentType CRUD (name, description, category: personal / shared)
-- 🔲 EquipmentItem CRUD (name, type, home location, issued_to for personal items)
-- 🔲 Personal equipment: issue item to member, return item
-- 🔲 User profile: display personal equipment currently issued to logged-in user
-- 🔲 Shared equipment: assign items to event, return after event
-- 🔲 Event equipment planning: specify required quantities per type when creating/editing event
-- 🔲 Event equipment assignment: assign specific physical items from inventory to event
+- ✅ EquipmentType CRUD (name, description, category: personal / shared)
+- ✅ EquipmentItem CRUD (name, type, home location, issued_to for personal items)
+- ✅ Personal equipment: issue item to member, return item
+- ✅ User profile: display personal equipment currently issued to logged-in user
+- ✅ Shared equipment: assign items to event, return after event
+- ✅ Event equipment planning: specify required quantities per type when creating/editing event
+- ✅ Event equipment assignment: assign specific physical items from inventory to event
 
 ### Event Templates
 - 🔲 Event template CRUD (admin / coordinator only)

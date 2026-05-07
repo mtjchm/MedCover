@@ -14,6 +14,7 @@ from .admin import admin_bp
 from .assignments import assignments_bp
 from .debriefing import debriefing_bp
 from .app_settings import app_settings_bp
+from .templates import templates_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -22,6 +23,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(main_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(master_events_bp)
+    app.register_blueprint(templates_bp)
     app.register_blueprint(credentials_bp)
     app.register_blueprint(assignments_bp)
     app.register_blueprint(debriefing_bp)

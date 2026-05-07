@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
+{% block title %}{% if template %}Upravit šablonu — MedCover{% else %}Nová šablona akce — MedCover{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .spot-row { border: 1px solid #dee2e6; border-radius: .375rem; padding: 1rem; margin-bottom: .75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <h2 class="mb-4">{% if template %}Upravit šablonu „{{ template.name }}"{% else %}Nová šablona akce{% endif %}</h2>
+    <form method="POST" novalidate>
+      {% if template %}
+      <input type="hidden" name="version" value="{{ template.version }}">
+      {% endif %}
+
+      <div class="mb-3">
+        <label for="name" class="form-label">Název šablony <span class="text-danger">*</span>
+          {{ help_icon("Jednoznačný název šablony, např. 'Závod — 2 zdravotníci'. Zobrazuje se při výběru šablony pro novou akci.") }}
+        </label>
+        <input type="text" class="form-control" id="name" name="name"
+               value="{{ template.name if template else request.form.get('name', '') }}"
+               required autofocus>
+      </div>
+
+      <div class="mb-3">
+        <label for="description" class="form-label">Popis
+          {{ help_icon("Volitelný popis šablony — pro koordinátory, popis typické akce, na kterou se šablona hodí.") }}
+        </label>
+        <textarea class="form-control" id="description" name="description" rows="2">{{ template.description if template else request.form.get('description', '') }}</textarea>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label for="reminder_schedule" class="form-label">Plán připomenutí
+            {{ help_icon("Časy (v hodinách před začátkem akce), kdy se odešle upomínka. Zapište hodiny oddělené čárkou, např. '24,48'.") }}
+          </label>
+          <input type="text" class="form-control" id="reminder_schedule" name="reminder_schedule"
+                 value="{{ template.reminder_schedule if template else request.form.get('reminder_schedule', '24') }}"
+                 placeholder="24">
+          <div class="form-text">Hodiny oddělené čárkou, např. 24 nebo 24,48</div>
+        </div>
+        <div class="col-12 col-md-6 d-flex align-items-center">
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="paid" name="paid" value="1"
+                   {% if template %}{{ 'checked' if template.paid }}{% else %}{{ 'checked' if request.form.get('paid') == '1' }}{% endif %}>
+            <label class="form-check-label" for="paid">Placená akce
+              {{ help_icon("Označte, pokud jsou akce tohoto typu honorovány. Hodnota se přenese na novou akci při použití šablony.") }}
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+      <h5 class="mb-3">Pozice
+        <small class="text-muted fw-normal fs-6">— zdravotnická obsazení</small>
+      </h5>
+
+      <div id="spots-container">
+        {% if template and template.spot_templates %}
+          {% for st in template.spot_templates %}
+          <div class="spot-row bg-light" data-idx="{{ loop.index0 }}">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold spot-num">Pozice #{{ loop.index }}</span>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSpot(this)">Odebrat</button>
+            </div>
+            <div class="mb-2">
+              <input type="text" name="spot_desc[{{ loop.index0 }}]" class="form-control"
+                     placeholder="Popis pozice (volitelné)" value="{{ st.description or '' }}">
+            </div>
+            <div>
+              <label class="form-label small text-muted">Požadované kvalifikace</label>
+              <select name="spot_creds[{{ loop.index0 }}][]" multiple class="form-select form-select-sm">
+                {% for c in credentials %}
+                <option value="{{ c.id }}"
+                  {% if c in st.required_credentials %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      <button type="button" class="btn btn-outline-secondary btn-sm mt-1 mb-4" onclick="addSpot()">
+        + Přidat pozici
+      </button>
+
+      <div class="d-flex gap-2 mt-2">
+        <button type="submit" class="btn btn-danger">
+          {% if template %}Uložit šablonu{% else %}Vytvořit šablonu{% endif %}
+        </button>
+        <a href="{{ url_for('templates.index') }}" class="btn btn-outline-secondary">Zrušit</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Credential list for dynamically added slots
+  var allCredentials = [
+    {% for c in credentials %}
+    { id: {{ c.id }}, name: {{ c.name | tojson }} }{{ "," if not loop.last }}
+    {% endfor %}
+  ];
+
+  // Start next index after existing slots
+  var nextIdx = {{ (template.spot_templates | length) if template else 0 }};
+
+  function credOptions(selectedIds) {
+    selectedIds = selectedIds || [];
+    return allCredentials.map(function(c) {
+      var sel = selectedIds.indexOf(c.id) !== -1 ? ' selected' : '';
+      return '<option value="' + c.id + '"' + sel + '>' + c.name + '</option>';
+    }).join('');
+  }
+
+  function addSpot(selectedCredIds) {
+    var idx = nextIdx++;
+    var container = document.getElementById('spots-container');
+    var div = document.createElement('div');
+    div.className = 'spot-row bg-light';
+    div.dataset.idx = idx;
+    div.innerHTML =
+      '<div class="d-flex justify-content-between align-items-center mb-2">' +
+        '<span class="fw-semibold spot-num">Pozice</span>' +
+        '<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSpot(this)">Odebrat</button>' +
+      '</div>' +
+      '<div class="mb-2">' +
+        '<input type="text" name="spot_desc[' + idx + ']" class="form-control" placeholder="Popis pozice (volitelné)">' +
+      '</div>' +
+      '<div>' +
+        '<label class="form-label small text-muted">Požadované kvalifikace</label>' +
+        '<select name="spot_creds[' + idx + '][]" multiple class="form-select form-select-sm">' +
+          credOptions(selectedCredIds) +
+        '</select>' +
+      '</div>';
+    container.appendChild(div);
+    updateSpotNumbers();
+  }
+
+  function removeSpot(btn) {
+    btn.closest('.spot-row').remove();
+    updateSpotNumbers();
+  }
+
+  function updateSpotNumbers() {
+    document.querySelectorAll('#spots-container .spot-row').forEach(function(row, i) {
+      var label = row.querySelector('.spot-num');
+      if (label) label.textContent = 'Pozice #' + (i + 1);
+    });
+  }
+
+  // Initialise numbering on load
+  document.addEventListener('DOMContentLoaded', updateSpotNumbers);
+</script>
+{% endblock %}
