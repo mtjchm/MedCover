@@ -113,3 +113,17 @@ class EventEquipmentAssignment(db.Model):  # type: ignore[misc]
 
     def __repr__(self) -> str:
         return f"<EventEquipmentAssignment event={self.event_id} item={self.equipment_item_id}>"
+
+
+class EventTemplateEquipmentPlan(db.Model):  # type: ignore[misc]
+    __tablename__ = "event_template_equipment_plan"
+
+    template_id = db.Column(db.Integer, db.ForeignKey("event_template.id"), primary_key=True, nullable=False)
+    equipment_type_id = db.Column(db.Integer, db.ForeignKey("equipment_type.id"), primary_key=True, nullable=False)
+    quantity_required = db.Column(db.Integer, nullable=False, default=1)
+
+    template = db.relationship("EventTemplate", back_populates="equipment_plans")
+    equipment_type = db.relationship("EquipmentType", lazy="selectin")
+
+    def __repr__(self) -> str:
+        return f"<EventTemplateEquipmentPlan template={self.template_id} type={self.equipment_type_id}>"

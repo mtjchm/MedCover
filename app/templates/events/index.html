@@ -33,7 +33,7 @@
       {% if event_templates %}
       <div class="dropdown">
         <button class="btn btn-outline-danger btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-          Nová akce z šablony
+          Nová akce ze šablony
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           {% for t in event_templates %}
@@ -82,26 +82,30 @@
     <table class="table table-hover align-middle" id="events-table">
       <thead class="table-light">
         <tr>
-          <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap;min-width:12rem">
             Název <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:nowrap">
-            Nadřazená akce <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+            Nadřazená<br>akce <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="start" style="cursor:pointer;white-space:nowrap">
             Začátek <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="status" style="cursor:pointer;white-space:nowrap">
             Stav <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="total" style="cursor:pointer;white-space:nowrap">
             Obsazení <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="rp" style="cursor:pointer;white-space:nowrap">
-            Zodpovědný zdravotník <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="rp" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+            Zodpovědný<br>zdravotník <span class="sort-icon text-muted">↕</span></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {% for event in events %}
-        {% set staffing_ratio = (event.filled_spots / event.total_spots) if event.total_spots > 0 else 0 %}
+        {% set mand_total = event.mandatory_total_spots %}
+        {% set mand_filled = event.mandatory_filled_spots %}
+        {% set opt_total = event.optional_total_spots %}
+        {% set staffing_ratio = (mand_filled / mand_total) if mand_total > 0 else 0 %}
         <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
             data-status="{{ event.status.name }}"
-            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ event.total_spots }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
+            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td>
             <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
@@ -115,8 +119,35 @@
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
-          <td>{% if event.status == EventStatus.CANCELLED %}—{% else %}{{ event.filled_spots }}/{{ event.total_spots }}{% endif %}</td>
+          <td>
+            {% if event.status == EventStatus.CANCELLED %}—
+            {% else %}
+              {{ mand_filled }}/{{ mand_total }}
+              {% if opt_total > 0 %}
+                <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">+{{ opt_total }}&nbsp;vol.</span>
+              {% endif %}
+            {% endif %}
+          </td>
           <td>{{ event.responsible_person.name if event.responsible_person else '—' }}</td>
+          <td class="text-end">
+            {% set eligible_spots = eligible_spot_map.get(event.id) %}
+            {% if eligible_spots %}
+              {% if eligible_spots | length == 1 %}
+              <form method="POST" action="{{ url_for('assignments.claim', spot_id=eligible_spots[0][0]) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
+              </form>
+              {% else %}
+              <button class="btn btn-success btn-sm py-0"
+                      data-bs-toggle="modal" data-bs-target="#spotPickModal"
+                      data-event-name="{{ event.name }}"
+                      data-spots='{{ eligible_spots | tojson }}'
+                      data-csrf="{{ csrf_token() }}">
+                Přihlásit se
+              </button>
+              {% endif %}
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -126,6 +157,19 @@
   {% else %}
   <p class="text-muted">Žádné akce nenalezeny.</p>
   {% endif %}
+</div>
+
+{# ── Modal: pick a spot when multiple eligible ──────────────────────────── #}
+<div class="modal fade" id="spotPickModal" tabindex="-1" aria-labelledby="spotPickModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title fs-6" id="spotPickModalLabel">Vyberte pozici</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2" id="spotPickBody"></div>
+    </div>
+  </div>
 </div>
 
 {# ── Calendar view ──────────────────────────────────────────────────────── #}
@@ -389,5 +433,30 @@
     const saved = localStorage.getItem(STORAGE_VIEW) || "table";
     setView(saved);
   });
+</script>
+
+<script>
+(function () {
+  var claimBase = "{{ url_for('assignments.claim', spot_id=0) }}".replace('/0', '/');
+  document.getElementById('spotPickModal').addEventListener('show.bs.modal', function (e) {
+    var btn = e.relatedTarget;
+    var eventName = btn.dataset.eventName;
+    var spots = JSON.parse(btn.dataset.spots);
+    var csrf = btn.dataset.csrf;
+    document.getElementById('spotPickModalLabel').textContent = eventName;
+    var body = document.getElementById('spotPickBody');
+    body.innerHTML = '';
+    spots.forEach(function (s) {
+      var spotId = s[0], desc = s[1] || 'Pozice #' + spotId;
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = claimBase + spotId;
+      form.className = 'mb-1';
+      form.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrf + '">' +
+        '<button class="btn btn-success btn-sm w-100 text-start">' + desc + '</button>';
+      body.appendChild(form);
+    });
+  });
+})();
 </script>
 {% endblock %}

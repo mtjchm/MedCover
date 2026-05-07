@@ -7,7 +7,7 @@
   <div class="d-flex gap-2">
     <a href="{{ url_for('equipment.index') }}" class="btn btn-outline-secondary btn-sm">Typy vybavení</a>
     {% if current_user.has_permission('equipment_item.create') %}
-      <a href="{{ url_for('equipment.item_create') }}" class="btn btn-danger btn-sm">+ Nová položka</a>
+      <a href="{{ url_for('equipment.item_create') }}" class="btn btn-danger btn-sm">Nová položka</a>
     {% endif %}
   </div>
 </div>
@@ -37,20 +37,20 @@
 
 {% if equipment_items %}
 <div class="table-responsive">
-  <table class="table table-hover align-middle">
+  <table class="table table-hover align-middle" id="itemsTable">
     <thead class="table-light">
       <tr>
-        <th>Název</th>
-        <th>Typ</th>
+        <th class="sortable" data-col="name" style="cursor:pointer">Název <span class="sort-icon text-muted">↕</span></th>
+        <th class="sortable" data-col="type" style="cursor:pointer">Typ <span class="sort-icon text-muted">↕</span></th>
         <th>Sériové číslo</th>
         <th>Umístění</th>
-        <th>Vydáno</th>
+        <th class="sortable" data-col="issued" style="cursor:pointer">Vydáno <span class="sort-icon text-muted">↕</span></th>
         <th></th>
       </tr>
     </thead>
     <tbody>
       {% for item in equipment_items %}
-      <tr>
+      <tr data-sv='{"name":{{ item.name | lower | tojson }},"type":{{ item.equipment_type.name | lower | tojson }},"issued":{{ (item.issued_to.name | lower if item.issued_to else "") | tojson }}}'>
         <td class="fw-semibold">{{ item.name }}</td>
         <td>{{ item.equipment_type.name }}</td>
         <td class="text-muted small">{{ item.serial_number or '—' }}</td>
@@ -113,4 +113,42 @@
 {% else %}
   <p class="text-muted">Žádné položky vybavení nenalezeny.</p>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var tbody = document.querySelector('#itemsTable tbody');
+  if (!tbody) return;
+  var sortCol = 'name', sortDir = 1;
+
+  function getRows() { return Array.from(tbody.querySelectorAll('tr')); }
+  function val(row, col) {
+    var sv = row.dataset.sv ? JSON.parse(row.dataset.sv) : {};
+    return (sv[col] !== undefined && sv[col] !== null) ? String(sv[col]) : '';
+  }
+  function sort() {
+    var rows = getRows();
+    rows.sort(function (a, b) {
+      var av = val(a, sortCol), bv = val(b, sortCol);
+      var an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return (an - bn) * sortDir;
+      return av.localeCompare(bv) * sortDir;
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+    document.querySelectorAll('#itemsTable th.sortable').forEach(function (th) {
+      var icon = th.querySelector('.sort-icon');
+      if (!icon) return;
+      icon.textContent = th.dataset.col === sortCol ? (sortDir === 1 ? '↑' : '↓') : '↕';
+    });
+  }
+  document.querySelectorAll('#itemsTable th.sortable').forEach(function (th) {
+    th.addEventListener('click', function () {
+      if (sortCol === th.dataset.col) { sortDir *= -1; } else { sortCol = th.dataset.col; sortDir = 1; }
+      sort();
+    });
+  });
+  sort();
+})();
+</script>
 {% endblock %}

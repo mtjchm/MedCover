@@ -7,7 +7,7 @@
   <div class="d-flex gap-2">
     <a href="{{ url_for('equipment.items') }}" class="btn btn-outline-secondary btn-sm">Přehled položek</a>
     {% if current_user.has_permission('equipment_type.create') %}
-      <a href="{{ url_for('equipment.type_create') }}" class="btn btn-danger btn-sm">+ Nový typ</a>
+      <a href="{{ url_for('equipment.type_create') }}" class="btn btn-danger btn-sm">Nový typ</a>
     {% endif %}
   </div>
 </div>

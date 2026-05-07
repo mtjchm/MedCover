@@ -40,8 +40,10 @@ def _audit(action: str, assignment: Assignment, summary: str) -> None:
 
 
 def _auto_close_if_full(event: Event) -> None:
-    """Transition event to ASSIGNMENTS_CLOSED if all spots are now filled."""
-    if event.status == EventStatus.ASSIGNMENTS_OPEN and event.total_spots > 0 and event.filled_spots >= event.total_spots:
+    """Transition event to ASSIGNMENTS_CLOSED when all mandatory spots are filled."""
+    if (event.status == EventStatus.ASSIGNMENTS_OPEN
+            and event.mandatory_total_spots > 0
+            and event.mandatory_filled_spots >= event.mandatory_total_spots):
         event.status = EventStatus.ASSIGNMENTS_CLOSED
         event.version += 1
         db.session.add(AuditLogEntry(

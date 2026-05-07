@@ -35,6 +35,7 @@ from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
+from app.models.assignment import Assignment
 from app.utils import diff_changes
 import app.mail as mailer
 from zoneinfo import ZoneInfo
@@ -91,6 +92,24 @@ def index() -> str:
         event_templates = list(db.session.scalars(
             db.select(EventTemplate).order_by(EventTemplate.name)
         ).all())
+
+    # Map event_id → list of (spot_id, description) for eligible unfilled spots
+    eligible_spot_map: dict[int, list[tuple[int, str | None]]] = {}
+    if current_user.has_permission("event.assign_own"):
+        user_assigned_spot_ids = set(db.session.scalars(
+            db.select(Assignment.spot_id).where(Assignment.user_id == current_user.id)
+        ).all())
+        for e in events:
+            if e.status != EventStatus.ASSIGNMENTS_OPEN:
+                continue
+            eligible = [
+                (s.id, s.description)
+                for s in e.spots
+                if s.assignment is None and s.id not in user_assigned_spot_ids and s.is_eligible(current_user)
+            ]
+            if eligible:
+                eligible_spot_map[e.id] = eligible
+
     return render_template(
         "events/index.html",
         events=events,
@@ -98,6 +117,7 @@ def index() -> str:
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
+        eligible_spot_map=eligible_spot_map,
     )
 
 
@@ -145,8 +165,8 @@ def feed() -> Response:
             "extendedProps": {
                 "status": e.status.value,
                 "status_key": e.status.name,
-                "filled": e.filled_spots,
-                "total": e.total_spots,
+                "filled": e.mandatory_filled_spots,
+                "total": e.mandatory_total_spots,
                 "rp": e.responsible_person.name if e.responsible_person else None,
                 "start_local": e.start_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
                 "end_local": e.end_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
@@ -480,6 +500,7 @@ def add_spot(event_id: int) -> Response:
         abort(404)
 
     description = request.form.get("description", "").strip() or None
+    is_optional = request.form.get("is_optional") == "1"
     try:
         quantity = max(1, min(10, int(request.form.get("quantity", 1))))
     except (ValueError, TypeError):
@@ -490,13 +511,14 @@ def add_spot(event_id: int) -> Response:
     ).all() if qual_ids else []
 
     for _ in range(quantity):
-        spot = EventSpot(event_id=event_id, description=description)
+        spot = EventSpot(event_id=event_id, description=description, is_optional=is_optional)
         spot.required_qualifications = list(qualifications)
         db.session.add(spot)
 
     event.version += 1
+    opt_flag = " (volitelná)" if is_optional else ""
     qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
-    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}' (kvalifikace: {qual_names})")
+    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
     db.session.commit()
 
     flash(f"{'Pozice přidány' if quantity > 1 else 'Místo přidáno'}.", "success")
@@ -544,10 +566,12 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
             spot.required_qualifications = old_creds  # reset — will be set properly below
 
     spot.description = description
+    spot.is_optional = request.form.get("is_optional") == "1"
     spot.required_qualifications = list(qualifications)
     event.version += 1
+    opt_flag = " (volitelná)" if spot.is_optional else ""
     qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
-    _audit("edit", event, f"Upravena pozice '{description or '—'}' (kvalifikace: {qual_names})")
+    _audit("edit", event, f"Upravena pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
 
     if unassign_needed:
         assignment = spot.assignment
@@ -676,7 +700,7 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
 
 
 def _build_spots(event: Event, form: dict) -> None:
-    """Create spots from the dynamic spot builder fields (spot_desc_N / spot_cred_N)."""
+    """Create spots from the dynamic spot builder fields (spot_desc_N / spot_cred_N / spot_optional_N)."""
     try:
         spot_total = int(form.get("spot_total", 0) or 0)
     except (ValueError, TypeError):
@@ -684,24 +708,32 @@ def _build_spots(event: Event, form: dict) -> None:
 
     for i in range(spot_total):
         description = (form.get(f"spot_desc_{i}") or "").strip() or None
+        is_optional = form.get(f"spot_optional_{i}") == "1"
         qual_ids = [int(c) for c in form.getlist(f"spot_cred_{i}") if str(c).isdigit()]
         qualifications = db.session.scalars(
             db.select(Qualification).where(Qualification.id.in_(qual_ids))
         ).all() if qual_ids else []
-        spot = EventSpot(event_id=event.id, description=description)
+        spot = EventSpot(event_id=event.id, description=description, is_optional=is_optional)
         spot.required_qualifications = list(qualifications)
         db.session.add(spot)
 
 
 def _build_spots_from_template(event: Event, template: object) -> None:
-    """Create event spots matching a template's spot templates."""
+    """Create event spots and equipment plans matching a template."""
 
     if not isinstance(template, EventTemplate):
         return
     for st in template.spot_templates:
-        spot = EventSpot(event_id=event.id, description=st.description)
+        spot = EventSpot(event_id=event.id, description=st.description, is_optional=st.is_optional)
         spot.required_qualifications = list(st.required_qualifications)
         db.session.add(spot)
+    for ep in template.equipment_plans:
+        plan = EventEquipmentPlan(
+            event_id=event.id,
+            equipment_type_id=ep.equipment_type_id,
+            quantity_required=ep.quantity_required,
+        )
+        db.session.add(plan)
 
 
 # ── Event Equipment: Plan ─────────────────────────────────────────────────────

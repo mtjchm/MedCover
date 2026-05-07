@@ -5,7 +5,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Kvalifikace</h2>
   {% if current_user.has_permission('qualification.create') %}
-    <a href="{{ url_for('qualifications.create') }}" class="btn btn-danger btn-sm">+ Nová kvalifikace</a>
+    <a href="{{ url_for('qualifications.create') }}" class="btn btn-danger btn-sm">Nová kvalifikace</a>
   {% endif %}
 </div>
 
