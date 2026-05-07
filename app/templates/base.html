@@ -38,7 +38,7 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('app_settings.index') }}">Nastavení</a></li>
           {% endif %}
           {% if current_user.has_permission('admin.view') %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.index') }}">Admin</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.index') }}">Administrace</a></li>
           {% endif %}
           {% endif %}
         </ul>
