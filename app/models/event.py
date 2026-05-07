@@ -4,12 +4,12 @@ from app.extensions import db
 
 
 class EventStatus(str, enum.Enum):
-    DRAFT = "Draft"
-    PUBLISHED = "Published"
-    ASSIGNMENTS_OPEN = "Assignments Open"
-    ASSIGNMENTS_CLOSED = "Assignments Closed"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
+    DRAFT = "Koncept"
+    PUBLISHED = "Zveřejněná"
+    ASSIGNMENTS_OPEN = "Přihlášky otevřeny"
+    ASSIGNMENTS_CLOSED = "Přihlášky uzavřeny"
+    COMPLETED = "Dokončena"
+    CANCELLED = "Zrušena"
 
 
 # M2M: EventSpot ↔ Credential (required credentials for a spot)

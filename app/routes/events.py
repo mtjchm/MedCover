@@ -85,12 +85,12 @@ def index():
 
 # FullCalendar event background colours by status value
 _STATUS_COLORS: dict[str, str] = {
-    "Draft":              "#6c757d",
-    "Published":          "#0d6efd",
-    "Assignments Open":   "#198754",
-    "Assignments Closed": "#ffc107",
-    "Completed":          "#212529",
-    "Cancelled":          "#dc3545",
+    "Koncept":              "#6c757d",
+    "Zveřejněná":          "#0d6efd",
+    "Přihlášky otevřeny":  "#198754",
+    "Přihlášky uzavřeny":  "#ffc107",
+    "Dokončena":            "#212529",
+    "Zrušena":              "#dc3545",
 }
 
 

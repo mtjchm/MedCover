@@ -106,12 +106,12 @@
         <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
         <td>
           {% set status_colors = {
-            'Draft': 'secondary',
-            'Published': 'primary',
-            'Assignments Open': 'success',
-            'Assignments Closed': 'warning',
-            'Completed': 'dark',
-            'Cancelled': 'danger'
+            'Koncept': 'secondary',
+            'Zveřejněná': 'primary',
+            'Přihlášky otevřeny': 'success',
+            'Přihlášky uzavřeny': 'warning',
+            'Dokončena': 'dark',
+            'Zrušena': 'danger'
           } %}
           <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
             {{ event.status.value }}
