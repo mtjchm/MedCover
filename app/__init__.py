@@ -71,8 +71,8 @@ def create_app(
             return url_for("templates.edit", template_id=eid_int)
         if entity_type == "AppSettings":
             return url_for("app_settings.index")
-        if entity_type == "Credential":
-            return url_for("credentials.index")
+        if entity_type == "Qualification":
+            return url_for("qualifications.index")
         if entity_type == "RegistrationInvite":
             return url_for("users.invites")
         if entity_type == "UserAccount" and entity_id:

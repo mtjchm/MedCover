@@ -11,7 +11,7 @@ from app.extensions import db
 
 if TYPE_CHECKING:
     from app.models.role import Role
-    from app.models.credential import Credential
+    from app.models.qualification import Qualification
 
 
 class CalendarView(str, enum.Enum):
@@ -66,9 +66,9 @@ class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
         lazy="selectin",
     )
 
-    credentials: Mapped[list[Credential]] = db.relationship(
-        "Credential",
-        secondary="user_credentials",
+    qualifications: Mapped[list[Qualification]] = db.relationship(
+        "Qualification",
+        secondary="user_qualifications",
         back_populates="holders",
         lazy="selectin",
     )

@@ -1,7 +1,7 @@
 """
 Seed script for the development environment.
 
-Creates roles, permissions, dev user accounts, credentials, master events,
+Creates roles, permissions, dev user accounts, qualifications, master events,
 ~20 events in various lifecycle states, assignments, equipment, and debriefings.
 Safe to run multiple times — checks for existing data before inserting.
 
@@ -32,7 +32,7 @@ from app.models.user import UserAccount
 from app.models.role import Role, Permission, ALL_PERMISSIONS, ROLE_PERMISSIONS
 from app.models.master_event import MasterEvent
 from app.models.event import Event, EventStatus, EventSpot
-from app.models.credential import Credential
+from app.models.qualification import Qualification
 from app.models.assignment import Assignment, DebriefingRecord
 from app.models.equipment import EquipmentType, EquipmentItem, EquipmentCategory
 from app.models.settings import AppSettings
@@ -43,13 +43,13 @@ def _get_or_create_user(email: str) -> UserAccount | None:
     return db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
 
 
-def _get_or_create_cred(name: str, description: str = "") -> Credential:
-    cred = db.session.scalar(db.select(Credential).where(Credential.name == name))
-    if not cred:
-        cred = Credential(name=name, description=description)
-        db.session.add(cred)
+def _get_or_create_qual(name: str, description: str = "") -> Qualification:
+    qual = db.session.scalar(db.select(Qualification).where(Qualification.name == name))
+    if not qual:
+        qual = Qualification(name=name, description=description)
+        db.session.add(qual)
         db.session.flush()
-    return cred
+    return qual
 
 
 def _get_or_create_me(name: str, **kwargs: object) -> MasterEvent:
@@ -158,20 +158,20 @@ def seed() -> None:
         member_user = _get_or_create_user("member@medcover.dev")
 
         # ── Credentials ───────────────────────────────────────────────────────
-        print("Seeding credentials...")
-        c_zdravotnik = _get_or_create_cred(
+        print("Seeding qualifications...")
+        c_zdravotnik = _get_or_create_qual(
             "Zdravotník zotavovacích akcí",
             "Základní zdravotnická způsobilost pro zotavovací akce."
         )
-        c_zachranar = _get_or_create_cred(
+        c_zachranar = _get_or_create_qual(
             "Záchranář",
             "Zdravotní záchranář — rozšířená způsobilost."
         )
-        c_lekar = _get_or_create_cred(
+        c_lekar = _get_or_create_qual(
             "Lékař",
             "Absolvent lékařské fakulty, způsobilý k výkonu povolání lékaře."
         )
-        c_ridic = _get_or_create_cred(
+        c_ridic = _get_or_create_qual(
             "Řidič sanitky",
             "Oprávnění řídit sanitní vozidlo, řidičský průkaz sk. B+."
         )
@@ -182,13 +182,13 @@ def seed() -> None:
             c_zachranar.parents.append(c_lekar)
         db.session.flush()
 
-        # Assign credentials to dev users
-        if coordinator_user and c_zachranar not in coordinator_user.credentials:
-            coordinator_user.credentials.append(c_zachranar)
-        if member_user and c_zdravotnik not in member_user.credentials:
-            member_user.credentials.append(c_zdravotnik)
-        if member_user and c_ridic not in member_user.credentials:
-            member_user.credentials.append(c_ridic)
+        # Assign qualifications to dev users
+        if coordinator_user and c_zachranar not in coordinator_user.qualifications:
+            coordinator_user.qualifications.append(c_zachranar)
+        if member_user and c_zdravotnik not in member_user.qualifications:
+            member_user.qualifications.append(c_zdravotnik)
+        if member_user and c_ridic not in member_user.qualifications:
+            member_user.qualifications.append(c_ridic)
         db.session.commit()
 
         # ── Master events ─────────────────────────────────────────────────────
@@ -261,7 +261,7 @@ def seed() -> None:
         # ── Events ────────────────────────────────────────────────────────────
         print("Seeding events...")
 
-        def _spot(event: Event, label: str, creds: list[Credential]) -> EventSpot:
+        def _spot(event: Event, label: str, creds: list[Qualification]) -> EventSpot:
             spot = db.session.scalar(
                 db.select(EventSpot).where(EventSpot.event_id == event.id, EventSpot.description == label)
             )
@@ -270,8 +270,8 @@ def seed() -> None:
                 db.session.add(spot)
                 db.session.flush()
             for c in creds:
-                if c not in spot.required_credentials:
-                    spot.required_credentials.append(c)
+                if c not in spot.required_qualifications:
+                    spot.required_qualifications.append(c)
             db.session.flush()
             return spot
 
@@ -438,7 +438,7 @@ def seed() -> None:
         print("\nDone. Dev accounts (password: devpassword):")
         for a in DEV_ACCOUNTS:
             print(f"  {a['role']:12s}  {a['email']}")
-        print("\nCredentials seeded: Zdravotník ZA, Záchranář, Lékař, Řidič sanitky")
+        print("\nQualifications seeded: Zdravotník ZA, Záchranář, Lékař, Řidič sanitky")
         print("Master events: Obecné, Letní festival 2026, Sportovní závody 2026")
         print("Events: 14 total (draft, published, open, closed, completed, cancelled)")
         print("Equipment: 6 items across 3 types")

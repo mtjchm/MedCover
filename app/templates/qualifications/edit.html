@@ -21,14 +21,14 @@
         </label>
         <textarea class="form-control" id="description" name="description" rows="2">{{ request.form.get('description', cred.description or '') }}</textarea>
       </div>
-      {% if all_credentials %}
+      {% if all_qualifications %}
       <div class="mb-4">
         <label class="form-label">Nadřazené kvalifikace
           {{ help_icon("Označte kvalifikace, jejichž držitelé mohou automaticky zastoupit tuto kvalifikaci. Příklad: pokud zaškrtnete 'Záchranář', pak záchranář může obsadit pozici určenou pro tuto kvalifikaci.") }}
         </label>
         <div class="form-text mb-2">Označte kvalifikace, jejichž držitelé mohou zastoupit tuto kvalifikaci.</div>
         {% set current_parent_ids = request.form.getlist('parent_ids') if request.method == 'POST' else cred.parents | map(attribute='id') | map('string') | list %}
-        {% for other in all_credentials %}
+        {% for other in all_qualifications %}
         <div class="form-check">
           <input class="form-check-input" type="checkbox" name="parent_ids"
                  id="parent_{{ other.id }}" value="{{ other.id }}"
@@ -40,7 +40,7 @@
       {% endif %}
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-danger">Uložit změny</button>
-        <a href="{{ url_for('credentials.index') }}" class="btn btn-outline-secondary">Zrušit</a>
+        <a href="{{ url_for('qualifications.index') }}" class="btn btn-outline-secondary">Zrušit</a>
       </div>
     </form>
   </div>

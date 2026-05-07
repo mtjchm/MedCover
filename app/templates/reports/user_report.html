@@ -21,8 +21,8 @@
       <dd class="col-sm-9">{{ report_user.email }}</dd>
       <dt class="col-sm-3">Kvalifikace</dt>
       <dd class="col-sm-9">
-        {% if report_user.credentials %}
-          {% for cred in report_user.credentials %}
+        {% if report_user.qualifications %}
+          {% for cred in report_user.qualifications %}
             <span class="badge bg-secondary me-1">{{ cred.name }}</span>
           {% endfor %}
         {% else %}

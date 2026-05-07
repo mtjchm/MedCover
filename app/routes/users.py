@@ -186,11 +186,11 @@ def detail(user_id: uuid.UUID) -> str:
     if not user:
         abort(404)
     roles = db.session.scalars(db.select(Role).order_by(Role.name)).all()
-    from app.models.credential import Credential
-    credentials = db.session.scalars(
-        db.select(Credential).order_by(Credential.name)
+    from app.models.qualification import Qualification
+    qualifications = db.session.scalars(
+        db.select(Qualification).order_by(Qualification.name)
     ).all()
-    return render_template("users/detail.html", user=user, all_roles=roles, all_credentials=credentials)
+    return render_template("users/detail.html", user=user, all_roles=roles, all_qualifications=qualifications)
 
 
 @users_bp.route("/<uuid:user_id>/edit", methods=["POST"])
@@ -319,29 +319,29 @@ def update_roles(user_id: uuid.UUID) -> Response:
     return redirect(url_for("users.detail", user_id=user_id))
 
 
-@users_bp.route("/<uuid:user_id>/credentials", methods=["POST"])
+@users_bp.route("/<uuid:user_id>/qualifications", methods=["POST"])
 @login_required
-def update_credentials(user_id: uuid.UUID) -> Response:
-    _require_permission("user.assign_credential")
+def update_qualifications(user_id: uuid.UUID) -> Response:
+    _require_permission("user.assign_qualification")
     user = db.session.get(UserAccount, user_id)
     if not user:
         abort(404)
-    from app.models.credential import Credential
-    cred_ids = [int(c) for c in request.form.getlist("credential_ids")]
-    before_creds = sorted(c.name for c in user.credentials)
+    from app.models.qualification import Qualification
+    cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
+    before_quals = sorted(c.name for c in user.qualifications)
     new_creds = db.session.scalars(
-        db.select(Credential).where(Credential.id.in_(cred_ids))
+        db.select(Qualification).where(Qualification.id.in_(cred_ids))
     ).all() if cred_ids else []
-    user.credentials = list(new_creds)
+    user.qualifications = list(new_creds)
     user.version += 1
-    after_creds = sorted(c.name for c in user.credentials)
+    after_quals = sorted(c.name for c in user.qualifications)
     db.session.add(AuditLogEntry(
         actor_id=current_user.id,
         action_type="edit",
         entity_type="UserAccount",
         entity_id=str(user.id),
         summary=f"Kvalifikace uživatele {user.name} aktualizovány",
-        changes_json=diff_changes({"credentials": before_creds}, {"credentials": after_creds}),
+        changes_json=diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}),
     ))
     db.session.commit()
     flash("Kvalifikace byly aktualizovány.", "success")

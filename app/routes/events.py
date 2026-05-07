@@ -34,7 +34,7 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
-from app.models.credential import Credential
+from app.models.qualification import Qualification
 from app.utils import diff_changes
 import app.mail as mailer
 from zoneinfo import ZoneInfo
@@ -157,13 +157,13 @@ def create() -> str | Response:
     users = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
     ).all()
-    all_credentials = db.session.scalars(db.select(Credential).order_by(Credential.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
         if error or event is None:
             flash(error or "Chyba formuláře.", "danger")
-            return render_template("events/create.html", master_events=master_events, users=users, all_credentials=all_credentials)
+            return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
 
         db.session.add(event)
         db.session.flush()
@@ -185,7 +185,7 @@ def create() -> str | Response:
         flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/create.html", master_events=master_events, users=users, all_credentials=all_credentials)
+    return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
 
 
 # ── Create from template ──────────────────────────────────────────────────────
@@ -207,14 +207,14 @@ def create_from_template(template_id: int) -> str | Response:
     users = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
     ).all()
-    all_credentials = db.session.scalars(db.select(Credential).order_by(Credential.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     return render_template(
         "events/create.html",
         master_events=master_events,
         users=users,
         template=tmpl,
-        all_credentials=all_credentials,
+        all_qualifications=all_qualifications,
     )
 
 
@@ -250,22 +250,22 @@ def detail(event_id: int) -> str | Response:
             db.select(EquipmentItem).order_by(EquipmentItem.name)
         ).all()
 
-    all_credentials = db.session.scalars(
-        db.select(Credential).order_by(Credential.name)
+    all_qualifications = db.session.scalars(
+        db.select(Qualification).order_by(Qualification.name)
     ).all()
 
-    # Precompute for JS eligibility check: for each credential R, which credential IDs can fill it?
+    # Precompute for JS eligibility check: for each qualification R, which qualification IDs can fill it?
     # fillers_map[R.id] = {R.id} ∪ fillers of each of R's parents (transitively)
-    def _fillers(cred: Credential, _visited: frozenset[int] = frozenset()) -> set[int]:
-        if cred.id in _visited:
+    def _fillers(qual: Qualification, _visited: frozenset[int] = frozenset()) -> set[int]:
+        if qual.id in _visited:
             return set()
-        _visited = _visited | {cred.id}
-        result = {cred.id}
-        for parent in cred.parents:
+        _visited = _visited | {qual.id}
+        result = {qual.id}
+        for parent in qual.parents:
             result |= _fillers(parent, _visited)
         return result
 
-    fillers_map = {str(c.id): list(_fillers(c)) for c in all_credentials}
+    fillers_map = {str(c.id): list(_fillers(c)) for c in all_qualifications}
 
     return render_template(
         "events/detail.html",
@@ -274,7 +274,7 @@ def detail(event_id: int) -> str | Response:
         eligible_users=eligible_users,
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
-        all_credentials=all_credentials,
+        all_qualifications=all_qualifications,
         fillers_map=fillers_map,
     )
 
@@ -473,19 +473,19 @@ def add_spot(event_id: int) -> Response:
         quantity = max(1, min(10, int(request.form.get("quantity", 1))))
     except (ValueError, TypeError):
         quantity = 1
-    cred_ids = [int(c) for c in request.form.getlist("credential_ids") if c.isdigit()]
-    credentials = db.session.scalars(
-        db.select(Credential).where(Credential.id.in_(cred_ids))
-    ).all() if cred_ids else []
+    qual_ids = [int(c) for c in request.form.getlist("qualification_ids") if c.isdigit()]
+    qualifications = db.session.scalars(
+        db.select(Qualification).where(Qualification.id.in_(qual_ids))
+    ).all() if qual_ids else []
 
     for _ in range(quantity):
         spot = EventSpot(event_id=event_id, description=description)
-        spot.required_credentials = list(credentials)
+        spot.required_qualifications = list(qualifications)
         db.session.add(spot)
 
     event.version += 1
-    cred_names = ", ".join(c.name for c in credentials) if credentials else "žádná"
-    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}' (kvalifikace: {cred_names})")
+    qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
+    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}' (kvalifikace: {qual_names})")
     db.session.commit()
 
     flash(f"{'Pozice přidány' if quantity > 1 else 'Místo přidáno'}.", "success")
@@ -505,10 +505,10 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
         abort(404)
 
     description = request.form.get("description", "").strip() or None
-    cred_ids = [int(c) for c in request.form.getlist("credential_ids") if c.isdigit()]
-    credentials = db.session.scalars(
-        db.select(Credential).where(Credential.id.in_(cred_ids))
-    ).all() if cred_ids else []
+    qual_ids = [int(c) for c in request.form.getlist("qualification_ids") if c.isdigit()]
+    qualifications = db.session.scalars(
+        db.select(Qualification).where(Qualification.id.in_(qual_ids))
+    ).all() if qual_ids else []
     confirm_unassign = request.form.get("confirm_unassign") == "1"
 
     # Check if the assigned user would become ineligible under the new credentials
@@ -516,11 +516,11 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
     if spot.assignment:
         assigned_user = spot.assignment.user
         # Temporarily simulate new creds to check eligibility
-        old_creds = spot.required_credentials
-        spot.required_credentials = list(credentials)
+        old_creds = spot.required_qualifications
+        spot.required_qualifications = list(qualifications)
         if not spot.is_eligible(assigned_user):  # type: ignore[arg-type]
             if not confirm_unassign:
-                spot.required_credentials = old_creds
+                spot.required_qualifications = old_creds
                 flash(
                     "Pozice nezměněna! Změna kvalifikací pro tuto pozici vyžaduje zaškrtnutí "
                     "potvrzovacího políčka ve formuláři úpravy pozice, protože je na pozici "
@@ -530,13 +530,13 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
                 return redirect(url_for("events.detail", event_id=event_id) + f"#edit-spot-{spot_id}")
             unassign_needed = True
         else:
-            spot.required_credentials = old_creds  # reset — will be set properly below
+            spot.required_qualifications = old_creds  # reset — will be set properly below
 
     spot.description = description
-    spot.required_credentials = list(credentials)
+    spot.required_qualifications = list(qualifications)
     event.version += 1
-    cred_names = ", ".join(c.name for c in credentials) if credentials else "žádná"
-    _audit("edit", event, f"Upravena pozice '{description or '—'}' (kvalifikace: {cred_names})")
+    qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
+    _audit("edit", event, f"Upravena pozice '{description or '—'}' (kvalifikace: {qual_names})")
 
     if unassign_needed:
         assignment = spot.assignment
@@ -673,12 +673,12 @@ def _build_spots(event: Event, form: dict) -> None:
 
     for i in range(spot_total):
         description = (form.get(f"spot_desc_{i}") or "").strip() or None
-        cred_ids = [int(c) for c in form.getlist(f"spot_cred_{i}") if str(c).isdigit()]
-        credentials = db.session.scalars(
-            db.select(Credential).where(Credential.id.in_(cred_ids))
-        ).all() if cred_ids else []
+        qual_ids = [int(c) for c in form.getlist(f"spot_cred_{i}") if str(c).isdigit()]
+        qualifications = db.session.scalars(
+            db.select(Qualification).where(Qualification.id.in_(qual_ids))
+        ).all() if qual_ids else []
         spot = EventSpot(event_id=event.id, description=description)
-        spot.required_credentials = list(credentials)
+        spot.required_qualifications = list(qualifications)
         db.session.add(spot)
 
 
@@ -689,7 +689,7 @@ def _build_spots_from_template(event: Event, template: object) -> None:
         return
     for st in template.spot_templates:
         spot = EventSpot(event_id=event.id, description=st.description)
-        spot.required_credentials = list(st.required_credentials)
+        spot.required_qualifications = list(st.required_qualifications)
         db.session.add(spot)
 
 

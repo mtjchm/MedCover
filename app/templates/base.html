@@ -53,9 +53,9 @@
               <li><a class="dropdown-item" href="{{ url_for('users.invites') }}">Pozvánky</a></li>
               {% endif %}
               <li><a class="dropdown-item" href="{{ url_for('admin.audit_log_list') }}">Audit log</a></li>
-              {% if current_user.has_permission('credential.view') %}
+              {% if current_user.has_permission('qualification.view') %}
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="{{ url_for('credentials.index') }}">Kvalifikace</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
               {% endif %}
               {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">Přehled oprávnění</a></li>

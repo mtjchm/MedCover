@@ -15,7 +15,7 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.event import EventTemplate, EventSpotTemplate
-from app.models.credential import Credential
+from app.models.qualification import Qualification
 from app.models.audit import AuditLogEntry
 from app.utils import diff_changes
 
@@ -39,7 +39,7 @@ def _parse_spot_slots(form: dict) -> list[tuple[str | None, list[int]]]:
     """Parse spot template data from form.
 
     Expects spot_desc[N] and spot_creds[N][] fields for each slot index N.
-    Returns list of (description, credential_ids) for slots that are present.
+    Returns list of (description, qualification_ids) for slots that are present.
     """
     slots: list[tuple[str | None, list[int]]] = []
     for n in range(50):
@@ -47,8 +47,8 @@ def _parse_spot_slots(form: dict) -> list[tuple[str | None, list[int]]]:
         if key not in form:
             continue
         desc = form.get(key, "").strip() or None
-        cred_ids = [int(c) for c in form.getlist(f"spot_creds[{n}][]") if c]
-        slots.append((desc, cred_ids))
+        qual_ids = [int(c) for c in form.getlist(f"spot_creds[{n}][]") if c]
+        slots.append((desc, qual_ids))
     return slots
 
 
@@ -57,13 +57,13 @@ def _rebuild_spot_templates(template: EventTemplate, slots: list[tuple[str | Non
     for st in list(template.spot_templates):
         db.session.delete(st)
     db.session.flush()
-    for desc, cred_ids in slots:
+    for desc, qual_ids in slots:
         st = EventSpotTemplate(template_id=template.id, description=desc)
-        if cred_ids:
+        if qual_ids:
             creds = db.session.scalars(
-                db.select(Credential).where(Credential.id.in_(cred_ids))
+                db.select(Qualification).where(Qualification.id.in_(qual_ids))
             ).all()
-            st.required_credentials = list(creds)
+            st.required_qualifications = list(creds)
         db.session.add(st)
 
 
@@ -89,8 +89,8 @@ def create() -> str | Response:
     if not current_user.has_permission("event_template.create"):
         abort(403)
 
-    credentials = db.session.scalars(
-        db.select(Credential).order_by(Credential.name)
+    qualifications = db.session.scalars(
+        db.select(Qualification).order_by(Qualification.name)
     ).all()
 
     if request.method == "POST":
@@ -101,11 +101,11 @@ def create() -> str | Response:
 
         if not name:
             flash("Název šablony je povinný.", "danger")
-            return render_template("templates/form.html", template=None, credentials=credentials)
+            return render_template("templates/form.html", template=None, qualifications=qualifications)
 
         if db.session.scalar(db.select(EventTemplate).where(EventTemplate.name == name)):
             flash("Šablona s tímto názvem již existuje.", "danger")
-            return render_template("templates/form.html", template=None, credentials=credentials)
+            return render_template("templates/form.html", template=None, qualifications=qualifications)
 
         tmpl = EventTemplate(
             name=name,
@@ -125,7 +125,7 @@ def create() -> str | Response:
         flash(f'Šablona „{tmpl.name}" byla vytvořena.', "success")
         return redirect(url_for("templates.index"))
 
-    return render_template("templates/form.html", template=None, credentials=credentials)
+    return render_template("templates/form.html", template=None, qualifications=qualifications)
 
 
 # ── Edit ──────────────────────────────────────────────────────────────────────
@@ -140,15 +140,15 @@ def edit(template_id: int) -> str | Response:
     if tmpl is None:
         abort(404)
 
-    credentials = db.session.scalars(
-        db.select(Credential).order_by(Credential.name)
+    qualifications = db.session.scalars(
+        db.select(Qualification).order_by(Qualification.name)
     ).all()
 
     if request.method == "POST":
         submitted_version = int(request.form.get("version", 0))
         if submitted_version != tmpl.version:
             flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
-            return render_template("templates/form.html", template=tmpl, credentials=credentials)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications)
 
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip() or None
@@ -157,7 +157,7 @@ def edit(template_id: int) -> str | Response:
 
         if not name:
             flash("Název šablony je povinný.", "danger")
-            return render_template("templates/form.html", template=tmpl, credentials=credentials)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications)
 
         conflict = db.session.scalar(
             db.select(EventTemplate).where(
@@ -166,7 +166,7 @@ def edit(template_id: int) -> str | Response:
         )
         if conflict:
             flash("Šablona s tímto názvem již existuje.", "danger")
-            return render_template("templates/form.html", template=tmpl, credentials=credentials)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications)
 
         before = {
             "name": tmpl.name,
@@ -204,7 +204,7 @@ def edit(template_id: int) -> str | Response:
         flash(f'Šablona „{tmpl.name}" byla uložena.', "success")
         return redirect(url_for("templates.index"))
 
-    return render_template("templates/form.html", template=tmpl, credentials=credentials)
+    return render_template("templates/form.html", template=tmpl, qualifications=qualifications)
 
 
 # ── Delete ────────────────────────────────────────────────────────────────────

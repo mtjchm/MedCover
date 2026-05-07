@@ -5,7 +5,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Kvalifikace</h2>
   {% if current_user.has_permission('credential.create') %}
-    <a href="{{ url_for('credentials.create') }}" class="btn btn-danger btn-sm">+ Nová kvalifikace</a>
+    <a href="{{ url_for('qualifications.create') }}" class="btn btn-danger btn-sm">+ Nová kvalifikace</a>
   {% endif %}
 </div>
 
@@ -36,10 +36,10 @@
         </td>
         <td class="text-end">
           {% if current_user.has_permission('credential.edit') %}
-            <a href="{{ url_for('credentials.edit', cred_id=cred.id) }}" class="btn btn-outline-secondary btn-sm">Upravit</a>
+            <a href="{{ url_for('qualifications.edit', cred_id=cred.id) }}" class="btn btn-outline-secondary btn-sm">Upravit</a>
           {% endif %}
           {% if current_user.has_permission('credential.delete') %}
-            <form method="POST" action="{{ url_for('credentials.delete', cred_id=cred.id) }}"
+            <form method="POST" action="{{ url_for('qualifications.delete', cred_id=cred.id) }}"
                   class="d-inline"
                   onsubmit="return confirm('Opravdu smazat kvalifikaci \'{{ cred.name }}\'?')">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

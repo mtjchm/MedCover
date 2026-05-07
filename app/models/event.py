@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped
 from app.extensions import db
 
 if TYPE_CHECKING:
-    from app.models.credential import Credential
+    from app.models.qualification import Qualification
     from app.models.assignment import Assignment
     from app.models.user import UserAccount
 
@@ -21,18 +21,18 @@ class EventStatus(str, enum.Enum):
     CANCELLED = "Zrušena"
 
 
-# M2M: EventSpot ↔ Credential (required credentials for a spot)
-spot_credentials = db.Table(
-    "spot_credentials",
+# M2M: EventSpot ↔ Qualification (required qualifications for a spot)
+spot_qualifications = db.Table(
+    "spot_qualifications",
     db.Column("spot_id", db.Integer, db.ForeignKey("event_spot.id"), primary_key=True),
-    db.Column("credential_id", db.Integer, db.ForeignKey("credential.id"), primary_key=True),
+    db.Column("qualification_id", db.Integer, db.ForeignKey("qualification.id"), primary_key=True),
 )
 
-# M2M: EventSpotTemplate ↔ Credential
-spot_template_credentials = db.Table(
-    "spot_template_credentials",
+# M2M: EventSpotTemplate ↔ Qualification
+spot_template_qualifications = db.Table(
+    "spot_template_qualifications",
     db.Column("spot_template_id", db.Integer, db.ForeignKey("event_spot_template.id"), primary_key=True),
-    db.Column("credential_id", db.Integer, db.ForeignKey("credential.id"), primary_key=True),
+    db.Column("qualification_id", db.Integer, db.ForeignKey("qualification.id"), primary_key=True),
 )
 
 
@@ -82,8 +82,8 @@ class EventSpotTemplate(db.Model):  # type: ignore[misc]
     description = db.Column(db.String(255), nullable=True)
 
     template = db.relationship("EventTemplate", back_populates="spot_templates")
-    required_credentials: Mapped[list[Credential]] = db.relationship(
-        "Credential", secondary=spot_template_credentials, lazy="selectin"
+    required_qualifications: Mapped[list[Qualification]] = db.relationship(
+        "Qualification", secondary=spot_template_qualifications, lazy="selectin"
     )
 
     def __repr__(self) -> str:
@@ -177,20 +177,20 @@ class EventSpot(db.Model):  # type: ignore[misc]
     version = db.Column(db.Integer, default=1, nullable=False)
 
     event = db.relationship("Event", back_populates="spots")
-    required_credentials: Mapped[list[Credential]] = db.relationship(
-        "Credential", secondary=spot_credentials, lazy="selectin"
+    required_qualifications: Mapped[list[Qualification]] = db.relationship(
+        "Qualification", secondary=spot_qualifications, lazy="selectin"
     )
     assignment: Mapped[Assignment | None] = db.relationship(
         "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan"
     )
 
     def is_eligible(self, user: UserAccount) -> bool:
-        """Return True if the user holds credentials satisfying all spot requirements."""
-        if not self.required_credentials:
-            return True  # no credential requirement — anyone can fill it
-        user_creds = set(user.credentials)
-        for required in self.required_credentials:
-            if not any(required.can_be_filled_by(uc) for uc in user_creds):
+        """Return True if the user holds qualifications satisfying all spot requirements."""
+        if not self.required_qualifications:
+            return True  # no qualification requirement — anyone can fill it
+        user_quals = set(user.qualifications)
+        for required in self.required_qualifications:
+            if not any(required.can_be_filled_by(uq) for uq in user_quals):
                 return False
         return True
 
