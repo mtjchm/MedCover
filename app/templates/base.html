@@ -14,6 +14,9 @@
   <!-- Custom styles -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 
+  <!-- Flatpickr (24h datetime picker) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -63,11 +66,24 @@
           integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
           crossorigin="anonymous"></script>
 
-  <!-- Initialise all Bootstrap popovers (used by help_icon macro) -->
+  <!-- Flatpickr JS + global init for all .flatpickr-dt inputs -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/cs.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
+      // Initialise all Bootstrap popovers (used by help_icon macro)
       document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
         new bootstrap.Popover(el, { html: false });
+      });
+      // Initialise all flatpickr datetime inputs
+      flatpickr(".flatpickr-dt", {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-dTH:i",
+        altInput: true,
+        altFormat: "d.m.Y H:i",
+        locale: "cs",
+        allowInput: true,
       });
     });
   </script>

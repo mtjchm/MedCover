@@ -47,21 +47,21 @@
           <label for="start_datetime" class="form-label">Začátek <span class="text-danger">*</span>
             {{ help_icon("Datum a čas zahájení akce. Slouží pro řazení v přehledech a kalendáři.") }}
           </label>
-          <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime"
+          <input type="text" class="form-control flatpickr-dt" id="start_datetime" name="start_datetime"
                  value="{{ request.form.get('start_datetime', '') }}" required>
         </div>
         <div class="col-12 col-md-6">
           <label for="end_datetime" class="form-label">Konec <span class="text-danger">*</span>
             {{ help_icon("Datum a čas ukončení akce. Po tomto čase scheduler automaticky přesune akci do stavu Dokončena.") }}
           </label>
-          <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime"
+          <input type="text" class="form-control flatpickr-dt" id="end_datetime" name="end_datetime"
                  value="{{ request.form.get('end_datetime', '') }}" required>
         </div>
         <div class="col-12 col-md-6">
           <label for="assignments_open_datetime" class="form-label">Otevření přihlášek
             {{ help_icon("Pokud zadáte datum, přihlašování se automaticky otevře až v tento čas. Prázdné = přihlašování se otevře ihned po zveřejnění akce.") }}
           </label>
-          <input type="datetime-local" class="form-control" id="assignments_open_datetime" name="assignments_open_datetime"
+          <input type="text" class="form-control flatpickr-dt" id="assignments_open_datetime" name="assignments_open_datetime"
                  value="{{ request.form.get('assignments_open_datetime', '') }}">
           <div class="form-text">Prázdné = okamžitě po zveřejnění</div>
         </div>
