@@ -193,6 +193,56 @@ def detail(user_id: uuid.UUID) -> str:
     return render_template("users/detail.html", user=user, all_roles=roles, all_credentials=credentials)
 
 
+@users_bp.route("/<uuid:user_id>/edit", methods=["POST"])
+@login_required
+def edit_user(user_id: uuid.UUID) -> Response:
+    _require_permission("user.edit_any")
+    user = db.session.get(UserAccount, user_id)
+    if not user:
+        abort(404)
+
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    phone = request.form.get("phone", "").strip() or None
+
+    if not name:
+        flash("Jméno nesmí být prázdné.", "danger")
+        return redirect(url_for("users.detail", user_id=user_id))
+    if not email:
+        flash("E-mail nesmí být prázdný.", "danger")
+        return redirect(url_for("users.detail", user_id=user_id))
+
+    if email != user.email:
+        duplicate = db.session.scalar(
+            db.select(UserAccount).where(
+                UserAccount.email == email,
+                UserAccount.id != user.id,
+            )
+        )
+        if duplicate:
+            flash(f"E-mail {email} je již použit jiným uživatelem.", "danger")
+            return redirect(url_for("users.detail", user_id=user_id))
+
+    before: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
+    user.name = name
+    user.email = email
+    user.phone = phone
+    user.version += 1
+    after: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
+
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="edit",
+        entity_type="UserAccount",
+        entity_id=str(user.id),
+        summary=f"Admin upravil údaje uživatele {user.name}",
+        changes_json=diff_changes(before, after),
+    ))
+    db.session.commit()
+    flash("Údaje uživatele byly uloženy.", "success")
+    return redirect(url_for("users.detail", user_id=user_id))
+
+
 @users_bp.route("/<uuid:user_id>/activate", methods=["POST"])
 @login_required
 def activate(user_id: uuid.UUID) -> Response:
