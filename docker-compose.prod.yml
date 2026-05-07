@@ -1,0 +1,73 @@
+# Production / staging Docker Compose
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Or via the helper script:
+#   ./deploy.sh
+#
+# Differences from docker-compose.yml (dev):
+#   - Gunicorn (4 workers) instead of flask run --debug
+#   - No source-code volume mount; code is baked into the image
+#   - DB port is NOT exposed to the host (internal network only)
+#   - restart: unless-stopped on every service
+#   - Reads secrets from .env.prod (never .env)
+#   - Separate postgres_data_prod volume so prod data is isolated from dev
+
+services:
+  web:
+    build: .
+    command: gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()"
+    env_file: .env.prod
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  scheduler:
+    build: .
+    command: python scheduler/main.py
+    env_file: .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import os, time; f='/tmp/scheduler_heartbeat'; assert os.path.exists(f) and time.time()-os.path.getmtime(f)<30"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  db:
+    image: postgres:17-alpine
+    stop_grace_period: 60s
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medcover_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-medcover}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env.prod}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medcover}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # DB is not exposed to the host — access it through the web/scheduler services
+    restart: unless-stopped
+
+volumes:
+  postgres_data_prod:

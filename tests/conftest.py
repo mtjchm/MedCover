@@ -1,4 +1,10 @@
+from __future__ import annotations
+
+import os
+
 import pytest
+from sqlalchemy import create_engine, text
+
 from app import create_app
 from app.extensions import db as _db
 from app.models.role import ALL_PERMISSIONS, ROLE_PERMISSIONS, Permission, Role
@@ -31,20 +37,89 @@ _MUTABLE_TABLES = " ,".join([
     "user_account",
 ])
 
+# Base test DB URL (set by pytest-env via pyproject.toml)
+_BASE_TEST_DB_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql://medcover:devpassword@localhost:5432/medcover_test",
+)
+
+
+def _worker_db_url(worker_id: str) -> str:
+    """Return a worker-specific DB URL for xdist parallelism.
+
+    Each xdist worker (gw0, gw1, …) gets its own database so that
+    concurrent TRUNCATE operations never conflict.  Non-parallel runs
+    (worker_id == 'master') use the base URL unchanged.
+    """
+    if worker_id == "master":
+        return _BASE_TEST_DB_URL
+    # e.g. medcover_test → medcover_test_gw0
+    base, db_name = _BASE_TEST_DB_URL.rsplit("/", 1)
+    return f"{base}/{db_name}_{worker_id}"
+
+
+def _ensure_db_exists(db_url: str) -> None:
+    """Create the database if it does not already exist."""
+    base, db_name = db_url.rsplit("/", 1)
+    maintenance_url = f"{base}/postgres"
+    engine = create_engine(maintenance_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": db_name}
+        ).fetchone()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+    engine.dispose()
+
+
+def _drop_db(db_url: str) -> None:
+    """Drop the worker database (only called for worker-specific DBs)."""
+    base, db_name = db_url.rsplit("/", 1)
+    maintenance_url = f"{base}/postgres"
+    engine = create_engine(maintenance_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        # Terminate open connections before dropping
+        conn.execute(text(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = :n AND pid <> pg_backend_pid()"
+        ), {"n": db_name})
+        conn.execute(text(f'DROP DATABASE IF EXISTS "{db_name}"'))
+    engine.dispose()
+
 
 @pytest.fixture(scope="session")
-def app():
-    """Create Flask test application, set up schema and seed reference data once."""
-    flask_app = create_app("testing")
+def app(worker_id: str):
+    """Create Flask test application with a worker-specific DB.
+
+    With pytest-xdist each worker gets its own database (medcover_test_gw0,
+    medcover_test_gw1, …) so parallel TRUNCATE operations never conflict.
+    Without xdist the plain medcover_test DB is used.
+    """
+    db_url = _worker_db_url(worker_id)
+    _ensure_db_exists(db_url)
+
+    flask_app = create_app("testing", db_url=db_url)
+
     with flask_app.app_context():
+        _db.drop_all()   # clear leftover types/tables from previous runs
         _db.create_all()
         _seed_reference_data()
-        _db.session.remove()  # Release the connection — tests create their own contexts
+        _db.session.remove()
 
     yield flask_app
 
     with flask_app.app_context():
         _db.drop_all()
+
+    # Clean up worker-specific DB; leave the base medcover_test intact
+    if worker_id != "master":
+        _drop_db(db_url)
+
+
+@pytest.fixture(scope="session")
+def worker_id(request: pytest.FixtureRequest) -> str:
+    """Return the xdist worker ID ('gw0', 'gw1', …) or 'master'."""
+    return getattr(request.config, "workerinput", {}).get("workerid", "master")
 
 
 def _seed_reference_data() -> None:
