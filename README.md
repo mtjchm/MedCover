@@ -47,12 +47,14 @@ cp .env.example .env  # then fill in your values
 # 4. Start containers
 docker compose up -d
 
-# 5. Install pre-commit hooks
+# 5. Seed dev users (admin, coordinator, member, viewer + reference data)
+python scripts/seed_dev.py
+
+# 6. Install pre-commit hooks
 pre-commit install
 
-# 6. Run tests
-DATABASE_URL="postgresql://medcover:devpassword@localhost:5432/medcover_test" \
-  SECRET_KEY="test-secret" FLASK_ENV=testing pytest tests/
+# 7. Run tests
+pytest tests/
 ```
 
 ---
@@ -63,8 +65,10 @@ Tests run automatically on every commit via the pre-commit `pytest` hook.
 To run manually:
 
 ```bash
-DATABASE_URL="postgresql://medcover:devpassword@localhost:5432/medcover_test" \
-  SECRET_KEY="test-secret" FLASK_ENV=testing pytest tests/
+pytest tests/
 ```
+
+Environment variables (`FLASK_ENV`, `SECRET_KEY`, `TEST_DATABASE_URL`) are
+injected automatically by `pytest-env` via `pyproject.toml`.
 
 Coverage report is written to `htmlcov/` after each run.
