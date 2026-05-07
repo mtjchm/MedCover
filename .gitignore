@@ -33,3 +33,4 @@ htmlcov/
 
 # Docker
 *.log
+.env.prod

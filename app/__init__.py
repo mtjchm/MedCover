@@ -174,7 +174,7 @@ def register_cli_commands(app: Flask) -> None:
         feedback on whether the SMTP credentials and relay are working.
 
         Example:
-            docker compose exec web flask send-test-email you@example.com
+            docker compose exec web flask send-test-email <your-address@domain.com>
         """
         import socket
         import time
