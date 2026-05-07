@@ -70,4 +70,4 @@ def login_as(role: str):
         return redirect(url_for("auth.login"))
 
     login_user(user, force=True)  # force=True bypasses is_active check (intentional for dev)
-    return redirect(url_for("events.index"))
+    return redirect(url_for("main.dashboard"))

@@ -26,16 +26,18 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarMain">
         <ul class="navbar-nav me-auto">
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('events.index') }}">Akce</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('master_events.index') }}">Nadřazené akce</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('equipment.index') }}">Vybavení</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Výkazy</a></li>
+          {% if current_user.is_authenticated %}
+          <li class="nav-item"><a class="nav-link" href="#">Akce</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Nadřazené akce</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Vybavení</a></li>
+          <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
+          {% endif %}
         </ul>
         <ul class="navbar-nav">
           {% if current_user.is_authenticated %}
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('users.index') }}">{{ current_user.name }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="#">{{ current_user.name }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Odhlásit</a></li>
-          {% else %}
+          {% elif request.endpoint != 'auth.login' %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Přihlásit</a></li>
           {% endif %}
         </ul>
