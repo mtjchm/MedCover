@@ -42,6 +42,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://medcover:testpassword@localhost:5432/medcover_test
+      TEST_DATABASE_URL: postgresql://medcover:testpassword@localhost:5432/medcover_test
       FLASK_ENV: testing
       SECRET_KEY: ci-test-secret-not-real
 

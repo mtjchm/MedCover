@@ -35,7 +35,7 @@ addopts = "--cov=app --cov-report=term-missing --cov-report=html:htmlcov -v -n a
 env = [
     "FLASK_ENV=testing",
     "SECRET_KEY=test-secret-key-not-for-production",
-    "TEST_DATABASE_URL=postgresql://medcover:devpassword@localhost:5432/medcover_test",
+    "D:TEST_DATABASE_URL=postgresql://medcover:devpassword@localhost:5432/medcover_test",
 ]
 
 [tool.coverage.run]
