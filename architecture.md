@@ -409,6 +409,25 @@
         5. **SQL injection:** All DB access via SQLAlchemy ORM. Raw `text()` with f-strings is prohibited.
     - **Consequences:** Small overhead: every form requires `{{ csrf_token() }}` in the template and Flask-WTF registered on the app. AJAX calls require the token header. The `validate.js` module must be kept in sync with server-side rules (duplication accepted; server rules are authoritative).
 
+- AD15 Outbound Email Delivery Strategy
+    - **Status:** Decided
+    - **Context:** The application sends several categories of outbound email (assignment confirmations, event lifecycle notifications, coordinator reminders, admin digest). In the original design, every route that triggered an email called the SMTP relay synchronously within the HTTP request. This creates three problems: (1) SMTP latency adds to request latency visible to the user; (2) bulk sends (e.g. event cancelled → notify all 20 assigned users) risk exceeding relay rate limits and getting the sender IP/account blocked; (3) transient SMTP failures silently drop emails with no retry.
+    - **Options considered:**
+        - **Direct synchronous send** — simple but fragile; all three problems apply.
+        - **Celery + Redis broker** — production-grade, full retry semantics, but introduces two additional services (Celery worker, Redis) that increase operational complexity significantly for a low-volume app.
+        - **DB-backed outbox queue drained by the scheduler** — the scheduler container already exists (AD10); adding a queue table and a drain job requires no new infrastructure.
+    - **Decision:** **DB-backed outbox queue** (`outbox_email` table).
+        - All `send_*` helpers in `app/mail.py` write a `pending` row to `outbox_email` using `db.session.flush()` (no separate commit; the caller's transaction commits the row atomically with other DB changes).
+        - The scheduler runs `process_email_queue()` every `MAIL_QUEUE_INTERVAL_SECONDS` (default **6 seconds ≈ 10 emails/min**), safely under the MS365 / typical relay limit of 30/min.
+        - Each job run picks the single oldest `pending` row (`ORDER BY created_at ASC`), locks it with `SELECT … FOR UPDATE SKIP LOCKED` to prevent double-processing, sends it, then marks it `sent`.
+        - On SMTP failure: `retry_count` is incremented; the row stays `pending` until `retry_count >= MAX_RETRIES` (3), at which point `status` is set to `failed` for admin inspection.
+        - `MAIL_QUEUE_INTERVAL_SECONDS` is an environment variable so the throttle can be tuned per deployment without a code change.
+    - **Consequences:**
+        - User-triggered emails (e.g. "you were assigned") arrive with a few-second delay instead of instantly — acceptable for this use case.
+        - Bulk sends are automatically spread over time, eliminating burst rate-limit risk.
+        - `outbox_email` rows provide a permanent delivery audit trail viewable by admins.
+        - The scheduler's main loop sleep was reduced from 30 s to 5 s so the queue is drained promptly.
+
 
 MedCover is a standard three-tier web application:
 
