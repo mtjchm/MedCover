@@ -481,4 +481,3 @@ curl -s "https://cdn.jsdelivr.net/npm/bootstrap@VERSION/dist/js/bootstrap.bundle
   | openssl dgst -sha384 -binary | openssl base64 -A
 ```
 Then update the `integrity` attributes in `base.html`.
-

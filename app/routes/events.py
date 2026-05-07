@@ -165,7 +165,7 @@ def create():
         _audit("create", event, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
-        flash(f"Akce byla vytvořena.", "success")
+        flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
     return render_template("events/create.html", master_events=master_events, users=users)
@@ -186,7 +186,7 @@ def detail(event_id: int):
     eligible_users: list = []
     if current_user.has_permission("event.assign_other"):
         eligible_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)
+            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
         ).all()
 
     return render_template("events/detail.html", event=event, EventStatus=EventStatus, eligible_users=eligible_users)
@@ -304,7 +304,7 @@ def cancel(event_id: int):
     event.status = EventStatus.CANCELLED
     event.archived = True
     event.version += 1
-    _audit("status_change", event, f"Akce zrušena a archivována")
+    _audit("status_change", event, "Akce zrušena a archivována")
 
     # Notify all assigned users before commit so we still have spot data
     assigned_users = [
@@ -336,7 +336,7 @@ def restore(event_id: int):
     event.status = EventStatus.DRAFT
     event.archived = False
     event.version += 1
-    _audit("status_change", event, f"Akce obnovena do stavu Draft")
+    _audit("status_change", event, "Akce obnovena do stavu Draft")
     db.session.commit()
 
     flash("Akce byla obnovena.", "success")

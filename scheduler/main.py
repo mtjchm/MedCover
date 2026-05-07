@@ -201,4 +201,3 @@ while True:
     except Exception:
         pass
     time.sleep(5)  # short sleep so email queue is drained promptly
-

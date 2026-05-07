@@ -1,7 +1,7 @@
 """add user, role, permission tables
 
 Revision ID: 7fd90ec4167e
-Revises: 
+Revises:
 Create Date: 2026-05-07 00:01:35.503580
 
 """

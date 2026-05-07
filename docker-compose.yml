@@ -40,6 +40,7 @@ services:
     image: postgres:17-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     environment:
       POSTGRES_DB: medcover_dev
       POSTGRES_USER: medcover

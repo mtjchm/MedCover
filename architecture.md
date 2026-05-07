@@ -202,7 +202,7 @@
 - AD01 User Roles Customization
     - Problem statement - Should the user roles be hardcoded or customizable?
     - Decision - Hardcoded pre-defined roles, adding custom roles may be added to the app later
-    - Justification - app roles are sets of permissions (see AD02) 
+    - Justification - app roles are sets of permissions (see AD02)
       they are relatively stable and allow good testing. Custom roles may be added to the app later but at this point, for simplicity, only pre-defined roles will be used.
 
 
@@ -215,23 +215,23 @@
     - Justification
         - All objects in the application (such as Equipment, Event, Master Event, User) shall have permission objects assigned to it. This will allow granular permissions assignment to user roles. However, there will be only pre-defined RBAC roles (admin, coordinator, member, viewer) at this time. Custom roles may be implemented in the future, so the object based permission model should be prepared for this.
         - Admins and Coordinators should be able to edit all Events and change people assignment to Events. This should be useful if a person can't change their own reservation, an admin or coordinator can do it for them.
-        - Example permissions:  
-            user.view  
-            user.edit  
-            Event.create  
-            Event.edit  
-            Event.cancel  
-            Event.publish  
-            Event.assign  
-            Event.set_responsible_person  
-            equipment_type.view  
-            equipment_type.edit  
-            equipment_type.create  
-            audit.view  
-            notification.send  
-            master_Event.view  
-            master_Event.edit  
-            master_Event.create  
+        - Example permissions:
+            user.view
+            user.edit
+            Event.create
+            Event.edit
+            Event.cancel
+            Event.publish
+            Event.assign
+            Event.set_responsible_person
+            equipment_type.view
+            equipment_type.edit
+            equipment_type.create
+            audit.view
+            notification.send
+            master_Event.view
+            master_Event.edit
+            master_Event.create
             master_Event.archive
 
 - AD03 User Registration Access Control
@@ -735,8 +735,8 @@ No permanent staging environment for MVP — Render PR Preview environments fulf
 
 
 ### Role Based Access Control (RBAC)
-The application will be built using the RBAC concept where User Accounts will be assigned to one or more Roles.  
-A Role will be assigned to Permissions. (A Role is a set of permissions)  
+The application will be built using the RBAC concept where User Accounts will be assigned to one or more Roles.
+A Role will be assigned to Permissions. (A Role is a set of permissions)
 For example an User Account assigned to the Admin role will have all the permissions of this role, allowing the User to administer the whole application. Multiple User Accounts can be assigned to a Role, one User Account can be assigned to multiple Roles.
 
 **Responsible Person (RP)** is not a separate Role but a contextual responsibility assigned to a specific user for a specific Event. The RP gains a small set of additional permissions scoped to their Event (see table note below).

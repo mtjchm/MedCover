@@ -13,3 +13,7 @@ def test_login_page_returns_200(client):
 def test_unknown_route_returns_404(client):
     response = client.get("/nonexistent")
     assert response.status_code == 404
+
+
+def test_app_is_in_testing_mode(app):
+    assert app.config["TESTING"] is True
