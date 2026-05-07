@@ -40,6 +40,21 @@ def create_app(config_name: str | None = None) -> Flask:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
+    @app.template_global()
+    def audit_entity_url(entity_type: str, entity_id: str) -> str | None:
+        """Return a URL to view the given entity, or None if no page exists."""
+        try:
+            eid = int(entity_id)
+        except (ValueError, TypeError):
+            eid = entity_id  # type: ignore[assignment]
+        mapping: dict[str, str | None] = {
+            "Event": url_for("events.detail", event_id=eid),
+            "MasterEvent": url_for("master_events.detail", me_id=eid),
+            "AppSettings": url_for("app_settings.index"),
+            "Credential": url_for("credentials.index"),
+        }
+        return mapping.get(entity_type)
+
     @app.before_request
     def _setup_guard() -> WerkzeugResponse | None:
         """

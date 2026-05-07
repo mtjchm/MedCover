@@ -76,17 +76,17 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 ## Phase 4 — Audit, Equipment & Reports 🔲
 
 ### Audit Log UI
-- 🔲 Audit log list page (admin only): paginated table, filter by entity type / actor / date range
-- 🔲 Audit log detail view: before/after diff for edit actions
+- ✅ Audit log list page (admin only): paginated table, filter by entity type / actor / date range
+- ✅ Audit log detail view: before/after diff for edit actions
 
 ### Equipment Inventory
-- 🔲 EquipmentType CRUD (name, description, category: personal / shared)
-- 🔲 EquipmentItem CRUD (name, type, home location, issued_to for personal items)
-- 🔲 Personal equipment: issue item to member, return item
-- 🔲 User profile: display personal equipment currently issued to logged-in user
-- 🔲 Shared equipment: assign items to event, return after event
-- 🔲 Event equipment planning: specify required quantities per type when creating/editing event
-- 🔲 Event equipment assignment: assign specific physical items from inventory to event
+- ✅ EquipmentType CRUD (name, description, category: personal / shared)
+- ✅ EquipmentItem CRUD (name, type, home location, issued_to for personal items)
+- ✅ Personal equipment: issue item to member, return item
+- ✅ User profile: display personal equipment currently issued to logged-in user
+- ✅ Shared equipment: assign items to event, return after event
+- ✅ Event equipment planning: specify required quantities per type when creating/editing event
+- ✅ Event equipment assignment: assign specific physical items from inventory to event
 
 ### Event Templates
 - 🔲 Event template CRUD (admin / coordinator only)
@@ -95,9 +95,9 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 - 🔲 Reminder schedule inherited from template
 
 ### Reports
-- 🔲 Per-user report: events attended, hours, credentials used
-- 🔲 Per-ME report: all events under a master event, staffing summary
-- 🔲 Date-range report: all events in a configurable date range (replaces yearly ME hierarchy for reporting)
+- ✅ Per-user report: events attended, hours, credentials used
+- ✅ Per-ME report: all events under a master event, staffing summary
+- ✅ Date-range report: all events in a configurable date range (replaces yearly ME hierarchy for reporting)
 - 🔲 Export to CSV / PDF (nice-to-have)
 
 ---

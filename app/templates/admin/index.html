@@ -16,9 +16,13 @@
       <div class="card-body py-2 px-3">
         <div class="small text-muted">Databáze</div>
         {% if db_ok %}
-          <span class="text-success fw-semibold">✔ Online</span>
+          <span class="text-success fw-semibold">✔ OK</span>
+          <div class="text-muted" style="font-size:0.75rem">SELECT 1 úspěšný</div>
         {% else %}
-          <span class="text-danger fw-semibold">✘ Nedostupná</span>
+          <span class="text-danger fw-semibold">✘ Chyba</span>
+          {% if db_error %}
+            <div class="text-danger" style="font-size:0.75rem">{{ db_error }}</div>
+          {% endif %}
         {% endif %}
       </div>
     </div>
@@ -31,16 +35,17 @@
       <div class="card-body py-2 px-3">
         <div class="small text-muted">Plánovač</div>
         {% if sched_status == 'ok' %}
-          <span class="text-success fw-semibold">✔ Běží</span>
+          <span class="text-success fw-semibold">✔ OK</span>
+          <div class="text-muted" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s</div>
         {% elif sched_status == 'warning' %}
-          <span class="text-warning fw-semibold">⚠ Pomalý</span>
+          <span class="text-warning fw-semibold">⚠ Varování</span>
+          <div class="text-warning" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s (limit 30 s)</div>
         {% elif sched_status == 'error' %}
-          <span class="text-danger fw-semibold">✘ Neodpovídá</span>
+          <span class="text-danger fw-semibold">✘ Chyba</span>
+          <div class="text-danger" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s — kontejner neodpovídá</div>
         {% else %}
           <span class="text-secondary fw-semibold">? Neznámý</span>
-        {% endif %}
-        {% if sched_age_s is not none %}
-          <div class="text-muted" style="font-size:0.75rem">před {{ sched_age_s }} s</div>
+          <div class="text-muted" style="font-size:0.75rem">heartbeat dosud nepřijat</div>
         {% endif %}
       </div>
     </div>
@@ -61,11 +66,13 @@
         {% if not smtp_configured %}
           <span class="text-secondary fw-semibold">— Nenakonfigurováno</span>
         {% elif smtp_reachable %}
-          <span class="text-success fw-semibold">✔ Dostupné</span>
-          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }}</div>
+          <span class="text-success fw-semibold">✔ OK</span>
+          <div class="text-muted" style="font-size:0.75rem">TCP spojení na {{ settings.smtp_server }}:{{ settings.smtp_port }} úspěšné</div>
         {% else %}
-          <span class="text-danger fw-semibold">✘ Nedostupné</span>
-          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }}</div>
+          <span class="text-danger fw-semibold">✘ Chyba</span>
+          <div class="text-danger" style="font-size:0.75rem">
+            {{ settings.smtp_server }}:{{ settings.smtp_port }}{% if smtp_error %} — {{ smtp_error }}{% endif %}
+          </div>
         {% endif %}
       </div>
     </div>
@@ -139,6 +146,7 @@
 <div class="card mb-4">
   <div class="card-header py-2 fw-semibold d-flex justify-content-between align-items-center">
     <span>Poslední záznamy v audit logu</span>
+    <a href="{{ url_for('admin.audit_log_list') }}" class="btn btn-outline-secondary btn-sm">Celý audit log →</a>
   </div>
   <ul class="list-group list-group-flush">
     {% for entry in recent_audit %}

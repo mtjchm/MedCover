@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Upravit položku vybavení' if edit else 'Nová položka vybavení' }} — MedCover{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-6">
+    <h2 class="mb-4">{{ 'Upravit položku vybavení' if edit else 'Nová položka vybavení' }}</h2>
+    <form method="POST" novalidate>
+      {% if edit %}
+        <input type="hidden" name="version" value="{{ item.version }}">
+      {% endif %}
+
+      <div class="mb-3">
+        <label for="name" class="form-label">Název <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="name" name="name"
+               value="{{ item.name if edit else request.form.get('name', '') }}"
+               required autofocus>
+      </div>
+
+      <div class="mb-3">
+        <label for="type_id" class="form-label">Typ vybavení <span class="text-danger">*</span></label>
+        <select class="form-select" id="type_id" name="type_id" required>
+          <option value="">— vyberte —</option>
+          {% for t in types %}
+            <option value="{{ t.id }}"
+              {{ 'selected' if (edit and item.type_id == t.id) or (not edit and request.form.get('type_id')|int == t.id) }}>
+              {{ t.name }} ({{ 'osobní' if t.category.value == 'personal' else 'sdílené' }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label for="serial_number" class="form-label">Sériové číslo</label>
+        <input type="text" class="form-control" id="serial_number" name="serial_number"
+               value="{{ item.serial_number if edit else request.form.get('serial_number', '') }}">
+      </div>
+
+      <div class="mb-3">
+        <label for="home_location" class="form-label">Výchozí umístění</label>
+        <input type="text" class="form-control" id="home_location" name="home_location"
+               value="{{ item.home_location if edit else request.form.get('home_location', '') }}">
+      </div>
+
+      <div class="mb-4">
+        <label for="notes" class="form-label">Poznámky</label>
+        <textarea class="form-control" id="notes" name="notes" rows="3">{{ item.notes if edit else request.form.get('notes', '') }}</textarea>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-danger">{{ 'Uložit' if edit else 'Vytvořit' }}</button>
+        <a href="{{ url_for('equipment.items') }}" class="btn btn-outline-secondary">Zrušit</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

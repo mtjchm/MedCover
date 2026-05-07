@@ -2,6 +2,7 @@
 from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.master_event import MasterEvent
+from app.models.audit import AuditLogEntry
 
 
 def _make_master_event(app) -> int:
@@ -238,3 +239,68 @@ class TestCalendarFeed:
         feed_data = admin_client.get("/events/feed").get_json()
         titles = [e.get("title", "") for e in feed_data]
         assert not any("Test Event" in t for t in titles)
+
+
+class TestAuditChangeTracking:
+    """Verify audit log captures before/after changes in {field: [old, new]} format."""
+
+    def test_event_edit_records_changes(self, app, admin_client):
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            event_id = event.id
+            version = event.version
+
+        admin_client.post(
+            f"/events/{event_id}/edit",
+            data={
+                **_event_form_data(me_id, name="Renamed Event"),
+                "version": str(version),
+            },
+            follow_redirects=False,
+        )
+
+        with app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLogEntry)
+                .where(AuditLogEntry.entity_type == "Event")
+                .where(AuditLogEntry.action_type == "edit")
+                .where(AuditLogEntry.entity_id == str(event_id))
+                .order_by(AuditLogEntry.id.desc())
+            )
+            assert entry is not None
+            assert entry.changes_json is not None
+            # Must use {field: [old, new]} format
+            assert "name" in entry.changes_json
+            assert entry.changes_json["name"] == ["Test Event", "Renamed Event"]
+
+    def test_event_edit_no_change_produces_empty_changes(self, app, admin_client):
+        """When nothing changes, changes_json should be None or empty dict."""
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            event_id = event.id
+            version = event.version
+
+        admin_client.post(
+            f"/events/{event_id}/edit",
+            data={
+                **_event_form_data(me_id, name="Test Event"),
+                "version": str(version),
+            },
+            follow_redirects=False,
+        )
+
+        with app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLogEntry)
+                .where(AuditLogEntry.entity_type == "Event")
+                .where(AuditLogEntry.action_type == "edit")
+                .where(AuditLogEntry.entity_id == str(event_id))
+                .order_by(AuditLogEntry.id.desc())
+            )
+            assert entry is not None
+            # No fields changed → changes_json should be None or {}
+            assert not entry.changes_json

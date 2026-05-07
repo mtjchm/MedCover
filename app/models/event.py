@@ -57,9 +57,12 @@ class EventTemplate(db.Model):  # type: ignore[misc]
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
+    version = db.Column(db.Integer, default=1, nullable=False)
 
     spot_templates = db.relationship(
-        "EventSpotTemplate", back_populates="template", cascade="all, delete-orphan"
+        "EventSpotTemplate", back_populates="template", cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     def reminder_hours(self) -> list[int]:
@@ -79,7 +82,7 @@ class EventSpotTemplate(db.Model):  # type: ignore[misc]
     description = db.Column(db.String(255), nullable=True)
 
     template = db.relationship("EventTemplate", back_populates="spot_templates")
-    required_credentials = db.relationship(
+    required_credentials: Mapped[list[Credential]] = db.relationship(
         "Credential", secondary=spot_template_credentials, lazy="selectin"
     )
 
@@ -129,6 +132,8 @@ class Event(db.Model):  # type: ignore[misc]
     responsible_person = db.relationship("UserAccount", foreign_keys=[responsible_person_id])
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
     spots: Mapped[list[EventSpot]] = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
+    equipment_plans = db.relationship("EventEquipmentPlan", back_populates="event", cascade="all, delete-orphan")
+    equipment_assignments = db.relationship("EventEquipmentAssignment", back_populates="event", cascade="all, delete-orphan")
 
     # ── Derived staffing status ─────────────────────────────────────────────
     @property

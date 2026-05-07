@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Přehledy — MedCover{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Přehledy a statistiky</h2>
+
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">Přehled uživatele</h5>
+        <p class="card-text text-muted flex-grow-1">
+          Odeslané akce, naplánované a odpracované hodiny, použité kvalifikace pro konkrétního uživatele.
+        </p>
+        <a href="{{ url_for('reports.user_report', user_id=current_user.id) }}" class="btn btn-outline-danger mt-2">
+          Můj přehled
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">Přehled nadřazené akce</h5>
+        <p class="card-text text-muted flex-grow-1">
+          Všechny akce v rámci nadřazené akce: obsazenost, odpracované hodiny, ošetřené pacienty.
+        </p>
+        <a href="{{ url_for('master_events.index') }}" class="btn btn-outline-danger mt-2">
+          Vybrat nadřazenou akci
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">Přehled za období</h5>
+        <p class="card-text text-muted flex-grow-1">
+          Agregovaný přehled všech akcí v zadaném časovém rozsahu — počty akcí, obsazenost, hodiny, pacienti.
+        </p>
+        <a href="{{ url_for('reports.date_range_report') }}" class="btn btn-outline-danger mt-2">
+          Zobrazit přehled
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

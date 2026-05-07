@@ -2,11 +2,30 @@
 {% from 'macros/help.html' import help_icon %}
 {% block title %}Nová akce — MedCover{% endblock %}
 
+{% block extra_head %}
+<style>
+  .paid-toggle { width: 3em; height: 1.5em; cursor: pointer; }
+  .paid-toggle:checked { background-color: #198754; border-color: #198754; }
+  .paid-label.is-paid { color: #198754; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8">
     <h2 class="mb-4">Nová akce</h2>
-    <form method="POST" novalidate>
+
+    {% if template %}
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+      <span>📋</span>
+      <span>Vytváříte akci ze šablony: <strong>{{ template.name }}</strong></span>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('events.create') }}" novalidate>
+      {% if template %}
+      <input type="hidden" name="template_id" value="{{ template.id }}">
+      {% endif %}
       <div class="row g-3">
         <div class="col-12">
           <label for="name" class="form-label">Název <span class="text-danger">*</span>
@@ -74,6 +93,7 @@
           </div>
           <div class="form-text">Prázdné = okamžitě po zveřejnění</div>
         </div>
+        {% if not template %}
         <div class="col-12 col-md-3">
           <label for="spot_count" class="form-label">Počet míst
             {{ help_icon("Počet zdravotnických pozic na akci. Každá pozice může mít přiřazenu požadovanou kvalifikaci. Po vytvoření akce lze pozice přidávat nebo odebírat.") }}
@@ -81,11 +101,20 @@
           <input type="number" class="form-control" id="spot_count" name="spot_count"
                  value="{{ request.form.get('spot_count', '1') }}" min="0" max="50">
         </div>
+        {% else %}
+        <div class="col-12 col-md-3">
+          <label class="form-label">Počet míst ze šablony</label>
+          <div class="form-control-plaintext">
+            <span class="badge bg-secondary">{{ template.spot_templates | length }} pozic</span>
+            <div class="form-text">Pozice budou vytvořeny ze šablony po uložení akce.</div>
+          </div>
+        </div>
+        {% endif %}
         <div class="col-12 col-md-3 d-flex align-items-end">
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="paid" name="paid" value="1"
-                   {{ 'checked' if request.form.get('paid') == '1' }}>
-            <label class="form-check-label" for="paid">Placená akce
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input paid-toggle" type="checkbox" role="switch" id="paid" name="paid" value="1"
+                   {% if template %}{{ 'checked' if template.paid }}{% else %}{{ 'checked' if request.form.get('paid') == '1' }}{% endif %}>
+            <label class="form-check-label fw-semibold paid-label" for="paid">Placená akce
               {{ help_icon("Označte, pokud je akce honorována. Zobrazuje se v přehledech a výkazech.") }}
             </label>
           </div>
@@ -118,4 +147,15 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const cb = document.getElementById('paid');
+  const lbl = cb ? cb.closest('.form-check').querySelector('.paid-label') : null;
+  function update() { lbl && lbl.classList.toggle('is-paid', cb.checked); }
+  if (cb) { cb.addEventListener('change', update); update(); }
+})();
+</script>
 {% endblock %}

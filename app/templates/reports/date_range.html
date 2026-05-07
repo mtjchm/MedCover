@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Přehled za období — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Přehled za období</h2>
+  <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět na přehledy</a>
+</div>
+
+{# Date-range form #}
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="GET" action="{{ url_for('reports.date_range_report') }}" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label for="from_date" class="form-label">Od data</label>
+        <input type="date" class="form-control" id="from_date" name="from_date"
+               value="{{ from_date }}">
+      </div>
+      <div class="col-md-4">
+        <label for="to_date" class="form-label">Do data</label>
+        <input type="date" class="form-control" id="to_date" name="to_date"
+               value="{{ to_date }}">
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-danger w-100">Zobrazit přehled</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if error is defined and error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if results is not none %}
+
+{# Summary cards #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ results.total_events }}</div>
+        <div class="text-muted small">Akcí celkem</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ results.filled_spots }} / {{ results.total_spots }}</div>
+        <div class="text-muted small">Obsazeno pozic</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(results.total_worked_hours) }}</div>
+        <div class="text-muted small">Odprac. hodin</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ results.total_patients }}</div>
+        <div class="text-muted small">Ošetřených pacientů</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Akce podle stavu</div>
+        {% if results.status_counts %}
+          {% for status, cnt in results.status_counts.items() %}
+            <span class="badge bg-secondary me-1">{{ status }}: {{ cnt }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Results grouped by ME #}
+{% if results.me_groups %}
+  {% for group in results.me_groups %}
+  <h5 class="mt-4 mb-2">
+    <a href="{{ url_for('reports.me_report', me_id=group.master_event.id) }}">{{ group.master_event.name }}</a>
+  </h5>
+  <div class="table-responsive mb-3">
+    <table class="table table-hover table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Akce</th>
+          <th>Datum</th>
+          <th>Stav</th>
+          <th class="text-end">Pozice (obsaz./celkem)</th>
+          <th class="text-end">Odprac. hodiny</th>
+          <th class="text-end">Pacienti</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in group.events %}
+        <tr>
+          <td>
+            <a href="{{ url_for('events.detail', event_id=ev.id) }}">{{ ev.name }}</a>
+          </td>
+          <td class="text-nowrap">{{ ev.start_datetime | localdt("%d.%m.%Y") }}</td>
+          <td>
+            <span class="badge
+              {% if ev.status.value == 'Dokončena' %}bg-success
+              {% elif ev.status.value == 'Zrušena' %}bg-danger
+              {% elif ev.status.value == 'Koncept' %}bg-secondary
+              {% else %}bg-primary{% endif %}">
+              {{ ev.status.value }}
+            </span>
+          </td>
+          <td class="text-end">{{ ev.filled_spots }} / {{ ev.total_spots }}</td>
+          <td class="text-end">
+            {% set worked = namespace(h=0) %}
+            {% for spot in ev.spots %}
+              {% if spot.assignment and spot.assignment.debriefing %}
+                {% set worked.h = worked.h + spot.assignment.debriefing.actual_hours %}
+              {% endif %}
+            {% endfor %}
+            {{ "%.1f"|format(worked.h) }}
+          </td>
+          <td class="text-end">
+            {% set pts = namespace(n=0) %}
+            {% for spot in ev.spots %}
+              {% if spot.assignment and spot.assignment.debriefing %}
+                {% set pts.n = pts.n + spot.assignment.debriefing.patients_treated %}
+              {% endif %}
+            {% endfor %}
+            {{ pts.n }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="alert alert-info">Ve zvoleném období nebyly nalezeny žádné akce.</div>
+{% endif %}
+
+{% elif from_date or to_date %}
+  {# Form was shown but no results rendered — empty state already handled above #}
+{% else %}
+<div class="alert alert-info">Zadejte rozsah dat a klikněte na <strong>Zobrazit přehled</strong>.</div>
+{% endif %}
+{% endblock %}

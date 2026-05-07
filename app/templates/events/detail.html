@@ -235,4 +235,108 @@
 <div class="mt-3">
   <a href="{{ url_for('events.index') }}" class="text-decoration-none text-muted small">← Zpět na seznam</a>
 </div>
+
+{# Equipment section #}
+<div class="mt-4">
+  <h5 class="mb-3">Vybavení</h5>
+
+  {# Equipment plan #}
+  <h6 class="text-muted mb-2">Plán vybavení</h6>
+  {% if event.equipment_plans %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Typ</th>
+          <th>Kategorie</th>
+          <th class="text-center">Požadované množství</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plan in event.equipment_plans %}
+        <tr>
+          <td>{{ plan.equipment_type.name }}</td>
+          <td>{{ 'Osobní' if plan.equipment_type.category.value == 'personal' else 'Sdílené' }}</td>
+          <td class="text-center">{{ plan.quantity_required }}</td>
+          <td class="text-end">
+            {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
+              <form method="POST" action="{{ url_for('events.equipment_plan_remove', event_id=event.id) }}" class="d-inline">
+                <input type="hidden" name="type_id" value="{{ plan.equipment_type_id }}">
+                <button class="btn btn-outline-danger btn-sm py-0">Odebrat</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted small">Žádný plán vybavení.</p>
+  {% endif %}
+
+  {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
+  <form method="POST" action="{{ url_for('events.equipment_plan_add', event_id=event.id) }}" class="d-flex gap-2 mb-3">
+    <select name="type_id" class="form-select form-select-sm" style="max-width: 200px">
+      <option value="">— typ —</option>
+      {% for et in all_equipment_types %}
+        <option value="{{ et.id }}">{{ et.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm" style="max-width: 80px">
+    <button class="btn btn-outline-danger btn-sm">+ Přidat</button>
+  </form>
+  {% endif %}
+
+  {# Equipment assignments #}
+  <h6 class="text-muted mb-2">Přiřazené položky</h6>
+  {% if event.equipment_assignments %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Název</th>
+          <th>Typ</th>
+          <th>Sériové číslo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ea in event.equipment_assignments %}
+        <tr>
+          <td>{{ ea.equipment_item.name }}</td>
+          <td>{{ ea.equipment_item.equipment_type.name }}</td>
+          <td class="text-muted small">{{ ea.equipment_item.serial_number or '—' }}</td>
+          <td class="text-end">
+            {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
+              <form method="POST" action="{{ url_for('events.equipment_unassign', event_id=event.id) }}" class="d-inline">
+                <input type="hidden" name="item_id" value="{{ ea.equipment_item_id }}">
+                <button class="btn btn-outline-danger btn-sm py-0">Odebrat</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="text-muted small">Žádné přiřazené položky.</p>
+  {% endif %}
+
+  {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
+  <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
+    <select name="item_id" class="form-select form-select-sm" style="max-width: 250px">
+      <option value="">— položka —</option>
+      {% for item in available_equipment_items %}
+        <option value="{{ item.id }}">{{ item.name }} ({{ item.equipment_type.name }})</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-outline-danger btn-sm">+ Přiřadit</button>
+  </form>
+  {% endif %}
+</div>
+
+
 {% endblock %}

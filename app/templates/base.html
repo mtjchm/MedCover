@@ -32,10 +32,14 @@
           {% if current_user.is_authenticated %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('events.index') }}">Akce</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('master_events.index') }}">Nadřazené akce</a></li>
-          <li class="nav-item"><a class="nav-link" href="#">Vybavení</a></li>
-          <li class="nav-item"><a class="nav-link" href="#">Výkazy</a></li>
-          {% if current_user.has_permission('admin.manage_settings') %}
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('app_settings.index') }}">Nastavení</a></li>
+          {% if current_user.has_permission('event_template.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('templates.index') }}">Šablony akcí</a></li>
+          {% endif %}
+          {% if current_user.has_permission('equipment.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('equipment.index') }}">Vybavení</a></li>
+          {% endif %}
+          {% if current_user.has_permission('report.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Přehledy</a></li>
           {% endif %}
           {% if current_user.has_permission('admin.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.index') }}">Administrace</a></li>

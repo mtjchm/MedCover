@@ -13,6 +13,7 @@ from flask_mail import Message
 from app.extensions import db, mail
 from app.models.audit import AuditLogEntry
 from app.models.settings import get_settings
+from app.utils import diff_changes
 
 app_settings_bp = Blueprint("app_settings", __name__, url_prefix="/admin/settings")
 
@@ -48,7 +49,7 @@ def index() -> str | Response:
             flash("Neplatná časová zóna.", "warning")
             return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
 
-        # --- Build before dict for audit ---
+        # --- Build before dict for audit (no secrets) ---
         before = {
             "org_name": settings.org_name,
             "timezone": settings.timezone,
@@ -57,6 +58,7 @@ def index() -> str | Response:
             "smtp_use_tls": settings.smtp_use_tls,
             "smtp_username": settings.smtp_username,
             "smtp_default_sender": settings.smtp_default_sender,
+            # smtp_password intentionally omitted — secret
         }
 
         # --- Apply changes ---
@@ -107,7 +109,7 @@ def index() -> str | Response:
             entity_type="AppSettings",
             entity_id=1,
             summary="Nastavení aplikace bylo upraveno.",
-            changes_json={"before": before, "after": after},
+            changes_json=diff_changes(before, after),
         ))
         db.session.commit()
         settings.apply_to_app(current_app._get_current_object())

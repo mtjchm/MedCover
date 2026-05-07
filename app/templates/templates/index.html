@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Šablony akcí — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Šablony akcí</h2>
+  {% if current_user.has_permission('event_template.create') %}
+  <a href="{{ url_for('templates.create') }}" class="btn btn-danger btn-sm">+ Nová šablona</a>
+  {% endif %}
+</div>
+
+{% if templates %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Název</th>
+        <th>Popis</th>
+        <th class="text-center">Placená</th>
+        <th class="text-center">Připomenutí (h)</th>
+        <th class="text-center">Pozice</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tmpl in templates %}
+      <tr>
+        <td class="fw-semibold">{{ tmpl.name }}</td>
+        <td class="text-muted small">{{ tmpl.description or '—' }}</td>
+        <td class="text-center">
+          {% if tmpl.paid %}
+            <span class="badge bg-success">Ano</span>
+          {% else %}
+            <span class="badge bg-secondary">Ne</span>
+          {% endif %}
+        </td>
+        <td class="text-center">{{ tmpl.reminder_schedule or '24' }}</td>
+        <td class="text-center">{{ tmpl.spot_templates | length }}</td>
+        <td class="text-end">
+          {% if current_user.has_permission('event.create') %}
+          <a href="{{ url_for('events.create_from_template', template_id=tmpl.id) }}"
+             class="btn btn-outline-danger btn-sm">Použít</a>
+          {% endif %}
+          {% if current_user.has_permission('event_template.edit') %}
+          <a href="{{ url_for('templates.edit', template_id=tmpl.id) }}"
+             class="btn btn-outline-secondary btn-sm">Upravit</a>
+          {% endif %}
+          {% if current_user.has_permission('event_template.delete') %}
+          <form method="POST" action="{{ url_for('templates.delete', template_id=tmpl.id) }}"
+                class="d-inline"
+                onsubmit="return confirm('Opravdu smazat šablonu „{{ tmpl.name }}"?')">
+            <button class="btn btn-outline-warning btn-sm">Smazat</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-muted">Žádné šablony nebyly vytvořeny.</p>
+{% endif %}
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import socket
 
-from flask import Blueprint, Response, current_app, flash, redirect, render_template, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from flask_mail import Message
 
@@ -12,6 +12,8 @@ from app.models.user import UserAccount
 from app.models.settings import get_settings
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+_PAGE_SIZE = 50
 
 
 def _require_permission(code: str) -> None:
@@ -34,11 +36,13 @@ def index() -> str:
     now = datetime.now(timezone.utc)
 
     # ── DB health ──────────────────────────────────────────────────────────────
+    db_error: str | None = None
     try:
         db.session.execute(db.text("SELECT 1"))
         db_ok = True
-    except Exception:
+    except Exception as exc:
         db_ok = False
+        db_error = type(exc).__name__
 
     # ── Scheduler heartbeat ────────────────────────────────────────────────────
     sched_last = settings.scheduler_last_seen
@@ -56,13 +60,15 @@ def index() -> str:
 
     # ── SMTP reachability ──────────────────────────────────────────────────────
     smtp_configured = settings.smtp_configured
-    smtp_reachable = None  # None = not tested (not configured)
+    smtp_reachable: bool | None = None  # None = not tested (not configured)
+    smtp_error: str | None = None
     if smtp_configured:
         try:
             with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=2):
                 smtp_reachable = True
-        except Exception:
+        except OSError as exc:
             smtp_reachable = False
+            smtp_error = str(exc)
 
     # ── Statistics ─────────────────────────────────────────────────────────────
     user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount))
@@ -100,11 +106,13 @@ def index() -> str:
     return render_template(
         "admin/index.html",
         db_ok=db_ok,
+        db_error=db_error,
         sched_status=sched_status,
         sched_last=sched_last,
         sched_age_s=sched_age_s,
         smtp_configured=smtp_configured,
         smtp_reachable=smtp_reachable,
+        smtp_error=smtp_error,
         settings=settings,
         user_total=user_total,
         user_active=user_active,
@@ -159,3 +167,100 @@ def _send_activation_email(user: UserAccount) -> None:
         mail.send(msg)
     except Exception as exc:
         current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
+
+
+# ── Audit log ─────────────────────────────────────────────────────────────────
+
+@admin_bp.route("/audit-log/")
+@login_required
+def audit_log_list() -> str:
+    _require_permission("admin.view")
+
+    from app.models.audit import AuditLogEntry
+
+    page = request.args.get("page", 1, type=int)
+    f_entity_type = request.args.get("entity_type", "").strip()
+    f_actor_id = request.args.get("actor_id", "").strip()
+    f_action_type = request.args.get("action_type", "").strip()
+    f_date_from = request.args.get("date_from", "").strip()
+    f_date_to = request.args.get("date_to", "").strip()
+    f_q = request.args.get("q", "").strip()
+
+    query = db.select(AuditLogEntry).order_by(AuditLogEntry.timestamp.desc())
+
+    if f_entity_type:
+        query = query.where(AuditLogEntry.entity_type == f_entity_type)
+    if f_actor_id:
+        query = query.where(AuditLogEntry.actor_id == f_actor_id)
+    if f_action_type:
+        query = query.where(AuditLogEntry.action_type == f_action_type)
+    if f_date_from:
+        try:
+            dt_from = datetime.strptime(f_date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.where(AuditLogEntry.timestamp >= dt_from)
+        except ValueError:
+            pass
+    if f_date_to:
+        try:
+            dt_to = datetime.strptime(f_date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            # include the full day
+            from datetime import timedelta
+            query = query.where(AuditLogEntry.timestamp < dt_to + timedelta(days=1))
+        except ValueError:
+            pass
+    if f_q:
+        query = query.where(AuditLogEntry.summary.ilike(f"%{f_q}%"))
+
+    # Paginate manually: count + offset/limit
+    total = db.session.scalar(db.select(db.func.count()).select_from(query.subquery()))
+    entries = db.session.scalars(
+        query.offset((page - 1) * _PAGE_SIZE).limit(_PAGE_SIZE)
+    ).all()
+    total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+
+    # Distinct values for filter dropdowns
+    entity_types = db.session.scalars(
+        db.select(AuditLogEntry.entity_type).distinct().order_by(AuditLogEntry.entity_type)
+    ).all()
+    action_types = db.session.scalars(
+        db.select(AuditLogEntry.action_type).distinct().order_by(AuditLogEntry.action_type)
+    ).all()
+    actors = db.session.scalars(
+        db.select(UserAccount)
+        .where(UserAccount.id.in_(
+            db.select(AuditLogEntry.actor_id).where(AuditLogEntry.actor_id.isnot(None)).distinct()
+        ))
+        .order_by(UserAccount.name)
+    ).all()
+
+    return render_template(
+        "admin/audit_log_list.html",
+        entries=entries,
+        page=page,
+        total=total,
+        total_pages=total_pages,
+        entity_types=entity_types,
+        action_types=action_types,
+        actors=actors,
+        f_entity_type=f_entity_type,
+        f_actor_id=f_actor_id,
+        f_action_type=f_action_type,
+        f_date_from=f_date_from,
+        f_date_to=f_date_to,
+        f_q=f_q,
+    )
+
+
+@admin_bp.route("/audit-log/<int:entry_id>")
+@login_required
+def audit_log_detail(entry_id: int) -> str:
+    _require_permission("admin.view")
+
+    from app.models.audit import AuditLogEntry
+    from flask import abort
+
+    entry = db.session.get(AuditLogEntry, entry_id)
+    if entry is None:
+        abort(404)
+
+    return render_template("admin/audit_log_detail.html", entry=entry)
