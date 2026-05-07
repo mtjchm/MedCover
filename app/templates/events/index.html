@@ -29,7 +29,19 @@
       <a href="{{ url_for('events.index', archived=1) }}" class="btn btn-outline-secondary btn-sm">Zobrazit archivované</a>
     {% endif %}
     {% if current_user.has_permission('event.create') %}
-      <a href="{{ url_for('events.create') }}" class="btn btn-danger btn-sm">+ Nová akce</a>
+      <a href="{{ url_for('events.create') }}" class="btn btn-danger btn-sm">Nová akce</a>
+      {% if event_templates %}
+      <div class="dropdown">
+        <button class="btn btn-outline-danger btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          Nová akce z šablony
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          {% for t in event_templates %}
+          <li><a class="dropdown-item" href="{{ url_for('events.create_from_template', template_id=t.id) }}">{{ t.name }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
     {% endif %}
   </div>
 </div>
@@ -78,7 +90,7 @@
             Začátek <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="status" style="cursor:pointer;white-space:nowrap">
             Stav <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="staffing" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable" data-col="total" style="cursor:pointer;white-space:nowrap">
             Obsazení <span class="sort-icon text-muted">↕</span></th>
           <th class="sortable" data-col="rp" style="cursor:pointer;white-space:nowrap">
             Zodpovědný zdravotník <span class="sort-icon text-muted">↕</span></th>
@@ -89,7 +101,7 @@
         {% set staffing_ratio = (event.filled_spots / event.total_spots) if event.total_spots > 0 else 0 %}
         <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
             data-status="{{ event.status.name }}"
-            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
+            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ event.total_spots }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td>
             <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
@@ -272,11 +284,11 @@
     rows.sort((a, b) => {
       const aVals = JSON.parse(a.dataset.sv || "{}");
       const bVals = JSON.parse(b.dataset.sv || "{}");
-      const av = (aVals[col] || "").toString();
-      const bv = (bVals[col] || "").toString();
+      const av = aVals[col] !== undefined && aVals[col] !== null ? String(aVals[col]) : "";
+      const bv = bVals[col] !== undefined && bVals[col] !== null ? String(bVals[col]) : "";
       if (col === "start") {
         return dir * av.localeCompare(bv);
-      } else if (col === "staffing") {
+      } else if (col === "staffing" || col === "total") {
         return dir * (parseFloat(av) - parseFloat(bv));
       } else {
         return dir * av.localeCompare(bv, "cs");

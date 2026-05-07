@@ -38,16 +38,18 @@ def _audit(
 def _parse_spot_slots(form: dict) -> list[tuple[str | None, list[int]]]:
     """Parse spot template data from form.
 
-    Expects spot_desc[N] and spot_creds[N][] fields for each slot index N.
-    Returns list of (description, qualification_ids) for slots that are present.
+    Expects spot_desc_N, spot_cred_N (multiple checkboxes), and spot_total fields.
+    Returns list of (description, qualification_ids) for each slot.
     """
+    try:
+        spot_total = int(form.get("spot_total", 0) or 0)
+    except (ValueError, TypeError):
+        spot_total = 0
+
     slots: list[tuple[str | None, list[int]]] = []
-    for n in range(50):
-        key = f"spot_desc[{n}]"
-        if key not in form:
-            continue
-        desc = form.get(key, "").strip() or None
-        qual_ids = [int(c) for c in form.getlist(f"spot_creds[{n}][]") if c]
+    for n in range(spot_total):
+        desc = (form.get(f"spot_desc_{n}") or "").strip() or None
+        qual_ids = [int(c) for c in form.getlist(f"spot_cred_{n}") if str(c).isdigit()]
         slots.append((desc, qual_ids))
     return slots
 

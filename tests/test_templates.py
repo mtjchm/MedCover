@@ -118,8 +118,9 @@ class TestTemplateCreate:
             data={
                 "name": "Se pozicemi",
                 "reminder_schedule": "24",
-                "spot_desc[0]": "Záchranář",
-                "spot_desc[1]": "Řidič",
+                "spot_desc_0": "Záchranář",
+                "spot_desc_1": "Řidič",
+                "spot_total": "2",
             },
             follow_redirects=False,
         )
@@ -200,7 +201,8 @@ class TestTemplateEdit:
                 "name": "Rebuild Spots",
                 "reminder_schedule": "24",
                 "version": str(ver),
-                "spot_desc[0]": "Nová pozice",
+                "spot_desc_0": "Nová pozice",
+                "spot_total": "1",
             },
             follow_redirects=False,
         )

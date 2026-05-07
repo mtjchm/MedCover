@@ -29,7 +29,7 @@ from flask import Blueprint, Response, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models.event import Event, EventSpot, EventStatus
+from app.models.event import Event, EventSpot, EventStatus, EventTemplate
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
@@ -86,12 +86,18 @@ def index() -> str:
         query = query.where(Event.archived == False)  # noqa: E712
 
     events = db.session.scalars(query).all()
+    event_templates: list[EventTemplate] = []
+    if current_user.has_permission("event.create"):
+        event_templates = list(db.session.scalars(
+            db.select(EventTemplate).order_by(EventTemplate.name)
+        ).all())
     return render_template(
         "events/index.html",
         events=events,
         show_archived=show_archived,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
+        event_templates=event_templates,
     )
 
 
@@ -177,7 +183,7 @@ def create() -> str | Response:
 
         template_id_str = request.form.get("template_id", "").strip()
         if template_id_str:
-            from app.models.event import EventTemplate
+
             tmpl = db.session.get(EventTemplate, int(template_id_str))
             if tmpl:
                 _build_spots_from_template(event, tmpl)
@@ -202,8 +208,6 @@ def create() -> str | Response:
 def create_from_template(template_id: int) -> str | Response:
     if not current_user.has_permission("event.create"):
         abort(403)
-
-    from app.models.event import EventTemplate
     tmpl = db.session.get(EventTemplate, template_id)
     if tmpl is None:
         abort(404)
@@ -691,7 +695,7 @@ def _build_spots(event: Event, form: dict) -> None:
 
 def _build_spots_from_template(event: Event, template: object) -> None:
     """Create event spots matching a template's spot templates."""
-    from app.models.event import EventTemplate
+
     if not isinstance(template, EventTemplate):
         return
     for st in template.spot_templates:
