@@ -89,3 +89,13 @@
     gap: 0.2rem;
   }
 }
+
+/* Navbar link contrast on red background */
+.navbar-dark .nav-link,
+.navbar-dark .navbar-brand {
+  color: rgba(255, 255, 255, 0.90);
+}
+.navbar-dark .nav-link:hover,
+.navbar-dark .nav-link:focus {
+  color: #ffffff;
+}
