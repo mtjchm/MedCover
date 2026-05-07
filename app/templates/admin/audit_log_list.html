@@ -102,8 +102,14 @@
           <span class="badge bg-{{ badge }}">{{ entry.action_type }}</span>
         </td>
         <td class="small text-nowrap">
-          <span class="text-muted">{{ entry.entity_type }}</span>
-          <span class="text-muted">#{{ entry.entity_id }}</span>
+          {% set entity_url = audit_entity_url(entry.entity_type, entry.entity_id) %}
+          {% if entity_url %}
+            <a href="{{ entity_url }}" class="text-muted text-decoration-none">
+              {{ entry.entity_type }}&nbsp;#{{ entry.entity_id }}
+            </a>
+          {% else %}
+            <span class="text-muted">{{ entry.entity_type }}&nbsp;#{{ entry.entity_id }}</span>
+          {% endif %}
         </td>
         <td class="small">{{ entry.summary }}</td>
         <td class="text-end">

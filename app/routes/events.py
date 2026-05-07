@@ -265,7 +265,7 @@ def transition(event_id: int) -> Response:
 
     event.status = target_status
     event.version += 1
-    _audit("status_change", event, f"Stav akce změněn na '{target_status.value}'", {
+    _audit("status_change", event, f"Stav akce '{event.name}' změněn na '{target_status.value}'", {
         "before": {"status": event.status.value},
         "after": {"status": target_status.value},
     })
@@ -305,7 +305,7 @@ def cancel(event_id: int) -> Response:
     event.status = EventStatus.CANCELLED
     event.archived = True
     event.version += 1
-    _audit("status_change", event, "Akce zrušena a archivována")
+    _audit("status_change", event, f"Akce '{event.name}' zrušena a archivována")
 
     # Notify all assigned users before commit so we still have spot data
     assigned_users = [
@@ -337,7 +337,7 @@ def restore(event_id: int) -> Response:
     event.status = EventStatus.DRAFT
     event.archived = False
     event.version += 1
-    _audit("status_change", event, "Akce obnovena do stavu Draft")
+    _audit("status_change", event, f"Akce '{event.name}' obnovena do stavu Koncept")
     db.session.commit()
 
     flash("Akce byla obnovena.", "success")

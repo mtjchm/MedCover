@@ -39,7 +39,14 @@
       <dd class="col-sm-9">{{ entry.entity_type }}</dd>
 
       <dt class="col-sm-3">ID entity</dt>
-      <dd class="col-sm-9">{{ entry.entity_id }}</dd>
+      <dd class="col-sm-9">
+        {% set entity_url = audit_entity_url(entry.entity_type, entry.entity_id) %}
+        {% if entity_url %}
+          <a href="{{ entity_url }}">{{ entry.entity_id }}</a>
+        {% else %}
+          {{ entry.entity_id }}
+        {% endif %}
+      </dd>
 
       <dt class="col-sm-3">Popis</dt>
       <dd class="col-sm-9">{{ entry.summary }}</dd>
