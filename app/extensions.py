@@ -17,6 +17,8 @@ mail = Mail()
 csrf = CSRFProtect()
 
 login_manager.login_view = "auth.login"
+login_manager.login_message = "Pro přístup na tuto stránku se prosím přihlaste."
+login_manager.login_message_category = "warning"
 
 
 @login_manager.user_loader
