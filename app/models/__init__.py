@@ -9,3 +9,5 @@ from .audit import AuditLogEntry  # noqa: F401
 from .invite import RegistrationInvite  # noqa: F401
 from .settings import AppSettings, get_settings  # noqa: F401
 from .outbox import OutboxEmail  # noqa: F401
+from .equipment import EquipmentType, EquipmentItem, EquipmentCategory  # noqa: F401
+from .equipment import EventEquipmentPlan, EventEquipmentAssignment  # noqa: F401

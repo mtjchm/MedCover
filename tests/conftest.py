@@ -8,6 +8,10 @@ from app.models.user import UserAccount
 # All mutable tables — reference data (role, permission, role_permissions,
 # app_settings, alembic_version) is preserved across the suite.
 _MUTABLE_TABLES = " ,".join([
+    "event_equipment_assignment",
+    "event_equipment_plan",
+    "equipment_item",
+    "equipment_type",
     "debriefing_record",
     "assignment",
     "event_spot",

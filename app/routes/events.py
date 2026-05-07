@@ -33,6 +33,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
 from app.utils import diff_changes
 import app.mail as mailer
 from zoneinfo import ZoneInfo
@@ -191,7 +192,29 @@ def detail(event_id: int) -> str | Response:
             db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
         ).all())
 
-    return render_template("events/detail.html", event=event, EventStatus=EventStatus, eligible_users=eligible_users)
+    all_equipment_types = db.session.scalars(
+        db.select(EquipmentType).order_by(EquipmentType.name)
+    ).all()
+    assigned_item_ids = {ea.equipment_item_id for ea in event.equipment_assignments}
+    if assigned_item_ids:
+        available_equipment_items = db.session.scalars(
+            db.select(EquipmentItem).where(
+                EquipmentItem.id.notin_(assigned_item_ids)
+            ).order_by(EquipmentItem.name)
+        ).all()
+    else:
+        available_equipment_items = db.session.scalars(
+            db.select(EquipmentItem).order_by(EquipmentItem.name)
+        ).all()
+
+    return render_template(
+        "events/detail.html",
+        event=event,
+        EventStatus=EventStatus,
+        eligible_users=eligible_users,
+        all_equipment_types=all_equipment_types,
+        available_equipment_items=available_equipment_items,
+    )
 
 
 # ── Edit ──────────────────────────────────────────────────────────────────────
@@ -502,3 +525,147 @@ def _build_spots(event: Event, form: dict) -> None:
     spot_count = int(form.get("spot_count", 0) or 0)
     for _ in range(spot_count):
         db.session.add(EventSpot(event_id=event.id))
+
+
+# ── Event Equipment: Plan ─────────────────────────────────────────────────────
+
+@events_bp.post("/<int:event_id>/equipment/plan")
+@login_required
+def equipment_plan_add(event_id: int) -> Response:
+    if not current_user.has_permission("event.equipment.plan"):
+        abort(403)
+
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+    if event.status == EventStatus.CANCELLED:
+        flash("Zrušeným akcím nelze plánovat vybavení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    type_id = request.form.get("type_id", type=int)
+    quantity = request.form.get("quantity", 1, type=int)
+    if not type_id or quantity < 1:
+        flash("Zadejte platný typ a množství.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    et = db.session.get(EquipmentType, type_id)
+    if et is None:
+        abort(404)
+
+    existing = db.session.get(EventEquipmentPlan, (event_id, type_id))
+    if existing:
+        existing.quantity_required = quantity
+    else:
+        db.session.add(EventEquipmentPlan(
+            event_id=event_id,
+            equipment_type_id=type_id,
+            quantity_required=quantity,
+        ))
+
+    _audit("edit", event, f"Plán vybavení akce '{event.name}': {et.name} × {quantity}")
+    db.session.commit()
+
+    flash("Plán vybavení byl aktualizován.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+@events_bp.post("/<int:event_id>/equipment/plan/remove")
+@login_required
+def equipment_plan_remove(event_id: int) -> Response:
+    if not current_user.has_permission("event.equipment.plan"):
+        abort(403)
+
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+
+    type_id = request.form.get("type_id", type=int)
+    if not type_id:
+        flash("Chybí typ vybavení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    plan = db.session.get(EventEquipmentPlan, (event_id, type_id))
+    if plan:
+        db.session.delete(plan)
+        _audit("edit", event, f"Odstraněn typ vybavení z plánu akce '{event.name}'")
+        db.session.commit()
+
+    flash("Plán vybavení byl aktualizován.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Event Equipment: Assignments ──────────────────────────────────────────────
+
+@events_bp.post("/<int:event_id>/equipment/assign")
+@login_required
+def equipment_assign(event_id: int) -> Response:
+    if not current_user.has_permission("event.equipment.assign"):
+        abort(403)
+
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+    if event.status == EventStatus.CANCELLED:
+        flash("Zrušeným akcím nelze přiřazovat vybavení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    item_id = request.form.get("item_id", type=int)
+    if not item_id:
+        flash("Vyberte položku vybavení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    existing = db.session.scalar(
+        db.select(EventEquipmentAssignment).where(
+            EventEquipmentAssignment.event_id == event_id,
+            EventEquipmentAssignment.equipment_item_id == item_id,
+        )
+    )
+    if existing:
+        flash("Tato položka je k akci již přiřazena.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    assignment = EventEquipmentAssignment(event_id=event_id, equipment_item_id=item_id)
+    db.session.add(assignment)
+    _audit("edit", event, f"Přiřazena položka vybavení '{item.name}' k akci '{event.name}'")
+    db.session.commit()
+
+    flash(f'Položka „{item.name}" byla přiřazena k akci.', "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+@events_bp.post("/<int:event_id>/equipment/unassign")
+@login_required
+def equipment_unassign(event_id: int) -> Response:
+    if not current_user.has_permission("event.equipment.assign"):
+        abort(403)
+
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+
+    item_id = request.form.get("item_id", type=int)
+    if not item_id:
+        flash("Chybí položka vybavení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    assignment = db.session.scalar(
+        db.select(EventEquipmentAssignment).where(
+            EventEquipmentAssignment.event_id == event_id,
+            EventEquipmentAssignment.equipment_item_id == item_id,
+        )
+    )
+    if assignment is None:
+        flash("Přiřazení nenalezeno.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    item = db.session.get(EquipmentItem, item_id)
+    db.session.delete(assignment)
+    _audit("edit", event, f"Vrácena položka vybavení '{item.name if item else item_id}' z akce '{event.name}'")
+    db.session.commit()
+
+    flash("Položka vybavení byla vrácena.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))

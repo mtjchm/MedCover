@@ -1,10 +1,403 @@
+"""
+Equipment Inventory blueprint.
+
+Permissions:
+  equipment.view              — list types and items (all roles)
+  equipment_type.create/edit/delete — admin only
+  equipment_item.create/edit/delete — admin only
+  equipment_item.issue_personal     — admin only
+"""
+
 from __future__ import annotations
 
-from flask import Blueprint
+from datetime import datetime, timezone
+
+from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from app.extensions import db
+from app.models.audit import AuditLogEntry
+from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
+from app.models.user import UserAccount
+from app.utils import diff_changes
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
 
 
-@equipment_bp.route("/")
+def _audit(action: str, entity_type: str, entity_id: str, summary: str, changes: dict | None = None) -> None:
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        summary=summary,
+        changes_json=changes,
+    ))
+
+
+# ── Types: List / Index ───────────────────────────────────────────────────────
+
+@equipment_bp.get("/")
+@login_required
 def index() -> str:
-    return "TODO: equipment inventory"
+    if not current_user.has_permission("equipment.view"):
+        abort(403)
+
+    types = db.session.scalars(
+        db.select(EquipmentType).order_by(EquipmentType.category, EquipmentType.name)
+    ).all()
+    return render_template("equipment/index.html", types=types)
+
+
+# ── Types: Create ─────────────────────────────────────────────────────────────
+
+@equipment_bp.route("/types/create", methods=["GET", "POST"])
+@login_required
+def type_create() -> str | Response:
+    if not current_user.has_permission("equipment_type.create"):
+        abort(403)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip() or None
+        category_val = request.form.get("category", "")
+
+        if not name:
+            flash("Název typu vybavení je povinný.", "danger")
+            return render_template("equipment/type_form.html", categories=EquipmentCategory, edit=False)
+
+        try:
+            category = EquipmentCategory(category_val)
+        except ValueError:
+            flash("Neplatná kategorie.", "danger")
+            return render_template("equipment/type_form.html", categories=EquipmentCategory, edit=False)
+
+        if db.session.scalar(db.select(EquipmentType).where(EquipmentType.name == name)):
+            flash("Typ vybavení s tímto názvem již existuje.", "danger")
+            return render_template("equipment/type_form.html", categories=EquipmentCategory, edit=False)
+
+        et = EquipmentType(name=name, description=description, category=category)
+        db.session.add(et)
+        db.session.flush()
+        _audit("create", "EquipmentType", str(et.id), f"Vytvořen typ vybavení '{et.name}'")
+        db.session.commit()
+
+        flash(f'Typ vybavení „{et.name}" byl vytvořen.', "success")
+        return redirect(url_for("equipment.index"))
+
+    return render_template("equipment/type_form.html", categories=EquipmentCategory, edit=False)
+
+
+# ── Types: Edit ───────────────────────────────────────────────────────────────
+
+@equipment_bp.route("/types/<int:type_id>/edit", methods=["GET", "POST"])
+@login_required
+def type_edit(type_id: int) -> str | Response:
+    if not current_user.has_permission("equipment_type.edit"):
+        abort(403)
+
+    et = db.session.get(EquipmentType, type_id)
+    if et is None:
+        abort(404)
+
+    if request.method == "POST":
+        submitted_version = int(request.form.get("version", 0))
+        if submitted_version != et.version:
+            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+            return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
+
+        name = request.form.get("name", "").strip()
+        description = request.form.get("description", "").strip() or None
+        category_val = request.form.get("category", "")
+
+        if not name:
+            flash("Název typu vybavení je povinný.", "danger")
+            return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
+
+        try:
+            category = EquipmentCategory(category_val)
+        except ValueError:
+            flash("Neplatná kategorie.", "danger")
+            return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
+
+        conflict = db.session.scalar(
+            db.select(EquipmentType).where(EquipmentType.name == name, EquipmentType.id != type_id)
+        )
+        if conflict:
+            flash("Typ vybavení s tímto názvem již existuje.", "danger")
+            return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
+
+        before = {"name": et.name, "description": et.description, "category": et.category.value}
+        et.name = name
+        et.description = description
+        et.category = category
+        et.version += 1
+
+        _audit("edit", "EquipmentType", str(et.id), f"Upraven typ vybavení '{et.name}'",
+               diff_changes(before, {"name": et.name, "description": et.description, "category": et.category.value}))
+        db.session.commit()
+
+        flash(f'Typ vybavení „{et.name}" byl uložen.', "success")
+        return redirect(url_for("equipment.index"))
+
+    return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
+
+
+# ── Types: Delete ─────────────────────────────────────────────────────────────
+
+@equipment_bp.post("/types/<int:type_id>/delete")
+@login_required
+def type_delete(type_id: int) -> Response:
+    if not current_user.has_permission("equipment_type.delete"):
+        abort(403)
+
+    et = db.session.get(EquipmentType, type_id)
+    if et is None:
+        abort(404)
+
+    if et.items:
+        flash("Nelze smazat typ vybavení, který má přiřazené položky.", "danger")
+        return redirect(url_for("equipment.index"))
+
+    _audit("delete", "EquipmentType", str(et.id), f"Smazán typ vybavení '{et.name}'")
+    db.session.delete(et)
+    db.session.commit()
+
+    flash(f'Typ vybavení „{et.name}" byl smazán.', "success")
+    return redirect(url_for("equipment.index"))
+
+
+# ── Items: List ───────────────────────────────────────────────────────────────
+
+@equipment_bp.get("/items/")
+@login_required
+def items() -> str:
+    if not current_user.has_permission("equipment.view"):
+        abort(403)
+
+    type_filter = request.args.get("type_id", type=int)
+    issued_filter = request.args.get("issued")  # "yes" | "no" | None
+
+    query = db.select(EquipmentItem).order_by(EquipmentItem.name)
+    if type_filter:
+        query = query.where(EquipmentItem.type_id == type_filter)
+    if issued_filter == "yes":
+        query = query.where(EquipmentItem.issued_to_id.isnot(None))
+    elif issued_filter == "no":
+        query = query.where(EquipmentItem.issued_to_id.is_(None))
+
+    equipment_items = db.session.scalars(query).all()
+    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+
+    active_users: list[UserAccount] = []
+    if current_user.has_permission("equipment_item.issue_personal"):
+        active_users = list(db.session.scalars(
+            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
+        ).all())
+
+    return render_template(
+        "equipment/items.html",
+        equipment_items=equipment_items,
+        types=types,
+        type_filter=type_filter,
+        issued_filter=issued_filter,
+        active_users=active_users,
+    )
+
+
+# ── Items: Create ─────────────────────────────────────────────────────────────
+
+@equipment_bp.route("/items/create", methods=["GET", "POST"])
+@login_required
+def item_create() -> str | Response:
+    if not current_user.has_permission("equipment_item.create"):
+        abort(403)
+
+    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        type_id = request.form.get("type_id", type=int)
+        serial_number = request.form.get("serial_number", "").strip() or None
+        home_location = request.form.get("home_location", "").strip() or None
+        notes = request.form.get("notes", "").strip() or None
+
+        if not name:
+            flash("Název položky vybavení je povinný.", "danger")
+            return render_template("equipment/item_form.html", types=types, edit=False)
+        if not type_id:
+            flash("Typ vybavení je povinný.", "danger")
+            return render_template("equipment/item_form.html", types=types, edit=False)
+
+        et = db.session.get(EquipmentType, type_id)
+        if et is None:
+            flash("Neplatný typ vybavení.", "danger")
+            return render_template("equipment/item_form.html", types=types, edit=False)
+
+        item = EquipmentItem(
+            name=name,
+            type_id=type_id,
+            serial_number=serial_number,
+            home_location=home_location,
+            notes=notes,
+        )
+        db.session.add(item)
+        db.session.flush()
+        _audit("create", "EquipmentItem", str(item.id), f"Vytvořena položka vybavení '{item.name}'")
+        db.session.commit()
+
+        flash(f'Položka vybavení „{item.name}" byla vytvořena.', "success")
+        return redirect(url_for("equipment.items"))
+
+    return render_template("equipment/item_form.html", types=types, edit=False)
+
+
+# ── Items: Edit ───────────────────────────────────────────────────────────────
+
+@equipment_bp.route("/items/<int:item_id>/edit", methods=["GET", "POST"])
+@login_required
+def item_edit(item_id: int) -> str | Response:
+    if not current_user.has_permission("equipment_item.edit"):
+        abort(403)
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+
+    if request.method == "POST":
+        submitted_version = int(request.form.get("version", 0))
+        if submitted_version != item.version:
+            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+            return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+
+        name = request.form.get("name", "").strip()
+        type_id = request.form.get("type_id", type=int)
+        serial_number = request.form.get("serial_number", "").strip() or None
+        home_location = request.form.get("home_location", "").strip() or None
+        notes = request.form.get("notes", "").strip() or None
+
+        if not name:
+            flash("Název položky vybavení je povinný.", "danger")
+            return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+
+        before = {
+            "name": item.name, "type_id": item.type_id,
+            "serial_number": item.serial_number, "home_location": item.home_location,
+            "notes": item.notes,
+        }
+        item.name = name
+        item.type_id = type_id
+        item.serial_number = serial_number
+        item.home_location = home_location
+        item.notes = notes
+        item.version += 1
+
+        _audit("edit", "EquipmentItem", str(item.id), f"Upravena položka vybavení '{item.name}'",
+               diff_changes(before, {
+                   "name": item.name, "type_id": item.type_id,
+                   "serial_number": item.serial_number, "home_location": item.home_location,
+                   "notes": item.notes,
+               }))
+        db.session.commit()
+
+        flash(f'Položka vybavení „{item.name}" byla uložena.', "success")
+        return redirect(url_for("equipment.items"))
+
+    return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+
+
+# ── Items: Delete ─────────────────────────────────────────────────────────────
+
+@equipment_bp.post("/items/<int:item_id>/delete")
+@login_required
+def item_delete(item_id: int) -> Response:
+    if not current_user.has_permission("equipment_item.delete"):
+        abort(403)
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    if item.issued_to_id is not None:
+        flash("Nelze smazat položku, která je aktuálně vydána.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    if item.event_assignments:
+        active = [a for a in item.event_assignments if a.returned_at is None]
+        if active:
+            flash("Nelze smazat položku, která je přiřazena k akci.", "danger")
+            return redirect(url_for("equipment.items"))
+
+    _audit("delete", "EquipmentItem", str(item.id), f"Smazána položka vybavení '{item.name}'")
+    db.session.delete(item)
+    db.session.commit()
+
+    flash(f'Položka vybavení „{item.name}" byla smazána.', "success")
+    return redirect(url_for("equipment.items"))
+
+
+# ── Items: Issue / Return ─────────────────────────────────────────────────────
+
+@equipment_bp.post("/items/<int:item_id>/issue")
+@login_required
+def item_issue(item_id: int) -> Response:
+    if not current_user.has_permission("equipment_item.issue_personal"):
+        abort(403)
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    if item.issued_to_id is not None:
+        flash("Položka je již vydána.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    user_id = request.form.get("user_id")
+    if not user_id:
+        flash("Uživatel je povinný.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    user = db.session.get(UserAccount, user_id)
+    if user is None:
+        flash("Uživatel nebyl nalezen.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    item.issued_to_id = user.id
+    item.issued_at = datetime.now(timezone.utc)
+    item.version += 1
+    _audit("edit", "EquipmentItem", str(item.id),
+           f"Vydána osobní položka '{item.name}' uživateli '{user.name}'",
+           {"issued_to": [None, str(user.id)]})
+    db.session.commit()
+
+    flash(f'Položka „{item.name}" byla vydána uživateli {user.name}.', "success")
+    return redirect(url_for("equipment.items"))
+
+
+@equipment_bp.post("/items/<int:item_id>/return")
+@login_required
+def item_return(item_id: int) -> Response:
+    if not current_user.has_permission("equipment_item.issue_personal"):
+        abort(403)
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    if item.issued_to_id is None:
+        flash("Položka není vydána.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    old_user_id = str(item.issued_to_id)
+    item.issued_to_id = None
+    item.issued_at = None
+    item.version += 1
+    _audit("edit", "EquipmentItem", str(item.id),
+           f"Vrácena osobní položka '{item.name}'",
+           {"issued_to": [old_user_id, None]})
+    db.session.commit()
+
+    flash(f'Položka „{item.name}" byla vrácena.', "success")
+    return redirect(url_for("equipment.items"))

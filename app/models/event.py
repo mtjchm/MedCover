@@ -129,6 +129,8 @@ class Event(db.Model):  # type: ignore[misc]
     responsible_person = db.relationship("UserAccount", foreign_keys=[responsible_person_id])
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
     spots: Mapped[list[EventSpot]] = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
+    equipment_plans = db.relationship("EventEquipmentPlan", back_populates="event", cascade="all, delete-orphan")
+    equipment_assignments = db.relationship("EventEquipmentAssignment", back_populates="event", cascade="all, delete-orphan")
 
     # ── Derived staffing status ─────────────────────────────────────────────
     @property
