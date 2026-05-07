@@ -55,17 +55,21 @@ def create_app(
     def audit_entity_url(entity_type: str, entity_id: str) -> str | None:
         """Return a URL to view the given entity, or None if no page exists."""
         try:
-            eid = int(entity_id)
+            eid_int = int(entity_id)
         except (ValueError, TypeError):
-            eid = entity_id  # type: ignore[assignment]
-        mapping: dict[str, str | None] = {
-            "Event": url_for("events.detail", event_id=eid),
-            "MasterEvent": url_for("master_events.detail", me_id=eid),
-            "AppSettings": url_for("app_settings.index"),
-            "Credential": url_for("credentials.index"),
-            "UserAccount": url_for("users.detail", user_id=eid) if eid else None,
-        }
-        return mapping.get(entity_type)
+            eid_int = None
+
+        if entity_type == "Event" and eid_int is not None:
+            return url_for("events.detail", event_id=eid_int)
+        if entity_type == "MasterEvent" and eid_int is not None:
+            return url_for("master_events.detail", me_id=eid_int)
+        if entity_type == "AppSettings":
+            return url_for("app_settings.index")
+        if entity_type == "Credential":
+            return url_for("credentials.index")
+        if entity_type == "UserAccount" and entity_id:
+            return url_for("users.detail", user_id=entity_id)
+        return None
 
     @app.after_request
     def _add_security_headers(response: WerkzeugResponse) -> WerkzeugResponse:
