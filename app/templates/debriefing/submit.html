@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
+{% block title %}Hlášení — {{ event.name }} — MedCover{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-6">
+    <h2 class="mb-1">Hlášení z akce</h2>
+    <p class="text-muted mb-4">
+      <strong>{{ event.name }}</strong> —
+      {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}
+    </p>
+
+    {% if existing %}
+    <div class="alert alert-info py-2">Hlášení již bylo odevzdáno. Můžete ho upravit.</div>
+    {% endif %}
+
+    <form method="POST" novalidate>
+      <div class="mb-3">
+        <label for="actual_hours" class="form-label">Odpracované hodiny <span class="text-danger">*</span>
+          {{ help_icon("Skutečný počet odpracovaných hodin na akci. Může se lišit od plánované délky.") }}
+        </label>
+        <input type="number" step="0.25" min="0" max="24" class="form-control"
+               id="actual_hours" name="actual_hours"
+               value="{{ request.form.get('actual_hours', existing.actual_hours if existing else '') }}"
+               required>
+      </div>
+      <div class="mb-3">
+        <label for="patients_treated" class="form-label">Počet ošetřených pacientů
+          {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče.") }}
+        </label>
+        <input type="number" min="0" class="form-control"
+               id="patients_treated" name="patients_treated"
+               value="{{ request.form.get('patients_treated', existing.patients_treated if existing else '0') }}">
+      </div>
+      <div class="mb-3">
+        <label for="materials_used" class="form-label">Spotřebovaný materiál
+          {{ help_icon("Vypište spotřebovaný zdravotnický materiál — typ a přibližné množství. Slouží pro doplnění skladu.") }}
+        </label>
+        <textarea class="form-control" id="materials_used" name="materials_used" rows="3">{{ request.form.get('materials_used', existing.materials_used or '' if existing else '') }}</textarea>
+      </div>
+      <div class="mb-4">
+        <label for="feedback" class="form-label">Zpětná vazba
+          {{ help_icon("Volitelné poznámky pro koordinátora — průběh akce, nestandardní situace, doporučení na příště.") }}
+        </label>
+        <textarea class="form-control" id="feedback" name="feedback" rows="3">{{ request.form.get('feedback', existing.feedback or '' if existing else '') }}</textarea>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-danger">
+          {{ 'Aktualizovat hlášení' if existing else 'Odevzdat hlášení' }}
+        </button>
+        <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-outline-secondary">Zpět na akci</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
