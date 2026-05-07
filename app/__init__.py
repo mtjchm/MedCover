@@ -63,10 +63,18 @@ def create_app(
             return url_for("events.detail", event_id=eid_int)
         if entity_type == "MasterEvent" and eid_int is not None:
             return url_for("master_events.detail", me_id=eid_int)
+        if entity_type == "EquipmentItem" and eid_int is not None:
+            return url_for("equipment.item_edit", item_id=eid_int)
+        if entity_type == "EquipmentType" and eid_int is not None:
+            return url_for("equipment.type_edit", type_id=eid_int)
+        if entity_type == "EventTemplate" and eid_int is not None:
+            return url_for("templates.edit", template_id=eid_int)
         if entity_type == "AppSettings":
             return url_for("app_settings.index")
         if entity_type == "Credential":
             return url_for("credentials.index")
+        if entity_type == "RegistrationInvite":
+            return url_for("users.invites")
         if entity_type == "UserAccount" and entity_id:
             return url_for("users.detail", user_id=entity_id)
         return None
