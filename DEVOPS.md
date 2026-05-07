@@ -483,6 +483,74 @@ Migrations run automatically on Render deploy via the deploy hook (or add `flask
 
 ---
 
+## Known Issues & Mitigations
+
+### WSL2 + Docker PostgreSQL schema loss
+
+**Symptom:** After a Windows restart, hibernate, or `wsl --shutdown`, the
+app fails to start (or shows login errors) even though `alembic_version`
+reports the correct migration head. Running `flask verify-schema` reveals
+that all application tables are missing.
+
+**Root cause:** Docker named volumes on WSL2 live on `/dev/sdd`, the WSL2
+virtual disk (a `.vhdx` file managed by Hyper-V). PostgreSQL writes
+committed data to the **Linux kernel page cache** first — fsync flushes it
+to the page cache, not directly to the VHD. The page cache is only written
+through to the underlying VHD periodically by the kernel. When WSL2 is
+force-terminated (Windows shutdown, hibernate, `wsl --shutdown`), it kills
+all processes immediately without going through Docker's stop sequence.
+PostgreSQL therefore never runs a final checkpoint, and any dirty pages
+still in the kernel page cache at that moment are lost.
+
+`alembic_version` survives because it was written early (during `flask db
+upgrade`) and had time to be flushed to disk. The application tables, being
+written later and containing more data, are typically still in the page
+cache when the kill happens.
+
+**Why the default settings make it worse:** PostgreSQL's default
+`checkpoint_timeout` is **5 minutes**, meaning up to 5 minutes of dirty
+pages can accumulate in RAM between disk flushes. The default `stop_grace_period`
+in Docker Compose is **10 seconds**, which is often too short for PostgreSQL
+to finish a checkpoint before receiving SIGKILL from `docker compose down`.
+
+**Mitigations applied** (commit `4fd6d72`):
+
+| File | Change | Effect |
+|---|---|---|
+| `postgres.conf` | `checkpoint_timeout = 30s` | Dirty-page window reduced from 5 min → 30 s |
+| `postgres.conf` | `checkpoint_completion_target = 0.9` | Spreads checkpoint I/O to avoid spikes |
+| `postgres.conf` | `listen_addresses = '*'` | Required when supplying a full custom config — PostgreSQL defaults to `localhost`-only, which blocks inter-container connections |
+| `docker-compose.yml` | `stop_grace_period: 60s` on `db` | Gives PostgreSQL enough time to checkpoint cleanly on `docker compose down/stop` |
+
+**Residual risk:** A hard WSL2 kill can still lose up to ~30 s of dev
+writes. This is an inherent limitation of running PostgreSQL inside Docker
+on WSL2 and cannot be fully eliminated without moving the database outside
+Docker. For dev use this is acceptable; data can be re-seeded with
+`python scripts/seed_dev.py`.
+
+**Fast-fail guard:** `docker-entrypoint.sh` runs `flask verify-schema`
+after every `flask db upgrade`. If any table or column is missing, the
+container exits immediately with a clear diagnostic rather than serving
+traffic with a broken database.
+
+**Recovery procedure:**
+
+```bash
+# 1. Drop the stale migration marker
+docker compose exec db psql -U medcover -d medcover_dev -c "DROP TABLE IF EXISTS alembic_version;"
+
+# 2. Re-apply all migrations
+docker compose exec web flask db upgrade
+
+# 3. Verify
+docker compose exec web flask verify-schema
+
+# 4. Re-seed dev data
+docker compose exec web python scripts/seed_dev.py
+```
+
+---
+
 ## Dev Data Seeding
 
 `scripts/seed_dev.py` creates a realistic dataset using the `Faker` library:
