@@ -100,9 +100,9 @@
     <div class="card mb-4">
       <div class="card-header fw-semibold">Moje kvalifikace</div>
       <div class="card-body">
-        {% if user.credentials %}
+        {% if user.qualifications %}
           <div class="d-flex flex-wrap gap-2">
-            {% for c in user.credentials %}
+            {% for c in user.qualifications %}
               <span class="badge bg-secondary fs-6">{{ c.name }}</span>
             {% endfor %}
           </div>

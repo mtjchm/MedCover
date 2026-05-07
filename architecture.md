@@ -26,11 +26,11 @@
 ## Functional Requirements
 - Users administration:
     - app roles (authorization) - admin, coordinator, member, viewer
-    - credentials (unified model covering both medical qualifications and additional certifications — see AD07):
+    - qualifications (unified model covering both medical qualifications and additional certifications — see AD07):
         - medical qualifications: Doctor, Nurse (SZP), First Aider (zdravotník), Trainee (zelenáč)
         - additional certifications: Driver, PSP training, KI training, humanitarian unit training, etc.
-        - credentials shall support a hierarchy tree, allowing a holder of a higher-ranked credential to fill spots requiring a lower-ranked one (e.g. Doctor can fill a First Aider spot; KI-trained can fill a PSP spot)
-        - credentials and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
+        - qualifications shall support a hierarchy tree, allowing a holder of a higher-ranked qualification to fill spots requiring a lower-ranked one (e.g. Doctor can fill a First Aider spot; KI-trained can fill a PSP spot)
+        - qualifications and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
     - member equipment — the user profile shall display organisation-owned items currently issued to the member (long-term dislocation, e.g. uniform, personal medikit). Managed via the equipment inventory model (see Equipment section).
     - phone number, email
     - reporting/overview section:
@@ -127,7 +127,7 @@
 - Email notifications — **email only for MVP** (in-app notifications are on the wish list)
 - Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
 - Audit capability
-    - all create, edit, delete and status-change actions on every entity shall be recorded (users, events, master events, assignments, equipment, credentials, roles, debriefing records, system configuration)
+    - all create, edit, delete and status-change actions on every entity shall be recorded (users, events, master events, assignments, equipment, qualifications, roles, debriefing records, system configuration)
     - each audit entry records: timestamp, actor (user account), action type, entity type, entity ID, and a summary of what changed (before/after values where applicable)
     - audit log is immutable — entries cannot be edited or deleted
     - the UI shall expose:
@@ -190,11 +190,11 @@
 - Every user-submitted value must be validated server-side: type, length, range, format, and business logic constraints.
 - Client-side: HTML5 constraint attributes (`required`, `type`, `maxlength`, `min`, `max`) provide immediate feedback. A lightweight JS validation layer (see AD14) runs before form submission to catch common errors and improve UX on mobile without a round-trip.
 
-**Authentication and credential security**
+**Authentication and qualification security**
 - Passwords are hashed with Werkzeug (`pbkdf2:sha256`). Plaintext passwords are never stored or logged.
 - Password reset and invite tokens use `itsdangerous` TimedSerializer with a configurable expiry. Tokens are single-use.
 - Registration is invite-only (AD03). No open self-registration exists.
-- SMTP credentials are Fernet-encrypted in the database. They are decrypted only at send time and never exposed in logs, API responses, or templates (AD11).
+- SMTP qualifications are Fernet-encrypted in the database. They are decrypted only at send time and never exposed in logs, API responses, or templates (AD11).
 - `SECRET_KEY` must be a strong random value (minimum 32 bytes of entropy) in all non-dev environments. The dev default in `.env.example` must never be used in production.
 
 
@@ -292,8 +292,8 @@
     - Decision - **Unified hierarchy tree**
     - Justification - A unified tree naturally models cross-category substitution (e.g. a KI-trained volunteer filling a PSP spot, a Doctor filling a First Aider spot) without requiring special-case logic. Eliminates duplication in spot requirements. Slightly more complex to model initially but more flexible long-term.
     - Notes
-        - The entity will be called **Credential** (or **Qualification**) to cover both medical levels and additional certifications
-        - A Credential may have zero or more parent Credentials whose holders can fill spots requiring it
+        - The entity will be called **Qualification** (or **Qualification**) to cover both medical levels and additional certifications
+        - A Qualification may have zero or more parent Qualifications whose holders can fill spots requiring it
         - Examples: Doctor > Nurse > First Aider > Trainee; KI-training > PSP-training
 
 - AD08 Calendar UI Component
@@ -353,15 +353,15 @@
         - See DEVOPS.md for container layout and `render.yaml` Blueprint.
 
 - AD11 Application Configuration Storage
-    - Problem statement - The application requires runtime configuration (SMTP credentials, organisation name, timezone). Where should these be stored, and how should the app behave on first install?
+    - Problem statement - The application requires runtime configuration (SMTP qualifications, organisation name, timezone). Where should these be stored, and how should the app behave on first install?
     - Options
-        - **Environment variables only** — simple; requires SSH/redeploy to change; no audit trail; credentials in `.env` files on the server.
+        - **Environment variables only** — simple; requires SSH/redeploy to change; no audit trail; qualifications in `.env` files on the server.
         - **Database-backed settings + setup wizard** — settings stored in a dedicated `AppSettings` table; changeable through the Admin UI without touching the server; supports a first-run wizard for guided setup.
     - Decision - **Database-backed settings with first-run setup wizard**
     - Justification
-        - SMTP credentials and other operational settings are more naturally managed by an application-level admin than by a server operator editing environment files.
+        - SMTP qualifications and other operational settings are more naturally managed by an application-level admin than by a server operator editing environment files.
         - A first-run wizard provides a guided, safe path to a working installation without requiring any SSH access.
-        - Storing credentials in the DB (encrypted) rather than environment variables avoids accidental exposure in CI logs, `.env` files, or Docker inspection output.
+        - Storing qualifications in the DB (encrypted) rather than environment variables avoids accidental exposure in CI logs, `.env` files, or Docker inspection output.
         - The `DATABASE_URL` and `SECRET_KEY` must remain as environment variables since they are needed to boot the application before any DB connection can be established.
     - Notes
         - SMTP password is stored Fernet-encrypted using a key derived from `SECRET_KEY` (AES-128 in CBC mode with HMAC); decrypted only in-process at send time.
@@ -455,11 +455,11 @@ flowchart TD
 | P01 | Person | User | Czech Red Cross members accessing the app via a web browser over the public Internet | Authenticated; access controlled by RBAC |
 | S01 | System | Other Apps | **Future** — third-party systems integrating via the REST API (e.g. reporting tools) | Authenticated via API token; read-only scope initially |
 | P02 | Person | Infrastructure Admin | Person responsible for deployment, backups, OS/app updates and server maintenance | Trusted; accesses the server directly via SSH — outside the app's own auth |
-| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; credentials stored in database (encrypted), managed by admin via Settings UI |
+| S02 | System | Email Service | External SMTP relay or email API (e.g. SendGrid, Mailgun, AWS SES) used for all outbound notifications | Outbound only; qualifications stored in database (encrypted), managed by admin via Settings UI |
 
 **Trust boundaries:**
 - All P01 traffic crosses the public Internet and must be served over HTTPS
-- S02 credentials (SMTP/API keys) must never be exposed to P01 users; they are stored encrypted in the database and are only configurable by users with the `admin.manage_settings` permission
+- S02 qualifications (SMTP/API keys) must never be exposed to P01 users; they are stored encrypted in the database and are only configurable by users with the `admin.manage_settings` permission
 - P02 SSH access must be restricted to authorised IP addresses or key-based authentication
 - S01 API tokens must be scoped to minimum required permissions and revocable
 
@@ -483,8 +483,8 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | **Frontend Web Client** | Server-rendered HTML pages (Jinja2 templates) with vanilla JS/jQuery for interactivity. Served directly by the Flask application. Optimised for desktop and mobile. |
-| **Backend Application** | Python Flask application. Implements all business logic, RBAC, event lifecycle, assignment management, credential matching, notification triggers, audit logging, scheduled tasks. Serves the web UI via Jinja2 templates and will expose a REST API (future). Uses SQLAlchemy as the ORM. |
-| **Relational Database** | PostgreSQL. Persistent storage for all domain data: users, roles, credentials, master events, events, event spots, assignments, equipment, audit log, notification settings, debriefing records. |
+| **Backend Application** | Python Flask application. Implements all business logic, RBAC, event lifecycle, assignment management, qualification matching, notification triggers, audit logging, scheduled tasks. Serves the web UI via Jinja2 templates and will expose a REST API (future). Uses SQLAlchemy as the ORM. |
+| **Relational Database** | PostgreSQL. Persistent storage for all domain data: users, roles, qualifications, master events, events, event spots, assignments, equipment, audit log, notification settings, debriefing records. |
 | **Email / Notification Service** | Outbound email delivery: invite links, account activation, password reset, event notifications/reminders, admin digests, debriefing links. May be an external SMTP relay or third-party email API. |
 
 
@@ -513,12 +513,12 @@ The following transitions require a scheduled background job or task:
 
 The following happen in real time as a side effect of a user action:
 - **RP pre-fill on Event creation**: when an Event is created inside a custom ME, the ME coordinator is automatically set as the initial RP; the coordinator or admin can later change this
-- **RP auto-assignment (General ME)**: when the first user holding a First Aider (or higher) credential registers for an Event that has no RP yet, they are automatically set as the RP
+- **RP auto-assignment (General ME)**: when the first user holding a First Aider (or higher) qualification registers for an Event that has no RP yet, they are automatically set as the RP
 - **Assignments auto-close**: when the last unfilled spot is taken, lifecycle transitions to Assignments Closed
 - **Staffing status update**: recalculated whenever an Assignment is added or removed
 
 ### Spot Selection at Assignment Time
-An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver credentials must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
+An Event requires 1 Doctor, 1 Driver/First Aider and 1 First Aider. A user who holds both Doctor and Driver qualifications must explicitly choose which spot they are filling when registering. The system shall present only the spots the user is eligible for and require a selection before confirming the assignment.
 
 ### User Registration Flow
 ```mermaid
@@ -549,8 +549,8 @@ sequenceDiagram
 
     Member->>App: browse events (table or calendar)
     Member->>App: select Event, view open spots
-    App->>App: filter spots eligible for Member's credentials
-    Member->>App: choose spot (select credential if multiple eligible)
+    App->>App: filter spots eligible for Member's qualifications
+    Member->>App: choose spot (select qualification if multiple eligible)
     App->>App: record Assignment, update staffing status
     App->>Email: notify RP of new assignment
     Email->>RP: "Member X has joined your Event"
@@ -606,17 +606,17 @@ sequenceDiagram
 erDiagram
     UserAccount }o--o{ Role : "assigned to"
     Role }o--o{ Permission : "has"
-    UserAccount }o--o{ Credential : "holds"
-    Credential }o--o{ Credential : "parent of (hierarchy)"
+    UserAccount }o--o{ Qualification : "holds"
+    Qualification }o--o{ Qualification : "parent of (hierarchy)"
 
     MasterEvent ||--o{ Event : "contains"
     Event ||--o{ EventSpot : "has"
-    EventSpot }o--o{ Credential : "requires"
+    EventSpot }o--o{ Qualification : "requires"
     EventSpot ||--o| Assignment : "filled by"
     Assignment }o--|| UserAccount : "assigned to"
 
     EventTemplate ||--o{ EventSpotTemplate : "defines"
-    EventSpotTemplate }o--o{ Credential : "requires"
+    EventSpotTemplate }o--o{ Qualification : "requires"
 
     EquipmentItem }o--|| EquipmentType : "is of"
     EquipmentItem }o--o| UserAccount : "issued to (personal)"
@@ -640,13 +640,13 @@ erDiagram
 | **UserAccount** | email, password hash, name, phone, active flag, preferred_calendar_view | Email = login identifier; accounts inactive until admin-activated |
 | **Role** | name, description | Pre-defined: Admin, Coordinator, Member, Viewer |
 | **Permission** | code (e.g. `event.create`) | Object-level permissions assigned to roles |
-| **Credential** | name, description, parent credentials | Unified model for medical qualifications and training certifications |
+| **Qualification** | name, description, parent qualifications | Unified model for medical qualifications and training certifications |
 | **MasterEvent** | name, description, coordinator, archived flag | Default "General" ME always exists and cannot be archived |
 | **Event** | name, start/end datetime, lifecycle status, staffing status, assignments_open_at, paid flag, contact, address | Belongs to a MasterEvent |
-| **EventSpot** | required credentials (list), assignment | One spot = one person |
-| **Assignment** | user, spot, selected credential | Records which credential the user is covering for this spot |
+| **EventSpot** | required qualifications (list), assignment | One spot = one person |
+| **Assignment** | user, spot, selected qualification | Records which qualification the user is covering for this spot |
 | **EventTemplate** | name, description, spot templates | Pre-populates Event creation form |
-| **EventSpotTemplate** | event template, required credentials (list) | Defines one spot position within an EventTemplate |
+| **EventSpotTemplate** | event template, required qualifications (list) | Defines one spot position within an EventTemplate |
 | **EquipmentType** | name, description, category (personal / shared) | Defines a category of equipment (e.g. AED, medikit, uniform) |
 | **EquipmentItem** | name, type, home location | For *personal* items: issued_to (UserAccount); for *shared* items: assignable to Events via EventEquipmentAssignment |
 | **EventEquipmentRequirement** | event, equipment type, quantity required | Coordinator specifies how many of each shared type are needed for an Event |
@@ -674,7 +674,7 @@ erDiagram
 ### Outbound Email
 - The backend sends all email via an **external SMTP relay** (e.g. SendGrid, Mailgun, AWS SES, or the organisation's own SMTP server)
 - Communication: SMTP (port 587/465) or provider HTTP API
-- SMTP credentials are stored **encrypted in the database** (Fernet/AES-128, key derived from `SECRET_KEY`) and managed by an admin user through the Settings UI — not stored in environment variables or config files
+- SMTP qualifications are stored **encrypted in the database** (Fernet/AES-128, key derived from `SECRET_KEY`) and managed by an admin user through the Settings UI — not stored in environment variables or config files
 - Use cases: user invite links, account activation, password reset, event notifications/reminders, admin digest emails, post-event debriefing links
 - Failure handling: email delivery failures shall be logged; critical flows (invite, password reset) should surface errors to the admin/user where possible
 
@@ -753,9 +753,9 @@ For example an User Account assigned to the Admin role will have all the permiss
 | user.assign_role | ✓ | — | — | — |
 | user.assign_credential | ✓ | — | — | — |
 | invite.create | ✓ | — | — | — |
-| **Credentials** | | | | |
-| credential.view | ✓ | ✓ | ✓ | ✓ |
-| credential.create / edit / delete | ✓ | — | — | — |
+| **Qualifications** | | | | |
+| qualification.view | ✓ | ✓ | ✓ | ✓ |
+| qualification.create / edit / delete | ✓ | — | — | — |
 | **Master Events** | | | | |
 | master_event.view | ✓ | ✓ | ✓ | ✓ |
 | master_event.create / edit | ✓ | ✓ | — | — |
@@ -805,12 +805,12 @@ For example an User Account assigned to the Admin role will have all the permiss
     - name and surname - including title
     - phone number
     - roles - list of assigned Roles; assigned by admin only
-    - credentials - list of assigned Credentials
+    - qualifications - list of assigned Qualifications
     - active flag - inactive until admin-activated after registration
     - preferred_calendar_view — preferred calendar view for desktop (month / week / day / list); list view is always used on mobile regardless of this setting
 - methods
     - assign / unassign role
-    - assign / unassign credential
+    - assign / unassign qualification
     - list upcoming events
     - get statistics (hours worked, events attended, etc.)
 
@@ -827,15 +827,15 @@ For example an User Account assigned to the Admin role will have all the permiss
     - list users
     - etc.
 
-#### Credential
-- description: A unified entity representing both medical qualifications (Doctor, Nurse, First Aider, Trainee) and additional certifications (Driver, PSP training, KI training, etc.). Credentials form a directed hierarchy tree: a holder of a higher-ranked Credential can fill any spot that requires a lower-ranked one in its ancestry (see AD07).
+#### Qualification
+- description: A unified entity representing both medical qualifications (Doctor, Nurse, First Aider, Trainee) and additional certifications (Driver, PSP training, KI training, etc.). Qualifications form a directed hierarchy tree: a holder of a higher-ranked Qualification can fill any spot that requires a lower-ranked one in its ancestry (see AD07).
 - properties
     - name
     - description — conditions for obtaining it and/or what it entitles the holder to do
-    - parent credentials — list of Credentials whose holders can substitute this one (e.g. Doctor can fill a First Aider spot → Doctor is a parent of First Aider)
+    - parent qualifications — list of Qualifications whose holders can substitute this one (e.g. Doctor can fill a First Aider spot → Doctor is a parent of First Aider)
 - methods
     - list holders
-    - list subordinate credentials (credentials this one can substitute for)
+    - list subordinate qualifications (qualifications this one can substitute for)
     - etc.
 
 #### Master Event
@@ -852,10 +852,10 @@ For example an User Account assigned to the Admin role will have all the permiss
     - when an Event is created within this ME, the ME coordinator is automatically pre-filled as the RP of that Event; the coordinator (or admin) can later reassign the RP slot to another eligible member
 
 #### Event Spot
-- description: a position in an Event that can be filled by exactly one person. The person must hold all required Credentials (or higher-ranked equivalents per the Credential hierarchy).
+- description: a position in an Event that can be filled by exactly one person. The person must hold all required Qualifications (or higher-ranked equivalents per the Qualification hierarchy).
 - properties
     - event ID - the Event this spot belongs to
-    - required credentials - list of required Credentials
+    - required qualifications - list of required Qualifications
     - assignment - the Assignment filling this spot (null if unfilled)
 - methods
     - check eligibility (given a user, returns whether they can fill this spot)
@@ -911,7 +911,7 @@ For example an User Account assigned to the Admin role will have all the permiss
 - properties
     - template name
     - description
-    - default spots (list of Event Spot templates with Credential requirements)
+    - default spots (list of Event Spot templates with Qualification requirements)
     - default required equipment
     - paid / unpaid flag
     - reminder schedule — list of offsets before Event start (e.g. [7 days, 1 day]) at which unfilled-spot reminder emails are sent
@@ -921,11 +921,11 @@ For example an User Account assigned to the Admin role will have all the permiss
     - etc.
 
 #### Assignment
-- description: records that a specific user is filling a specific Event Spot, and which Credential they are covering for that spot.
+- description: records that a specific user is filling a specific Event Spot, and which Qualification they are covering for that spot.
 - properties
     - event spot ID
     - user account ID
-    - credential used - the specific Credential the user is fulfilling for this spot (selected at assignment time)
+    - qualification used - the specific Qualification the user is fulfilling for this spot (selected at assignment time)
     - assigned at - timestamp
 
 #### DebriefingRecord

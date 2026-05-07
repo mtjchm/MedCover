@@ -69,13 +69,13 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "user.activate", "description": "Activate a user account"},
     {"code": "user.deactivate", "description": "Deactivate a user account"},
     {"code": "user.assign_role", "description": "Assign/unassign roles to users"},
-    {"code": "user.assign_credential", "description": "Assign/unassign credentials to users"},
+    {"code": "user.assign_qualification", "description": "Assign/unassign qualifications to users"},
     {"code": "invite.create", "description": "Create registration invites"},
-    # Credentials
-    {"code": "credential.view", "description": "View credentials"},
-    {"code": "credential.create", "description": "Create credentials"},
-    {"code": "credential.edit", "description": "Edit credentials"},
-    {"code": "credential.delete", "description": "Delete credentials"},
+    # Qualifications
+    {"code": "qualification.view", "description": "View qualifications"},
+    {"code": "qualification.create", "description": "Create qualifications"},
+    {"code": "qualification.edit", "description": "Edit qualifications"},
+    {"code": "qualification.delete", "description": "Delete qualifications"},
     # Master Events
     {"code": "master_event.view", "description": "View master events"},
     {"code": "master_event.create", "description": "Create master events"},
@@ -133,7 +133,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     Role.COORDINATOR: [
         "user.view", "user.edit_own",
         "invite.create",
-        "credential.view",
+        "qualification.view",
         "master_event.view", "master_event.create", "master_event.edit",
         "event.view", "event.view_draft", "event.create", "event.edit",
         "event.publish", "event.assignments.open", "event.assignments.close",
@@ -148,7 +148,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     ],
     Role.MEMBER: [
         "user.view", "user.edit_own",
-        "credential.view",
+        "qualification.view",
         "master_event.view",
         "event.view", "event.assign_own",
         "event_template.view",
@@ -158,7 +158,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     ],
     Role.VIEWER: [
         "user.view",
-        "credential.view",
+        "qualification.view",
         "master_event.view",
         "event.view",
         "event_template.view",

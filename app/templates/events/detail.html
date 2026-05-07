@@ -160,11 +160,11 @@
         <div class="col-12 col-md-5">
           <label class="form-label small mb-1">Požadovaná kvalifikace</label>
           <div class="d-flex flex-wrap gap-2">
-            {% for cred in all_credentials %}
+            {% for cred in all_qualifications %}
             <div class="form-check form-check-inline">
-              <input class="form-check-input" type="checkbox" name="credential_ids"
-                     value="{{ cred.id }}" id="add_cred_{{ cred.id }}">
-              <label class="form-check-label small" for="add_cred_{{ cred.id }}">{{ cred.name }}</label>
+              <input class="form-check-input" type="checkbox" name="qualification_ids"
+                     value="{{ cred.id }}" id="add_qual_{{ cred.id }}">
+              <label class="form-check-label small" for="add_qual_{{ cred.id }}">{{ cred.name }}</label>
             </div>
             {% endfor %}
           </div>
@@ -196,8 +196,8 @@
         <td class="text-muted small">{{ loop.index }}</td>
         <td style="white-space: normal; word-break: break-word">{{ spot.description or '—' }}</td>
         <td style="white-space: normal; word-break: break-word; max-width: 180px">
-          {% if spot.required_credentials %}
-            {{ spot.required_credentials | map(attribute='name') | join(', ') }}
+          {% if spot.required_qualifications %}
+            {{ spot.required_qualifications | map(attribute='name') | join(', ') }}
           {% else %}
             —
           {% endif %}
@@ -303,12 +303,12 @@
                        value="{{ spot.description or '' }}" placeholder="Popis pozice">
               </div>
               <div class="d-flex flex-wrap gap-2 mb-2">
-                {% for cred in all_credentials %}
+                {% for cred in all_qualifications %}
                 <div class="form-check form-check-inline">
-                  <input class="form-check-input" type="checkbox" name="credential_ids"
-                         value="{{ cred.id }}" id="edit_cred_{{ spot.id }}_{{ cred.id }}"
-                         {{ 'checked' if cred in spot.required_credentials }}>
-                  <label class="form-check-label small" for="edit_cred_{{ spot.id }}_{{ cred.id }}">{{ cred.name }}</label>
+                  <input class="form-check-input" type="checkbox" name="qualification_ids"
+                         value="{{ cred.id }}" id="edit_qual_{{ spot.id }}_{{ cred.id }}"
+                         {{ 'checked' if cred in spot.required_qualifications }}>
+                  <label class="form-check-label small" for="edit_qual_{{ spot.id }}_{{ cred.id }}">{{ cred.name }}</label>
                 </div>
                 {% endfor %}
               </div>
@@ -325,12 +325,12 @@
               </div>
               <script>
               (function() {
-                var userCredIds = {{ spot.assignment.user.credentials | map(attribute='id') | list | tojson }};
+                var userCredIds = {{ spot.assignment.user.qualifications | map(attribute='id') | list | tojson }};
                 var fillersMap = {{ fillers_map | tojson }};
                 var warning = document.getElementById('unassign-warning-{{ spot.id }}');
                 var panel = document.getElementById('edit-spot-{{ spot.id }}');
                 function check() {
-                  var selected = Array.from(panel.querySelectorAll('input[name="credential_ids"]:checked'))
+                  var selected = Array.from(panel.querySelectorAll('input[name="qualification_ids"]:checked'))
                                       .map(function(cb) { return String(cb.value); });
                   var eligible = selected.length === 0 || selected.every(function(reqId) {
                     var fillers = fillersMap[reqId] || [parseInt(reqId)];
@@ -338,7 +338,7 @@
                   });
                   warning.classList.toggle('d-none', eligible);
                 }
-                panel.querySelectorAll('input[name="credential_ids"]').forEach(function(cb) {
+                panel.querySelectorAll('input[name="qualification_ids"]').forEach(function(cb) {
                   cb.addEventListener('change', check);
                 });
               })();

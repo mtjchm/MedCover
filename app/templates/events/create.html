@@ -112,7 +112,7 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm flex-shrink-0 remove-spot-btn">✕</button>
               </div>
               <div class="d-flex flex-wrap gap-2 mt-2 spot-creds">
-                {% for cred in all_credentials %}
+                {% for cred in all_qualifications %}
                 <div class="form-check form-check-inline mb-0">
                   <input class="form-check-input" type="checkbox" name="__SPOT_CRED__"
                          value="{{ cred.id }}" id="__SPOT_CRED_ID_{{ cred.id }}__">
