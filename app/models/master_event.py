@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from app.extensions import db
 
 
-class MasterEvent(db.Model):
+class MasterEvent(db.Model):  # type: ignore[misc]
     __tablename__ = "master_event"
 
     id = db.Column(db.Integer, primary_key=True)

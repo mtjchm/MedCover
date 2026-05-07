@@ -13,7 +13,9 @@ Routes:
   POST /assignments/unassign/<assignment_id>   — admin/coordinator unassigns a user
 """
 
-from flask import Blueprint, redirect, url_for, flash, request, abort
+from __future__ import annotations
+
+from flask import Blueprint, Response, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -55,7 +57,7 @@ def _auto_close_if_full(event: Event) -> None:
 
 @assignments_bp.post("/claim/<int:spot_id>")
 @login_required
-def claim(spot_id: int):
+def claim(spot_id: int) -> Response:
     if not current_user.has_permission("event.assign_own"):
         abort(403)
 
@@ -67,6 +69,8 @@ def claim(spot_id: int):
         abort(404)
 
     event = db.session.get(Event, spot.event_id)
+    if event is None:
+        abort(404)
 
     # Validate event state
     if event.status != EventStatus.ASSIGNMENTS_OPEN:
@@ -119,7 +123,7 @@ def claim(spot_id: int):
 
 @assignments_bp.post("/release/<int:assignment_id>")
 @login_required
-def release(assignment_id: int):
+def release(assignment_id: int) -> Response:
     assignment = db.session.get(Assignment, assignment_id)
     if assignment is None:
         abort(404)
@@ -130,6 +134,8 @@ def release(assignment_id: int):
             abort(403)
 
     event = db.session.get(Event, assignment.spot.event_id)
+    if event is None:
+        abort(404)
 
     # Cannot release after event is completed
     if event.status == EventStatus.COMPLETED:
@@ -163,7 +169,7 @@ def release(assignment_id: int):
 
 @assignments_bp.post("/assign/<int:spot_id>")
 @login_required
-def assign_other(spot_id: int):
+def assign_other(spot_id: int) -> Response:
     if not current_user.has_permission("event.assign_other"):
         abort(403)
 
@@ -184,6 +190,8 @@ def assign_other(spot_id: int):
         abort(404)
 
     event = db.session.get(Event, spot.event_id)
+    if event is None:
+        abort(404)
 
     if event.status not in (EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED):
         flash("Přiřazení není možné v aktuálním stavu akce.", "warning")
@@ -228,7 +236,7 @@ def assign_other(spot_id: int):
 
 @assignments_bp.post("/unassign/<int:assignment_id>")
 @login_required
-def unassign_other(assignment_id: int):
+def unassign_other(assignment_id: int) -> Response:
     if not current_user.has_permission("event.assign_other"):
         abort(403)
 
@@ -237,6 +245,8 @@ def unassign_other(assignment_id: int):
         abort(404)
 
     event = db.session.get(Event, assignment.spot.event_id)
+    if event is None:
+        abort(404)
     if event.status == EventStatus.COMPLETED:
         flash("Nelze odhlásit uživatele z dokončené akce.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))

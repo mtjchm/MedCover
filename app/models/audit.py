@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from app.extensions import db
 
 
-class AuditLogEntry(db.Model):
+class AuditLogEntry(db.Model):  # type: ignore[misc]
     __tablename__ = "audit_log_entry"
 
     id = db.Column(db.Integer, primary_key=True)

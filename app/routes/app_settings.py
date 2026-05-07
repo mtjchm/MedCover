@@ -3,8 +3,10 @@ Admin application settings route — lets admins edit org info and SMTP config
 after the initial setup wizard has completed.
 """
 
+from __future__ import annotations
+
 import pytz
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from flask_mail import Message
 
@@ -24,7 +26,7 @@ def _require_permission() -> None:
 
 @app_settings_bp.route("/", methods=["GET", "POST"])
 @login_required
-def index():
+def index() -> str | Response:
     _require_permission()
     settings = get_settings()
 

@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from flask import Flask, redirect, request, url_for
+from werkzeug.wrappers import Response as WerkzeugResponse
 from .extensions import db, migrate, login_manager, mail
 from .config import config_by_name
 
@@ -38,7 +41,7 @@ def create_app(config_name: str | None = None) -> Flask:
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
     @app.before_request
-    def _setup_guard():
+    def _setup_guard() -> WerkzeugResponse | None:
         """
         Redirect to the setup wizard if initial setup is not complete.
         Skips static files, the setup blueprint itself, and auth routes

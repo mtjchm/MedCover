@@ -6,8 +6,10 @@ After completion, redirects all further /setup/* requests to the dashboard.
 Step 3 creates the first admin account (no auth required — no users exist yet).
 """
 
+from __future__ import annotations
+
 import pytz
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_user
 from flask_mail import Message
 
@@ -21,7 +23,7 @@ setup_bp = Blueprint("setup", __name__, url_prefix="/setup")
 _ALL_TIMEZONES = pytz.common_timezones  # ~400 human-friendly timezone strings
 
 
-def _guard(settings: AppSettings):
+def _guard(settings: AppSettings) -> Response | None:
     """Redirect away if setup is already complete."""
     if settings.setup_complete:
         return redirect(url_for("main.dashboard"))
@@ -34,7 +36,7 @@ def _guard(settings: AppSettings):
 
 @setup_bp.route("/", methods=["GET", "POST"])
 @setup_bp.route("/step1", methods=["GET", "POST"])
-def step1():
+def step1() -> str | Response:
     settings = get_settings()
     if (redir := _guard(settings)):
         return redir
@@ -60,7 +62,7 @@ def step1():
 # ------------------------------------------------------------------ #
 
 @setup_bp.route("/step2", methods=["GET", "POST"])
-def step2():
+def step2() -> str | Response:
     settings = get_settings()
     if (redir := _guard(settings)):
         return redir
@@ -108,7 +110,7 @@ def step2():
 # ------------------------------------------------------------------ #
 
 @setup_bp.route("/step3", methods=["GET", "POST"])
-def step3():
+def step3() -> str | Response:
     settings = get_settings()
     if (redir := _guard(settings)):
         return redir
@@ -157,7 +159,7 @@ def step3():
 
 
 @setup_bp.route("/done")
-def done():
+def done() -> str:
     return render_template("setup/done.html")
 
 

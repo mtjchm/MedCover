@@ -23,7 +23,9 @@ Permissions:
   event.restore      — Cancelled → Draft
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort, jsonify
+from __future__ import annotations
+
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -68,7 +70,7 @@ def _can_view(event: Event) -> bool:
 
 @events_bp.get("/")
 @login_required
-def index():
+def index() -> str:
     if not current_user.has_any_permission("event.view", "event.view_draft"):
         abort(403)
 
@@ -99,7 +101,7 @@ _STATUS_COLORS: dict[str, str] = {
 
 @events_bp.get("/feed")
 @login_required
-def feed():
+def feed() -> Response:
     """Return events as FullCalendar-compatible JSON."""
     if not current_user.has_any_permission("event.view", "event.view_draft"):
         abort(403)
@@ -142,7 +144,7 @@ def feed():
 
 @events_bp.route("/create", methods=["GET", "POST"])
 @login_required
-def create():
+def create() -> str | Response:
     if not current_user.has_permission("event.create"):
         abort(403)
 
@@ -155,8 +157,8 @@ def create():
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
-        if error:
-            flash(error, "danger")
+        if error or event is None:
+            flash(error or "Chyba formuláře.", "danger")
             return render_template("events/create.html", master_events=master_events, users=users)
 
         db.session.add(event)
@@ -175,19 +177,18 @@ def create():
 
 @events_bp.get("/<int:event_id>")
 @login_required
-def detail(event_id: int):
+def detail(event_id: int) -> str | Response:
     event = db.session.get(Event, event_id)
     if event is None:
         abort(404)
     if not _can_view(event):
         abort(403)
 
-    # Load active users for coordinator-assign dropdown (only when user has assign_other permission)
-    eligible_users: list = []
+    eligible_users: list[UserAccount] = []
     if current_user.has_permission("event.assign_other"):
-        eligible_users = db.session.scalars(
+        eligible_users = list(db.session.scalars(
             db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-        ).all()
+        ).all())
 
     return render_template("events/detail.html", event=event, EventStatus=EventStatus, eligible_users=eligible_users)
 
@@ -196,7 +197,7 @@ def detail(event_id: int):
 
 @events_bp.route("/<int:event_id>/edit", methods=["GET", "POST"])
 @login_required
-def edit(event_id: int):
+def edit(event_id: int) -> str | Response:
     if not current_user.has_permission("event.edit"):
         abort(403)
 
@@ -240,7 +241,7 @@ def edit(event_id: int):
 
 @events_bp.post("/<int:event_id>/transition")
 @login_required
-def transition(event_id: int):
+def transition(event_id: int) -> Response:
     event = db.session.get(Event, event_id)
     if event is None:
         abort(404)
@@ -290,7 +291,7 @@ def transition(event_id: int):
 
 @events_bp.post("/<int:event_id>/cancel")
 @login_required
-def cancel(event_id: int):
+def cancel(event_id: int) -> Response:
     if not current_user.has_permission("event.cancel"):
         abort(403)
 
@@ -322,7 +323,7 @@ def cancel(event_id: int):
 
 @events_bp.post("/<int:event_id>/restore")
 @login_required
-def restore(event_id: int):
+def restore(event_id: int) -> Response:
     if not current_user.has_permission("event.restore"):
         abort(403)
 
@@ -347,7 +348,7 @@ def restore(event_id: int):
 
 @events_bp.post("/<int:event_id>/spots/add")
 @login_required
-def add_spot(event_id: int):
+def add_spot(event_id: int) -> Response:
     if not current_user.has_permission("event.edit"):
         abort(403)
     event = db.session.get(Event, event_id)
@@ -367,7 +368,7 @@ def add_spot(event_id: int):
 
 @events_bp.post("/<int:event_id>/spots/<int:spot_id>/delete")
 @login_required
-def delete_spot(event_id: int, spot_id: int):
+def delete_spot(event_id: int, spot_id: int) -> Response:
     if not current_user.has_permission("event.edit"):
         abort(403)
     spot = db.session.get(EventSpot, spot_id)
@@ -379,6 +380,8 @@ def delete_spot(event_id: int, spot_id: int):
 
     db.session.delete(spot)
     event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
     event.version += 1
     _audit("edit", event, f"Odstraněna pozice z akce '{event.name}'")
     db.session.commit()
@@ -389,7 +392,7 @@ def delete_spot(event_id: int, spot_id: int):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None, str | None]:
+def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event | None, str | None]:
     """Parse the event form and return (event, error_message).
 
     All datetime inputs are interpreted as Europe/Prague local time and stored
@@ -466,7 +469,7 @@ def _parse_event_form(form, existing: Event | None = None) -> tuple[Event | None
     return event, None
 
 
-def _build_spots(event: Event, form) -> None:
+def _build_spots(event: Event, form: dict) -> None:
     """Create spots from spot_count field."""
     spot_count = int(form.get("spot_count", 0) or 0)
     for _ in range(spot_count):

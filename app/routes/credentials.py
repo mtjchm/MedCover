@@ -8,7 +8,9 @@ Permissions:
   credential.delete  — delete (only if no users or spots hold it)
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from __future__ import annotations
+
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -33,7 +35,7 @@ def _audit(action: str, cred: Credential, summary: str, changes: dict | None = N
 
 @credentials_bp.get("/")
 @login_required
-def index():
+def index() -> str:
     if not current_user.has_permission("credential.view"):
         abort(403)
     credentials = db.session.scalars(
@@ -46,7 +48,7 @@ def index():
 
 @credentials_bp.route("/create", methods=["GET", "POST"])
 @login_required
-def create():
+def create() -> str | Response:
     if not current_user.has_permission("credential.create"):
         abort(403)
 
@@ -86,7 +88,7 @@ def create():
 
 @credentials_bp.route("/<int:cred_id>/edit", methods=["GET", "POST"])
 @login_required
-def edit(cred_id: int):
+def edit(cred_id: int) -> str | Response:
     if not current_user.has_permission("credential.edit"):
         abort(403)
 
@@ -118,7 +120,7 @@ def edit(cred_id: int):
         cred.name = name
         cred.description = description
         # Sync parents
-        cred.parents = [db.session.get(Credential, pid) for pid in parent_ids if db.session.get(Credential, pid)]
+        cred.parents = [c for pid in parent_ids if (c := db.session.get(Credential, pid)) is not None]
 
         _audit("edit", cred, f"Upravena kvalifikace '{cred.name}'", {
             "before": before,
@@ -136,7 +138,7 @@ def edit(cred_id: int):
 
 @credentials_bp.post("/<int:cred_id>/delete")
 @login_required
-def delete(cred_id: int):
+def delete(cred_id: int) -> Response:
     if not current_user.has_permission("credential.delete"):
         abort(403)
 

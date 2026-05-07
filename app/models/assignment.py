@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from sqlalchemy.orm import Mapped
 from app.extensions import db
 
 
-class Assignment(db.Model):
+class Assignment(db.Model):  # type: ignore[misc]
     __tablename__ = "assignment"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -18,7 +21,7 @@ class Assignment(db.Model):
     spot = db.relationship("EventSpot", back_populates="assignment")
     user = db.relationship("UserAccount", foreign_keys=[user_id])
     assigned_by = db.relationship("UserAccount", foreign_keys=[assigned_by_id])
-    debriefing = db.relationship(
+    debriefing: Mapped[DebriefingRecord | None] = db.relationship(
         "DebriefingRecord", back_populates="assignment", uselist=False, cascade="all, delete-orphan"
     )
 
@@ -26,7 +29,7 @@ class Assignment(db.Model):
         return f"<Assignment spot={self.spot_id} user={self.user_id}>"
 
 
-class DebriefingRecord(db.Model):
+class DebriefingRecord(db.Model):  # type: ignore[misc]
     __tablename__ = "debriefing_record"
 
     id = db.Column(db.Integer, primary_key=True)

@@ -299,6 +299,63 @@ To enable: Render Dashboard → your service → Settings → Pull Request Previ
 
 ---
 
+## Type Checking (mypy)
+
+MedCover uses **mypy 2.0** for static type checking. All production code in `app/` and `scheduler/` is annotated and must pass mypy on every commit.
+
+### Running mypy manually
+
+```bash
+source .venv/bin/activate
+mypy app/ scheduler/
+```
+
+A clean run prints `Success: no issues found in N source files`.
+
+### Configuration
+
+mypy is configured in `pyproject.toml` under `[tool.mypy]`:
+
+- `disallow_untyped_defs = true` — **hard requirement**: every function must have full parameter and return type annotations
+- `check_untyped_defs = true` — bodies of annotated functions are fully type-checked
+- `ignore_missing_imports = true` — suppresses errors for third-party packages without stubs (Flask, SQLAlchemy, etc.)
+- `exclude` — migrations, tests, htmlcov, and .venv are excluded
+
+#### Key overrides
+
+| Override | Reason |
+|---|---|
+| `app.models.*` — disables `name-defined`, `misc`, `assignment` | `db.Model` base class is not resolvable without full SQLAlchemy stubs; `db.relationship()` returns `RelationshipProperty[Any]` at the type level |
+| `app.routes.*` — disables `union-attr`, `return-value`, `attr-defined` | Flask's `redirect()` returns `werkzeug.wrappers.Response` (not `flask.wrappers.Response`); `current_user` is a `LocalProxy` without union narrowing |
+| `scripts.*` — `ignore_errors = true` | Seed scripts are not production code |
+
+### Pre-commit hook
+
+mypy runs automatically on every commit via `.pre-commit-config.yaml`:
+
+```yaml
+- repo: local
+  hooks:
+    - id: mypy
+      name: mypy
+      entry: .venv/bin/mypy app/ scheduler/
+      language: system
+      pass_filenames: false
+      always_run: true
+```
+
+It runs before pytest. A commit is rejected if mypy reports any errors.
+
+### Model annotation pattern
+
+SQLAlchemy models use the old-style `db.Column()` syntax (not `Mapped[]`-style declarative). To avoid converting models (which risks bugs), the pattern is:
+
+1. Add `# type: ignore[misc]` to the class definition line: `class Event(db.Model):  # type: ignore[misc]`
+2. Annotate relationship attributes with `Mapped[list[X]]` or `Mapped[X | None]` when they are iterated or accessed — **only the attribute declaration**, not the `db.relationship(...)` call
+3. Import forward references under `TYPE_CHECKING` to avoid circular imports at runtime
+
+---
+
 ## CI/CD Pipeline
 
 ### On every PR (`ci.yml`)

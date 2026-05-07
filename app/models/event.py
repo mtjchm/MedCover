@@ -1,6 +1,15 @@
+from __future__ import annotations
+
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+from sqlalchemy.orm import Mapped
 from app.extensions import db
+
+if TYPE_CHECKING:
+    from app.models.credential import Credential
+    from app.models.assignment import Assignment
+    from app.models.user import UserAccount
 
 
 class EventStatus(str, enum.Enum):
@@ -27,7 +36,7 @@ spot_template_credentials = db.Table(
 )
 
 
-class EventTemplate(db.Model):
+class EventTemplate(db.Model):  # type: ignore[misc]
     __tablename__ = "event_template"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -62,7 +71,7 @@ class EventTemplate(db.Model):
         return f"<EventTemplate {self.name}>"
 
 
-class EventSpotTemplate(db.Model):
+class EventSpotTemplate(db.Model):  # type: ignore[misc]
     __tablename__ = "event_spot_template"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -78,7 +87,7 @@ class EventSpotTemplate(db.Model):
         return f"<EventSpotTemplate {self.id} for template {self.template_id}>"
 
 
-class Event(db.Model):
+class Event(db.Model):  # type: ignore[misc]
     __tablename__ = "event"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -119,7 +128,7 @@ class Event(db.Model):
     master_event = db.relationship("MasterEvent", back_populates="events")
     responsible_person = db.relationship("UserAccount", foreign_keys=[responsible_person_id])
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
-    spots = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
+    spots: Mapped[list[EventSpot]] = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
 
     # ── Derived staffing status ─────────────────────────────────────────────
     @property
@@ -153,7 +162,7 @@ class Event(db.Model):
         return f"<Event {self.id}: {self.name} [{self.status}]>"
 
 
-class EventSpot(db.Model):
+class EventSpot(db.Model):  # type: ignore[misc]
     __tablename__ = "event_spot"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -163,14 +172,14 @@ class EventSpot(db.Model):
     version = db.Column(db.Integer, default=1, nullable=False)
 
     event = db.relationship("Event", back_populates="spots")
-    required_credentials = db.relationship(
+    required_credentials: Mapped[list[Credential]] = db.relationship(
         "Credential", secondary=spot_credentials, lazy="selectin"
     )
-    assignment = db.relationship(
+    assignment: Mapped[Assignment | None] = db.relationship(
         "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan"
     )
 
-    def is_eligible(self, user) -> bool:
+    def is_eligible(self, user: UserAccount) -> bool:
         """Return True if the user holds credentials satisfying all spot requirements."""
         if not self.required_credentials:
             return True  # no credential requirement — anyone can fill it

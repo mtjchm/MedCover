@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, Response, jsonify, render_template
 from flask_login import login_required, current_user
 from sqlalchemy import or_
 
@@ -13,7 +15,7 @@ main_bp = Blueprint("main", __name__)
 
 
 @main_bp.get("/health")
-def health():
+def health() -> tuple[Response, int]:
     """Liveness + readiness probe. Returns 200 if DB is reachable, 503 otherwise."""
     try:
         db.session.execute(db.text("SELECT 1"))
@@ -24,7 +26,7 @@ def health():
 
 @main_bp.route("/dashboard")
 @login_required
-def dashboard():
+def dashboard() -> str:
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(days=current_user.dashboard_horizon_days)
 
@@ -97,7 +99,7 @@ def dashboard():
     # ── Koordinátor: vyžaduje pozornost ───────────────────────────────────
     attention_events: list[Event] = []
     if current_user.has_any_permission("event.publish", "event.assignments.open"):
-        attention_events = db.session.scalars(
+        attention_events = list(db.session.scalars(
             db.select(Event)
             .where(
                 Event.archived == False,  # noqa: E712
@@ -106,7 +108,7 @@ def dashboard():
                 Event.end_datetime >= now,
             )
             .order_by(Event.start_datetime)
-        ).all()
+        ).all())
 
         # Filter to understaffed or needs-action events
         attention_events = [
@@ -118,11 +120,11 @@ def dashboard():
     # ── Admin: čekající aktivace ──────────────────────────────────────────
     pending_activations: list[UserAccount] = []
     if current_user.has_permission("user.activate"):
-        pending_activations = db.session.scalars(
+        pending_activations = list(db.session.scalars(
             db.select(UserAccount)
             .where(UserAccount.is_active == False)  # noqa: E712
             .order_by(UserAccount.created_at)
-        ).all()
+        ).all())
 
     return render_template(
         "main/dashboard.html",

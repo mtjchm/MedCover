@@ -13,12 +13,18 @@ Usage (inside a Flask app context):
 All functions are fire-and-forget — exceptions are logged, never raised.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from flask import render_template
 
 from app.extensions import db
 from app.models.outbox import OutboxEmail
+
+if TYPE_CHECKING:
+    from app.models.event import Event
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +41,7 @@ def _enqueue(to: str, subject: str, body: str) -> None:
 
 # ── Assignment notifications ──────────────────────────────────────────────────
 
-def send_assignment_confirmed(user_email: str, user_name: str, event) -> None:
+def send_assignment_confirmed(user_email: str, user_name: str, event: Event) -> None:
     """Notify a user that their spot assignment was confirmed."""
     body = render_template(
         "email/assignment_confirmed.txt",
@@ -45,7 +51,7 @@ def send_assignment_confirmed(user_email: str, user_name: str, event) -> None:
     _enqueue(user_email, f"MedCover — Přihlášení na akci: {event.name}", body)
 
 
-def send_assignment_released(user_email: str, user_name: str, event) -> None:
+def send_assignment_released(user_email: str, user_name: str, event: Event) -> None:
     """Notify a user that their assignment was released (by themselves or coordinator)."""
     body = render_template(
         "email/assignment_released.txt",
@@ -57,7 +63,7 @@ def send_assignment_released(user_email: str, user_name: str, event) -> None:
 
 # ── Event lifecycle notifications ─────────────────────────────────────────────
 
-def send_event_published(user_email: str, user_name: str, event) -> None:
+def send_event_published(user_email: str, user_name: str, event: Event) -> None:
     """Notify a user that an event they might be interested in was published."""
     body = render_template(
         "email/event_published.txt",
@@ -67,7 +73,7 @@ def send_event_published(user_email: str, user_name: str, event) -> None:
     _enqueue(user_email, f"MedCover — Nová akce: {event.name}", body)
 
 
-def send_assignments_opened(user_email: str, user_name: str, event) -> None:
+def send_assignments_opened(user_email: str, user_name: str, event: Event) -> None:
     """Notify a user that assignments opened for an event."""
     body = render_template(
         "email/assignments_opened.txt",
@@ -77,7 +83,7 @@ def send_assignments_opened(user_email: str, user_name: str, event) -> None:
     _enqueue(user_email, f"MedCover — Otevřeny přihlášky: {event.name}", body)
 
 
-def send_event_cancelled(user_email: str, user_name: str, event) -> None:
+def send_event_cancelled(user_email: str, user_name: str, event: Event) -> None:
     """Notify assigned users that an event was cancelled."""
     body = render_template(
         "email/event_cancelled.txt",
@@ -92,7 +98,7 @@ def send_event_cancelled(user_email: str, user_name: str, event) -> None:
 def send_unfilled_spots_reminder(
     coordinator_email: str,
     coordinator_name: str,
-    event,
+    event: Event,
     unfilled: int,
 ) -> None:
     """Remind coordinator/RP that an event still has unfilled spots."""

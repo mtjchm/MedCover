@@ -1,4 +1,6 @@
-from flask import Flask, redirect, url_for
+from __future__ import annotations
+
+from flask import Flask, Response, redirect, url_for
 from .auth import auth_bp
 from .main import main_bp
 from .setup import setup_bp
@@ -34,5 +36,5 @@ def register_blueprints(app: Flask) -> None:
         app.register_blueprint(dev_bp)
 
     @app.route("/")
-    def index():
+    def index() -> Response:
         return redirect(url_for("auth.login"))
