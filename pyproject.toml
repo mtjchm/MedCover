@@ -30,6 +30,13 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--cov=app --cov-report=term-missing --cov-report=html:htmlcov -v"
+# Always use the dedicated test DB so tests never touch medcover_dev.
+# These are safe defaults; override with real values if needed.
+env = [
+    "FLASK_ENV=testing",
+    "SECRET_KEY=test-secret-key-not-for-production",
+    "TEST_DATABASE_URL=postgresql://medcover:devpassword@localhost:5432/medcover_test",
+]
 
 [tool.coverage.run]
 source = ["app"]

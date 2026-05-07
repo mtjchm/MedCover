@@ -6,14 +6,13 @@ INVITE_TOKEN_HOURS = 72
 
 
 class Config:
-    SECRET_KEY = os.environ["SECRET_KEY"]
-    SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
+    SECRET_KEY = os.environ.get("SECRET_KEY", "")
+    # Development and production configs require DATABASE_URL to be set.
+    # TestingConfig overrides this with TEST_DATABASE_URL so this may be empty
+    # during test runs — that is fine as long as TestingConfig is used.
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     WTF_CSRF_ENABLED = True
-    # MAIL_* settings are stored in AppSettings (DB) and applied at runtime
-    # via AppSettings.apply_to_app(). No env-var mail config needed.
-    # DEV_LOGIN_ENABLED is intentionally hardcoded False in base and production.
-    # Only DevelopmentConfig reads the env var — belt-and-suspenders protection.
     DEV_LOGIN_ENABLED = False
 
 
@@ -21,11 +20,25 @@ class DevelopmentConfig(Config):
     DEBUG = True
     DEV_LOGIN_ENABLED = os.getenv("DEV_LOGIN_ENABLED", "false").lower() == "true"
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def init_app(cls, app: object) -> None:  # type: ignore[override]
+        if not os.environ.get("DATABASE_URL"):
+            raise RuntimeError("DATABASE_URL environment variable is required.")
+        if not os.environ.get("SECRET_KEY"):
+            raise RuntimeError("SECRET_KEY environment variable is required.")
+
 
 class TestingConfig(Config):
     TESTING = True
+    # Always use the dedicated test database — never the dev/prod DATABASE_URL.
+    # This ensures that conftest.py's drop_all() teardown cannot wipe the dev DB.
+    SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-not-for-production")
     SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "postgresql://medcover:testpassword@localhost:5432/medcover_test"
+        "TEST_DATABASE_URL",
+        "postgresql://medcover:devpassword@localhost:5432/medcover_test",
     )
     WTF_CSRF_ENABLED = False
 
