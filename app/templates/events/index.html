@@ -156,9 +156,10 @@
         const p = info.event.extendedProps;
         const cancelled = p.status === "Zrušena";
         const spotsLine = cancelled ? "" : `\nObsazení: ${p.filled}/${p.total}`;
+        const title = p.me_name ? `${info.event.title} (${p.me_name})` : info.event.title;
         const rpLine = p.rp ? `\nZodpovědný zdravotník: ${p.rp}` : "";
         info.el.setAttribute("title",
-          `${info.event.title}\n${p.start_local} – ${p.end_local}${spotsLine}${rpLine}\nStav: ${p.status}`
+          `${title}\n${p.start_local} – ${p.end_local}${spotsLine}${rpLine}\nStav: ${p.status}`
         );
         if (cancelled) {
           info.el.style.opacity = "0.55";

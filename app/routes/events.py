@@ -128,6 +128,7 @@ def feed():
                 "rp": e.responsible_person.name if e.responsible_person else None,
                 "start_local": e.start_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
                 "end_local": e.end_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
+                "me_name": None if e.master_event.is_general else e.master_event.name,
             },
         })
     return jsonify(items)
