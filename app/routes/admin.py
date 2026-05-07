@@ -147,14 +147,6 @@ def index() -> str:
     )
 
 
-@admin_bp.route("/pending-users")
-@login_required
-def pending_users() -> str:
-    _require_permission("user.activate")
-    users = UserAccount.query.filter_by(is_active=False).order_by(UserAccount.created_at).all()
-    return render_template("admin/pending_users.html", users=users)
-
-
 @admin_bp.route("/activate/<uuid:user_id>", methods=["POST"])
 @login_required
 def activate_user(user_id: str) -> Response:
@@ -162,17 +154,17 @@ def activate_user(user_id: str) -> Response:
     user = db.session.get(UserAccount, user_id)
     if not user:
         flash("Uživatel nenalezen.", "danger")
-        return redirect(url_for("admin.pending_users"))
+        return redirect(url_for("users.index"))
     if user.is_active:
         flash(f"{user.name} je již aktivní.", "info")
-        return redirect(url_for("admin.pending_users"))
+        return redirect(url_for("users.index"))
 
     user.is_active = True
     db.session.commit()
 
     _send_activation_email(user)
     flash(f"Účet {user.name} ({user.email}) byl aktivován.", "success")
-    return redirect(url_for("admin.pending_users"))
+    return redirect(url_for("users.index"))
 
 
 def _send_activation_email(user: UserAccount) -> None:
