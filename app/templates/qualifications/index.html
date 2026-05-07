@@ -4,12 +4,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Kvalifikace</h2>
-  {% if current_user.has_permission('credential.create') %}
+  {% if current_user.has_permission('qualification.create') %}
     <a href="{{ url_for('qualifications.create') }}" class="btn btn-danger btn-sm">+ Nová kvalifikace</a>
   {% endif %}
 </div>
 
-{% if credentials %}
+{% if qualifications %}
 <div class="table-responsive">
   <table class="table table-hover align-middle">
     <thead class="table-light">
@@ -21,7 +21,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for cred in credentials %}
+      {% for cred in qualifications %}
       <tr>
         <td class="fw-semibold">{{ cred.name }}</td>
         <td class="text-muted">{{ cred.description or '—' }}</td>
@@ -35,10 +35,10 @@
           {% endif %}
         </td>
         <td class="text-end">
-          {% if current_user.has_permission('credential.edit') %}
+          {% if current_user.has_permission('qualification.edit') %}
             <a href="{{ url_for('qualifications.edit', cred_id=cred.id) }}" class="btn btn-outline-secondary btn-sm">Upravit</a>
           {% endif %}
-          {% if current_user.has_permission('credential.delete') %}
+          {% if current_user.has_permission('qualification.delete') %}
             <form method="POST" action="{{ url_for('qualifications.delete', cred_id=cred.id) }}"
                   class="d-inline"
                   onsubmit="return confirm('Opravdu smazat kvalifikaci \'{{ cred.name }}\'?')">
