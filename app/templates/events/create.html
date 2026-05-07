@@ -2,6 +2,14 @@
 {% from 'macros/help.html' import help_icon %}
 {% block title %}Nová akce — MedCover{% endblock %}
 
+{% block extra_head %}
+<style>
+  .paid-toggle { width: 3em; height: 1.5em; cursor: pointer; }
+  .paid-toggle:checked { background-color: #198754; border-color: #198754; }
+  .paid-label.is-paid { color: #198754; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8">
@@ -103,10 +111,10 @@
         </div>
         {% endif %}
         <div class="col-12 col-md-3 d-flex align-items-end">
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="paid" name="paid" value="1"
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input paid-toggle" type="checkbox" role="switch" id="paid" name="paid" value="1"
                    {% if template %}{{ 'checked' if template.paid }}{% else %}{{ 'checked' if request.form.get('paid') == '1' }}{% endif %}>
-            <label class="form-check-label" for="paid">Placená akce
+            <label class="form-check-label fw-semibold paid-label" for="paid">Placená akce
               {{ help_icon("Označte, pokud je akce honorována. Zobrazuje se v přehledech a výkazech.") }}
             </label>
           </div>
@@ -139,4 +147,15 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const cb = document.getElementById('paid');
+  const lbl = cb ? cb.closest('.form-check').querySelector('.paid-label') : null;
+  function update() { lbl && lbl.classList.toggle('is-paid', cb.checked); }
+  if (cb) { cb.addEventListener('change', update); update(); }
+})();
+</script>
 {% endblock %}
