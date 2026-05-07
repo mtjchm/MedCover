@@ -28,6 +28,7 @@ from app.models.event import Event, EventStatus, EventSpot
 from app.models.credential import Credential
 from app.models.assignment import Assignment, DebriefingRecord
 from app.models.equipment import EquipmentType, EquipmentItem, EquipmentCategory
+from app.models.settings import AppSettings
 from app.routes.dev import DEV_ACCOUNTS
 
 
@@ -81,6 +82,17 @@ def seed() -> None:
             sys.exit(1)
 
         now = datetime.now(timezone.utc)
+
+        # ── AppSettings ───────────────────────────────────────────────────────
+        settings = db.session.get(AppSettings, 1)
+        if not settings:
+            print("Seeding AppSettings...")
+            db.session.add(AppSettings(id=1, setup_complete=True, org_name="Czech Red Cross (Dev)"))
+            db.session.flush()
+        elif not settings.setup_complete:
+            print("Marking AppSettings setup_complete=True...")
+            settings.setup_complete = True
+            db.session.flush()
 
         # ── Permissions & roles ───────────────────────────────────────────────
         print("Seeding permissions...")

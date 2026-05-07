@@ -12,12 +12,16 @@
 
   {# DB #}
   <div class="col-6 col-md-3">
-    <div class="card h-100 border-{{ 'success' if db_ok else 'danger' }}">
+    {% set db_color = {'ok': 'success', 'warning': 'warning', 'error': 'danger'}[db_status] %}
+    <div class="card h-100 border-{{ db_color }}">
       <div class="card-body py-2 px-3">
         <div class="small text-muted">Databáze</div>
-        {% if db_ok %}
+        {% if db_status == 'ok' %}
           <span class="text-success fw-semibold">✔ OK</span>
-          <div class="text-muted" style="font-size:0.75rem">SELECT 1 úspěšný</div>
+          <div class="text-muted" style="font-size:0.75rem">SELECT 1 — {{ db_ms }} ms</div>
+        {% elif db_status == 'warning' %}
+          <span class="text-warning fw-semibold">⚠ Pomalá</span>
+          <div class="text-warning" style="font-size:0.75rem">SELECT 1 — {{ db_ms }} ms (limit 200 ms)</div>
         {% else %}
           <span class="text-danger fw-semibold">✘ Chyba</span>
           {% if db_error %}
@@ -53,25 +57,22 @@
 
   {# SMTP #}
   <div class="col-6 col-md-3">
-    {% if not smtp_configured %}
-      {% set smtp_border = 'secondary' %}
-    {% elif smtp_reachable %}
-      {% set smtp_border = 'success' %}
-    {% else %}
-      {% set smtp_border = 'danger' %}
-    {% endif %}
-    <div class="card h-100 border-{{ smtp_border }}">
+    {% set smtp_color = {'ok': 'success', 'warning': 'warning', 'error': 'danger', 'unconfigured': 'secondary'}[smtp_status] %}
+    <div class="card h-100 border-{{ smtp_color }}">
       <div class="card-body py-2 px-3">
         <div class="small text-muted">SMTP</div>
-        {% if not smtp_configured %}
+        {% if smtp_status == 'unconfigured' %}
           <span class="text-secondary fw-semibold">— Nenakonfigurováno</span>
-        {% elif smtp_reachable %}
+        {% elif smtp_status == 'ok' %}
           <span class="text-success fw-semibold">✔ OK</span>
-          <div class="text-muted" style="font-size:0.75rem">TCP spojení na {{ settings.smtp_server }}:{{ settings.smtp_port }} úspěšné</div>
+          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms</div>
+        {% elif smtp_status == 'warning' %}
+          <span class="text-warning fw-semibold">⚠ Pomalé</span>
+          <div class="text-warning" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms (limit 1000 ms)</div>
         {% else %}
           <span class="text-danger fw-semibold">✘ Chyba</span>
           <div class="text-danger" style="font-size:0.75rem">
-            {{ settings.smtp_server }}:{{ settings.smtp_port }}{% if smtp_error %} — {{ smtp_error }}{% endif %}
+            {% if smtp_error %}{{ smtp_error }}{% else %}{{ settings.smtp_server }}:{{ settings.smtp_port }}{% endif %}
           </div>
         {% endif %}
       </div>
