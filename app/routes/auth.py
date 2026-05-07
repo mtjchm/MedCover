@@ -8,6 +8,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from app.extensions import db, mail
 from app.models.invite import RegistrationInvite
+from app.models.role import Role
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 
@@ -97,6 +98,15 @@ def forgot_password() -> str | Response:
                 reset_url=reset_url,
                 hours=RESET_TOKEN_HOURS,
             )
+            db.session.add(AuditLogEntry(
+                actor_id=user.id,
+                action_type="password_reset_requested",
+                entity_type="UserAccount",
+                entity_id=str(user.id),
+                summary=f"Požadavek na obnovení hesla pro {user.email}",
+                changes_json={},
+            ))
+            db.session.commit()
         return redirect(url_for("auth.login"))
 
     return render_template("auth/forgot_password.html")
@@ -126,6 +136,14 @@ def reset_password(token: str) -> str | Response:
             flash("Hesla se neshodují.", "warning")
         else:
             user.set_password(password)
+            db.session.add(AuditLogEntry(
+                actor_id=user.id,
+                action_type="password_reset_completed",
+                entity_type="UserAccount",
+                entity_id=str(user.id),
+                summary=f"Heslo obnoveno pro {user.email}",
+                changes_json={},
+            ))
             db.session.commit()
             flash("Heslo bylo změněno. Přihlaste se.", "success")
             return redirect(url_for("auth.login"))
@@ -168,6 +186,9 @@ def register(token: str) -> str | Response:
         else:
             user = UserAccount(email=invite.email, name=full_name, is_active=False)
             user.set_password(password)
+            member_role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            if member_role:
+                user.roles.append(member_role)
             invite.used_at = datetime.now(timezone.utc)
             db.session.add(user)
             db.session.flush()

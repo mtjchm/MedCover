@@ -24,9 +24,10 @@
             <button type="submit" class="btn btn-danger">Přihlásit se</button>
           </div>
         </form>
-        <hr>
-        <div class="text-center small">
-          <a href="{{ url_for('auth.forgot_password') }}">Zapomněli jste heslo?</a>
+        <div class="d-grid mt-2">
+          <a href="{{ url_for('auth.forgot_password') }}" class="btn btn-outline-secondary btn-sm">
+            Zapomněli jste heslo?
+          </a>
         </div>
       </div>
     </div>

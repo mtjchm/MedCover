@@ -63,7 +63,7 @@
       <div id="spots-container">
         {% if template and template.spot_templates %}
           {% for st in template.spot_templates %}
-          <div class="spot-row bg-light" data-idx="{{ loop.index0 }}">
+          <div class="spot-row bg-body-secondary" data-idx="{{ loop.index0 }}">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <span class="fw-semibold spot-num">Pozice #{{ loop.index }}</span>
               <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSpot(this)">Odebrat</button>
@@ -125,7 +125,7 @@
     var idx = nextIdx++;
     var container = document.getElementById('spots-container');
     var div = document.createElement('div');
-    div.className = 'spot-row bg-light';
+    div.className = 'spot-row bg-body-secondary';
     div.dataset.idx = idx;
     div.innerHTML =
       '<div class="d-flex justify-content-between align-items-center mb-2">' +

@@ -208,18 +208,19 @@ def detail(user_id: uuid.UUID) -> str:
     return render_template("users/detail.html", user=user, all_roles=roles, all_qualifications=qualifications)
 
 
-@users_bp.route("/<uuid:user_id>/edit", methods=["POST"])
+@users_bp.route("/<uuid:user_id>/save", methods=["POST"])
 @login_required
-def edit_user(user_id: uuid.UUID) -> Response:
+def save_user(user_id: uuid.UUID) -> Response:
+    """Unified save: info + roles + qualifications + optional admin password set."""
     _require_permission("user.edit_any")
     user = db.session.get(UserAccount, user_id)
     if not user:
         abort(404)
 
+    # ── Basic info ──────────────────────────────────────────────────────────
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip().lower()
     phone_raw = request.form.get("phone", "").strip()
-    phone = phone_raw or None
 
     if not name:
         flash("Jméno nesmí být prázdné.", "danger")
@@ -230,35 +231,84 @@ def edit_user(user_id: uuid.UUID) -> Response:
     if not _validate_phone(phone_raw):
         flash("Neplatný formát telefonního čísla.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
-
     if email != user.email:
         duplicate = db.session.scalar(
-            db.select(UserAccount).where(
-                UserAccount.email == email,
-                UserAccount.id != user.id,
-            )
+            db.select(UserAccount).where(UserAccount.email == email, UserAccount.id != user.id)
         )
         if duplicate:
             flash(f"E-mail {email} je již použit jiným uživatelem.", "danger")
             return redirect(url_for("users.detail", user_id=user_id))
 
-    before: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
+    info_before: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
     user.name = name
     user.email = email
-    user.phone = phone
+    user.phone = phone_raw or None
+    info_after: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
     user.version += 1
-    after: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
-
     db.session.add(AuditLogEntry(
         actor_id=current_user.id,
         action_type="edit",
         entity_type="UserAccount",
         entity_id=str(user.id),
         summary=f"Admin upravil údaje uživatele {user.name}",
-        changes_json=diff_changes(before, after),
+        changes_json=diff_changes(info_before, info_after),
     ))
+
+    # ── Roles ───────────────────────────────────────────────────────────────
+    if current_user.has_permission("user.assign_role"):
+        role_ids = [int(r) for r in request.form.getlist("role_ids")]
+        before_roles = sorted(r.name for r in user.roles)
+        new_roles = db.session.scalars(
+            db.select(Role).where(Role.id.in_(role_ids))
+        ).all() if role_ids else []
+        user.roles = list(new_roles)
+        after_roles = sorted(r.name for r in user.roles)
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="UserAccount",
+            entity_id=str(user.id),
+            summary=f"Role uživatele {user.name} aktualizovány",
+            changes_json=diff_changes({"roles": before_roles}, {"roles": after_roles}),
+        ))
+
+    # ── Qualifications ──────────────────────────────────────────────────────
+    if current_user.has_permission("user.assign_qualification"):
+        from app.models.qualification import Qualification
+        cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
+        before_quals = sorted(c.name for c in user.qualifications)
+        new_creds = db.session.scalars(
+            db.select(Qualification).where(Qualification.id.in_(cred_ids))
+        ).all() if cred_ids else []
+        user.qualifications = list(new_creds)
+        after_quals = sorted(c.name for c in user.qualifications)
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="UserAccount",
+            entity_id=str(user.id),
+            summary=f"Kvalifikace uživatele {user.name} aktualizovány",
+            changes_json=diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}),
+        ))
+
+    # ── Admin password set (optional) ───────────────────────────────────────
+    new_password = request.form.get("new_password", "").strip()
+    if new_password:
+        if len(new_password) < 8:
+            flash("Heslo musí mít alespoň 8 znaků.", "danger")
+            return redirect(url_for("users.detail", user_id=user_id))
+        user.set_password(new_password)
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="UserAccount",
+            entity_id=str(user.id),
+            summary=f"Admin nastavil heslo pro uživatele {user.name}",
+            changes_json={},
+        ))
+
     db.session.commit()
-    flash("Údaje uživatele byly uloženy.", "success")
+    flash("Uživatel byl uložen.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
 
 
@@ -378,7 +428,14 @@ def invites() -> str:
         .options(selectinload(RegistrationInvite.outbox_email))  # type: ignore[arg-type]
         .order_by(RegistrationInvite.created_at.desc())
     ).all()
-    return render_template("users/invites.html", invites=items)
+    # Pre-fill form with last invite's subject/message so admin doesn't retype
+    last = db.session.scalar(
+        db.select(RegistrationInvite)
+        .where(RegistrationInvite.outbox_email_id.is_not(None))
+        .order_by(RegistrationInvite.created_at.desc())
+        .limit(1)
+    )
+    return render_template("users/invites.html", invites=items, last_invite=last)
 
 
 @users_bp.route("/invites/create", methods=["POST"])

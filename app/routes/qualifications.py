@@ -40,7 +40,7 @@ def index() -> str:
     if not current_user.has_permission("qualification.view"):
         abort(403)
     qualifications = db.session.scalars(
-        db.select(Qualification).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
     ).all()
     return render_template("qualifications/index.html", qualifications=qualifications)
 
@@ -53,7 +53,7 @@ def create() -> str | Response:
     if not current_user.has_permission("qualification.create"):
         abort(403)
 
-    all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)).all()  # noqa: E712
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -64,7 +64,7 @@ def create() -> str | Response:
             flash("Název kvalifikace je povinný.", "danger")
             return render_template("qualifications/create.html", all_qualifications=all_qualifications)
 
-        if db.session.scalar(db.select(Qualification).where(Qualification.name == name)):
+        if db.session.scalar(db.select(Qualification).where(Qualification.name == name, Qualification.is_deleted == False)):  # noqa: E712
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
             return render_template("qualifications/create.html", all_qualifications=all_qualifications)
 
@@ -98,7 +98,7 @@ def edit(cred_id: int) -> str | Response:
         abort(404)
 
     all_qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.id != cred_id).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
     ).all()
 
     if request.method == "POST":
@@ -111,7 +111,7 @@ def edit(cred_id: int) -> str | Response:
             return render_template("qualifications/edit.html", cred=cred, all_qualifications=all_qualifications)
 
         conflict = db.session.scalar(
-            db.select(Qualification).where(Qualification.name == name, Qualification.id != cred_id)
+            db.select(Qualification).where(Qualification.name == name, Qualification.id != cred_id, Qualification.is_deleted == False)  # noqa: E712
         )
         if conflict:
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
@@ -137,6 +137,64 @@ def edit(cred_id: int) -> str | Response:
 
 # ── Delete ────────────────────────────────────────────────────────────────────
 
+@qualifications_bp.get("/<int:cred_id>/delete")
+@login_required
+def delete_confirm(cred_id: int) -> str | Response:
+    if not current_user.has_permission("qualification.delete"):
+        abort(403)
+
+    cred = db.session.get(Qualification, cred_id)
+    if cred is None:
+        abort(404)
+    if cred.is_deleted:
+        flash("Tato kvalifikace již byla smazána.", "warning")
+        return redirect(url_for("qualifications.index"))
+
+    from app.models.event import (
+        Event, EventSpot, EventStatus, EventTemplate, EventSpotTemplate,
+    )
+
+    _FIXED = (EventStatus.COMPLETED, EventStatus.CANCELLED)
+
+    # Active spots (editable events) — will be unlinked
+    active_spots = db.session.scalars(
+        db.select(EventSpot)
+        .join(EventSpot.event)
+        .join(EventSpot.required_qualifications)
+        .where(Qualification.id == cred_id)
+        .where(Event.status.not_in(_FIXED))
+    ).all()
+
+    # Fixed spots (completed/cancelled events) — will keep link as tombstone
+    fixed_spots = db.session.scalars(
+        db.select(EventSpot)
+        .join(EventSpot.event)
+        .join(EventSpot.required_qualifications)
+        .where(Qualification.id == cred_id)
+        .where(Event.status.in_(_FIXED))
+    ).all()
+
+    # Users holding this qualification — will be unlinked
+    affected_users = list(cred.holders.all())
+
+    # Templates referencing this qualification — will be unlinked
+    affected_templates = db.session.scalars(
+        db.select(EventTemplate)
+        .join(EventTemplate.spot_templates)
+        .join(EventSpotTemplate.required_qualifications)
+        .where(Qualification.id == cred_id)
+    ).unique().all()
+
+    return render_template(
+        "qualifications/delete_confirm.html",
+        cred=cred,
+        active_spots=active_spots,
+        fixed_spots=fixed_spots,
+        affected_users=affected_users,
+        affected_templates=affected_templates,
+    )
+
+
 @qualifications_bp.post("/<int:cred_id>/delete")
 @login_required
 def delete(cred_id: int) -> Response:
@@ -146,21 +204,72 @@ def delete(cred_id: int) -> Response:
     cred = db.session.get(Qualification, cred_id)
     if cred is None:
         abort(404)
+    if cred.is_deleted:
+        flash("Tato kvalifikace již byla smazána.", "warning")
+        return redirect(url_for("qualifications.index"))
 
-    # Guard: cannot delete if assigned to users or spots
     from app.models.qualification import user_qualifications
-    holder_count = db.session.scalar(
+    from app.models.event import (
+        spot_qualifications, spot_template_qualifications,
+        Event, EventSpot, EventStatus,
+    )
+
+    _FIXED = (EventStatus.COMPLETED, EventStatus.CANCELLED)
+    qual_name = cred.name
+
+    # ── Remove from active event spots ────────────────────────────────────────
+    active_spot_ids = db.session.scalars(
+        db.select(EventSpot.id)
+        .join(EventSpot.event)
+        .join(EventSpot.required_qualifications)
+        .where(Qualification.id == cred_id)
+        .where(Event.status.not_in(_FIXED))
+    ).all()
+
+    if active_spot_ids:
+        db.session.execute(
+            spot_qualifications.delete().where(
+                spot_qualifications.c.qualification_id == cred_id,
+                spot_qualifications.c.spot_id.in_(active_spot_ids),
+            )
+        )
+        _audit("qualification_unlinked", cred,
+               f"Kvalifikace '{qual_name}' odebrána z {len(active_spot_ids)} aktivní(ch) pozice/pozic akcí")
+
+    # ── Remove from event templates ────────────────────────────────────────────
+    tmpl_count = db.session.scalar(
+        db.select(db.func.count()).select_from(spot_template_qualifications).where(
+            spot_template_qualifications.c.qualification_id == cred_id
+        )
+    ) or 0
+    if tmpl_count:
+        db.session.execute(
+            spot_template_qualifications.delete().where(
+                spot_template_qualifications.c.qualification_id == cred_id
+            )
+        )
+        _audit("qualification_unlinked", cred,
+               f"Kvalifikace '{qual_name}' odebrána z {tmpl_count} šablony/šablon")
+
+    # ── Remove from user qualifications ───────────────────────────────────────
+    user_count = db.session.scalar(
         db.select(db.func.count()).select_from(user_qualifications).where(
             user_qualifications.c.qualification_id == cred_id
         )
-    )
-    if holder_count and holder_count > 0:
-        flash(f"Nelze smazat kvalifikaci '{cred.name}' — je přiřazena uživatelům.", "danger")
-        return redirect(url_for("qualifications.index"))
+    ) or 0
+    if user_count:
+        db.session.execute(
+            user_qualifications.delete().where(
+                user_qualifications.c.qualification_id == cred_id
+            )
+        )
+        _audit("qualification_unlinked", cred,
+               f"Kvalifikace '{qual_name}' odebrána od {user_count} uživatele/uživatelů")
 
-    _audit("delete", cred, f"Smazána kvalifikace '{cred.name}'")
-    db.session.delete(cred)
+    # ── Soft-delete (fixed spots keep the FK as tombstone) ────────────────────
+    cred.soft_delete()
+    _audit("delete", cred, f"Kvalifikace '{qual_name}' označena jako smazaná (tombstone zachován v dokončených/zrušených akcích)")
     db.session.commit()
 
-    flash(f"Kvalifikace '{cred.name}' byla smazána.", "success")
+    flash(f"Kvalifikace '{qual_name}' byla smazána.", "success")
     return redirect(url_for("qualifications.index"))

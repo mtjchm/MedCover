@@ -2,94 +2,94 @@
 {% block title %}{{ user.name }} — MedCover{% endblock %}
 
 {% block content %}
-<div class="mb-3">
+<div class="mb-3 d-flex justify-content-between align-items-center">
   <a href="{{ url_for('users.index') }}" class="btn btn-sm btn-outline-secondary">← Zpět na uživatele</a>
+  <div class="d-flex gap-2">
+    {% if not user.is_active and current_user.has_permission('user.activate') %}
+    <form method="POST" action="{{ url_for('users.activate', user_id=user.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-success">Aktivovat</button>
+    </form>
+    {% endif %}
+    {% if user.is_active and current_user.has_permission('user.deactivate') and user.id != current_user.id %}
+    <form method="POST" action="{{ url_for('users.deactivate', user_id=user.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-warning"
+              onclick="return confirm('Deaktivovat účet {{ user.name }}?')">Deaktivovat</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
-<div class="row g-4">
-  <div class="col-12 col-lg-5">
-    <!-- ── Info card ── -->
-    <div class="card mb-4">
-      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-        {{ user.name }}
-        {% if user.is_active %}
-          <span class="badge bg-success">Aktivní</span>
-        {% else %}
-          <span class="badge bg-warning text-dark">Neaktivní</span>
-        {% endif %}
-      </div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-5">E-mail</dt><dd class="col-7">{{ user.email }}</dd>
-          <dt class="col-5">Telefon</dt><dd class="col-7">{{ user.phone or '—' }}</dd>
-          <dt class="col-5">Registrace</dt><dd class="col-7">{{ user.created_at | localdt }}</dd>
-        </dl>
-      </div>
-      <div class="card-footer d-flex gap-2">
-        {% if current_user.has_permission('user.edit_any') %}
-        <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#editUserForm">
-          Upravit údaje
-        </button>
-        {% endif %}
-        {% if not user.is_active and current_user.has_permission('user.activate') %}
-        <form method="POST" action="{{ url_for('users.activate', user_id=user.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-sm btn-success">Aktivovat</button>
-        </form>
-        {% endif %}
-        {% if user.is_active and current_user.has_permission('user.deactivate') and user.id != current_user.id %}
-        <form method="POST" action="{{ url_for('users.deactivate', user_id=user.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-sm btn-warning"
-                  onclick="return confirm('Deaktivovat účet {{ user.name }}?')">Deaktivovat</button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
+<form method="POST" action="{{ url_for('users.save_user', user_id=user.id) }}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    {% if current_user.has_permission('user.edit_any') %}
-    <div class="collapse mb-4" id="editUserForm">
-      <div class="card border-primary">
-        <div class="card-header fw-semibold text-primary">Upravit údaje uživatele</div>
+  <div class="row g-4">
+    {# ── Left column: info + password ── #}
+    <div class="col-12 col-lg-5">
+
+      <div class="card mb-4">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          Základní údaje
+          {% if user.is_active %}
+            <span class="badge bg-success">Aktivní</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">Neaktivní</span>
+          {% endif %}
+        </div>
         <div class="card-body">
-          <form method="POST" action="{{ url_for('users.edit_user', user_id=user.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="mb-3">
-              <label class="form-label" for="edit_name">Jméno</label>
-              <input class="form-control" type="text" id="edit_name" name="name"
-                     value="{{ user.name }}" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="edit_email">E-mail</label>
-              <input class="form-control" type="email" id="edit_email" name="email"
-                     value="{{ user.email }}" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="edit_phone">Telefon</label>
-              <input class="form-control" type="tel" id="edit_phone" name="phone"
-                     value="{{ user.phone or '' }}">
-              <div class="invalid-feedback">Neplatný formát. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).</div>
-            </div>
-            <button type="submit" class="btn btn-primary">Uložit</button>
-            <button type="button" class="btn btn-outline-secondary"
-                    data-bs-toggle="collapse" data-bs-target="#editUserForm">Zrušit</button>
-          </form>
+          {% if current_user.has_permission('user.edit_any') %}
+          <div class="mb-3">
+            <label class="form-label" for="edit_name">Jméno</label>
+            <input class="form-control" type="text" id="edit_name" name="name"
+                   value="{{ user.name }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="edit_email">E-mail</label>
+            <input class="form-control" type="email" id="edit_email" name="email"
+                   value="{{ user.email }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="edit_phone">Telefon</label>
+            <input class="form-control" type="tel" id="edit_phone" name="phone"
+                   value="{{ user.phone or '' }}">
+            <div class="invalid-feedback">Neplatný formát. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).</div>
+          </div>
+          {% else %}
+          <dl class="row mb-0">
+            <dt class="col-5">Jméno</dt><dd class="col-7">{{ user.name }}</dd>
+            <dt class="col-5">E-mail</dt><dd class="col-7">{{ user.email }}</dd>
+            <dt class="col-5">Telefon</dt><dd class="col-7">{{ user.phone or '—' }}</dd>
+            <dt class="col-5">Registrace</dt><dd class="col-7">{{ user.created_at | localdt }}</dd>
+          </dl>
+          {% endif %}
         </div>
       </div>
+
+      {% if current_user.has_permission('user.edit_any') %}
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">Nastavit heslo <span class="text-muted fw-normal fs-6">(volitelné)</span></div>
+        <div class="card-body">
+          <div class="mb-2">
+            <input class="form-control" type="password" id="new_password" name="new_password"
+                   autocomplete="new-password" placeholder="Nové heslo (min. 8 znaků)">
+            <div class="form-text">Ponechte prázdné, pokud heslo neměníte.</div>
+            <div class="invalid-feedback">Heslo musí mít alespoň 8 znaků.</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
     </div>
-    {% endif %}
 
-  </div>
+    {# ── Right column: roles + qualifications ── #}
+    <div class="col-12 col-lg-7">
 
-  <div class="col-12 col-lg-7">
-    <!-- ── Roles ── -->
-    {% if current_user.has_permission('user.assign_role') %}
-    <div class="card mb-4">
-      <div class="card-header fw-semibold">Role</div>
-      <div class="card-body">
-        <form method="POST" action="{{ url_for('users.update_roles', user_id=user.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="d-flex flex-wrap gap-2 mb-3">
+      {% if current_user.has_permission('user.assign_role') %}
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">Role</div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
             {% for role in all_roles %}
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="role_ids"
@@ -99,18 +99,15 @@
             </div>
             {% endfor %}
           </div>
-          <button type="submit" class="btn btn-sm btn-danger">Uložit role</button>
-        </form>
+        </div>
       </div>
-    </div>
+      {% endif %}
 
-    <!-- ── Credentials ── -->
-    <div class="card mb-4">
-      <div class="card-header fw-semibold">Kvalifikace</div>
-      <div class="card-body">
-        <form method="POST" action="{{ url_for('users.update_qualifications', user_id=user.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="row g-2 mb-3">
+      {% if current_user.has_permission('user.assign_qualification') %}
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">Kvalifikace</div>
+        <div class="card-body">
+          <div class="row g-2">
             {% for cred in all_qualifications %}
             <div class="col-12 col-md-6">
               <div class="form-check">
@@ -122,13 +119,21 @@
             </div>
             {% endfor %}
           </div>
-          <button type="submit" class="btn btn-sm btn-danger">Uložit kvalifikace</button>
-        </form>
+        </div>
       </div>
+      {% endif %}
+
     </div>
-    {% endif %}
   </div>
-</div>
+
+  {% if current_user.has_permission('user.edit_any') %}
+  <div class="d-flex gap-2 mt-2">
+    <button type="submit" class="btn btn-danger">Uložit uživatele</button>
+    <a href="{{ url_for('users.index') }}" class="btn btn-outline-secondary">Zrušit</a>
+  </div>
+  {% endif %}
+
+</form>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -147,18 +152,37 @@
     return ok;
   }
 
-  const phoneInput = document.getElementById('edit_phone');
-  if (!phoneInput) return;
-  phoneInput.addEventListener('input', () => validatePhoneInput(phoneInput));
-  phoneInput.addEventListener('blur', () => validatePhoneInput(phoneInput));
+  function validatePasswordInput(input) {
+    const val = input.value;
+    if (val === '') {
+      input.classList.remove('is-invalid', 'is-valid');
+      return true;
+    }
+    const ok = val.length >= 8;
+    input.classList.toggle('is-invalid', !ok);
+    input.classList.toggle('is-valid', ok);
+    return ok;
+  }
 
-  const form = phoneInput.closest('form');
+  const phoneInput = document.getElementById('edit_phone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', () => validatePhoneInput(phoneInput));
+    phoneInput.addEventListener('blur', () => validatePhoneInput(phoneInput));
+  }
+
+  const pwInput = document.getElementById('new_password');
+  if (pwInput) {
+    pwInput.addEventListener('input', () => validatePasswordInput(pwInput));
+    pwInput.addEventListener('blur', () => validatePasswordInput(pwInput));
+  }
+
+  const form = document.querySelector('form[action*="/save"]');
   if (form) {
     form.addEventListener('submit', function (e) {
-      if (!validatePhoneInput(phoneInput)) {
-        e.preventDefault();
-        phoneInput.focus();
-      }
+      let ok = true;
+      if (phoneInput && !validatePhoneInput(phoneInput)) ok = false;
+      if (pwInput && !validatePasswordInput(pwInput)) ok = false;
+      if (!ok) e.preventDefault();
     });
   }
 })();

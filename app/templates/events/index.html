@@ -34,20 +34,24 @@
   </div>
 </div>
 
-{# Status legend #}
-<div class="mb-3" id="status-legend">
-  <div class="d-flex gap-2 flex-wrap small mb-1">
-    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Akce je ve fázi přípravy, není viditelná pro členy.">Koncept</span>
-    <span class="badge bg-primary" data-bs-toggle="tooltip" title="Akce je viditelná, ale přihlašování ještě nezačalo.">Zveřejněná</span>
-    <span class="badge bg-success" data-bs-toggle="tooltip" title="Členové se mohou přihlašovat na volné pozice.">Přihlášky otevřeny</span>
-    <span class="badge" style="background:#ffc107;color:#000" data-bs-toggle="tooltip" title="Přihlašování bylo uzavřeno.">Přihlášky uzavřeny</span>
-    <span class="badge bg-dark" data-bs-toggle="tooltip" title="Akce proběhla a byla uzavřena.">Dokončena</span>
-    <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Akce byla zrušena."><s>Zrušena</s></span>
-  </div>
-  <div class="text-muted small">
-    Obsazení: <strong>obsazeno / celkem pozic</strong> &nbsp;·&nbsp;
-    Čas v kalendáři: <strong>čas začátku akce</strong>
-  </div>
+{# ── Status filter bar ──────────────────────────────────────────────────── #}
+<div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
+  <small class="text-muted me-1">Filtr:</small>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT"
+          data-bs-toggle="tooltip" title="Akce ve fázi přípravy">Koncept</button>
+  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED"
+          data-bs-toggle="tooltip" title="Zveřejněná, přihlašování nezačalo">Zveřejněná</button>
+  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN"
+          data-bs-toggle="tooltip" title="Přihlašování je otevřeno">Přihlášky otevřeny</button>
+  <button type="button" class="btn btn-sm filter-btn" data-status="ASSIGNMENTS_CLOSED"
+          style="color:#000;border-color:#ffc107"
+          data-bs-toggle="tooltip" title="Přihlašování bylo uzavřeno">Přihlášky uzavřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn filter-btn-neutral" data-status="COMPLETED"
+          data-bs-toggle="tooltip" title="Proběhlé a uzavřené akce">Dokončena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED"
+          data-bs-toggle="tooltip" title="Zrušené akce">Zrušena</button>
+  <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
+          onclick="resetFilters()">Výchozí</button>
 </div>
 
 {% set status_colors = {
@@ -63,20 +67,29 @@
 <div id="view-table">
   {% if events %}
   <div class="table-responsive">
-    <table class="table table-hover align-middle">
+    <table class="table table-hover align-middle" id="events-table">
       <thead class="table-light">
         <tr>
-          <th>Název</th>
-          <th>Nadřazená akce</th>
-          <th>Začátek</th>
-          <th>Stav</th>
-          <th>Obsazení</th>
-        <th>Zodpovědný zdravotník</th>
+          <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap">
+            Název <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:nowrap">
+            Nadřazená akce <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="start" style="cursor:pointer;white-space:nowrap">
+            Začátek <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="status" style="cursor:pointer;white-space:nowrap">
+            Stav <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="staffing" style="cursor:pointer;white-space:nowrap">
+            Obsazení <span class="sort-icon text-muted">↕</span></th>
+          <th class="sortable" data-col="rp" style="cursor:pointer;white-space:nowrap">
+            Zodpovědný zdravotník <span class="sort-icon text-muted">↕</span></th>
         </tr>
       </thead>
       <tbody>
         {% for event in events %}
-        <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}">
+        {% set staffing_ratio = (event.filled_spots / event.total_spots) if event.total_spots > 0 else 0 %}
+        <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
+            data-status="{{ event.status.name }}"
+            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td>
             <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none fw-semibold {{ 'text-muted text-decoration-line-through' if event.status == EventStatus.CANCELLED }}">
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
@@ -84,9 +97,9 @@
             {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
           </td>
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
-          <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
+          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
           <td>
-            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
+            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}" style="white-space:normal;max-width:5.5rem">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
@@ -97,6 +110,7 @@
       </tbody>
     </table>
   </div>
+  <p class="text-muted small" id="table-empty-msg" style="display:none">Žádné akce neodpovídají aktivním filtrům.</p>
   {% else %}
   <p class="text-muted">Žádné akce nenalezeny.</p>
   {% endif %}
@@ -112,14 +126,169 @@
 {# FullCalendar v6 (CDN) #}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
+<style>
+  .sortable:hover { background-color: rgba(0,0,0,.04); }
+  .sort-icon { font-size: .75em; }
+  /* Theme-aware "dark/completed" filter button */
+  .filter-btn-neutral {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: var(--bs-secondary-color);
+    --bs-btn-hover-color: var(--bs-body-bg);
+    --bs-btn-hover-bg: var(--bs-body-color);
+    --bs-btn-hover-border-color: var(--bs-body-color);
+    --bs-btn-active-color: var(--bs-body-bg);
+    --bs-btn-active-bg: var(--bs-body-color);
+    --bs-btn-active-border-color: var(--bs-body-color);
+  }
+</style>
+
 <script>
-  const FEED_URL = "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}";
-  const STORAGE_KEY = "medcover_events_view";
+  const FEED_URL_BASE = "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}";
+  const HAS_DRAFT_PERM = {{ 'true' if has_draft_perm else 'false' }};
+  const STORAGE_VIEW  = "medcover_events_view";
+  const STORAGE_FILT  = "medcover_events_filters";
+  const STORAGE_SORT  = "medcover_events_sort";
+
+  // Default visible statuses: active statuses; draft hidden by default even for admins
+  const DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+
   let calendarInitialized = false;
   let calendar = null;
+  let allCalendarEvents = null;   // cache for client-side calendar filter
+  let sortState = { col: "start", dir: "asc" };
+
+  // ── Filter state ────────────────────────────────────────────────────────
+
+  function loadFilters() {
+    try {
+      const s = localStorage.getItem(STORAGE_FILT);
+      if (s) return JSON.parse(s);
+    } catch(e) {}
+    return [...DEFAULT_FILTERS];
+  }
+
+  function saveFilters(f) {
+    localStorage.setItem(STORAGE_FILT, JSON.stringify(f));
+  }
+
+  function loadSort() {
+    try {
+      const s = localStorage.getItem(STORAGE_SORT);
+      if (s) return JSON.parse(s);
+    } catch(e) {}
+    return { col: "start", dir: "asc" };
+  }
+
+  function saveSort(s) {
+    localStorage.setItem(STORAGE_SORT, JSON.stringify(s));
+  }
+
+  // ── Filter buttons ───────────────────────────────────────────────────────
+
+  function renderFilterButtons(activeFilters) {
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      const key = btn.dataset.status;
+      const on = activeFilters.includes(key);
+      btn.classList.toggle("active", on);
+      // "ASSIGNMENTS_CLOSED" has custom inline style — handle active bg separately
+      if (key === "ASSIGNMENTS_CLOSED") {
+        btn.style.backgroundColor = on ? "#ffc107" : "";
+        btn.style.color = on ? "#000" : "";
+        btn.style.borderColor = "#ffc107";
+      }
+    });
+  }
+
+  function toggleFilter(key) {
+    const f = loadFilters();
+    const idx = f.indexOf(key);
+    if (idx >= 0) f.splice(idx, 1); else f.push(key);
+    saveFilters(f);
+    renderFilterButtons(f);
+    applyFilters(f);
+  }
+
+  function resetFilters() {
+    saveFilters([...DEFAULT_FILTERS]);
+    renderFilterButtons([...DEFAULT_FILTERS]);
+    applyFilters([...DEFAULT_FILTERS]);
+  }
+
+  // ── Table filter + sort ──────────────────────────────────────────────────
+
+  function applyFilters(activeFilters) {
+    const tbody = document.querySelector("#events-table tbody");
+    if (!tbody) return;
+    let visibleCount = 0;
+    tbody.querySelectorAll("tr").forEach(row => {
+      const statusKey = row.dataset.status;
+      const visible = activeFilters.includes(statusKey);
+      row.style.display = visible ? "" : "none";
+      if (visible) visibleCount++;
+    });
+    const emptyMsg = document.getElementById("table-empty-msg");
+    if (emptyMsg) emptyMsg.style.display = visibleCount === 0 ? "" : "none";
+
+    // Refresh calendar if already initialized
+    if (calendarInitialized && calendar) {
+      calendar.refetchEvents();
+    }
+  }
+
+  function sortTable(col) {
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+    } else {
+      sortState.col = col;
+      sortState.dir = "asc";
+    }
+    saveSort(sortState);
+    renderSortIcons();
+    doSort();
+  }
+
+  function renderSortIcons() {
+    document.querySelectorAll(".sortable").forEach(th => {
+      const icon = th.querySelector(".sort-icon");
+      if (!icon) return;
+      if (th.dataset.col === sortState.col) {
+        icon.textContent = sortState.dir === "asc" ? "↑" : "↓";
+        icon.classList.remove("text-muted");
+      } else {
+        icon.textContent = "↕";
+        icon.classList.add("text-muted");
+      }
+    });
+  }
+
+  function doSort() {
+    const tbody = document.querySelector("#events-table tbody");
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+    const col = sortState.col;
+    const dir = sortState.dir === "asc" ? 1 : -1;
+
+    rows.sort((a, b) => {
+      const aVals = JSON.parse(a.dataset.sv || "{}");
+      const bVals = JSON.parse(b.dataset.sv || "{}");
+      const av = (aVals[col] || "").toString();
+      const bv = (bVals[col] || "").toString();
+      if (col === "start") {
+        return dir * av.localeCompare(bv);
+      } else if (col === "staffing") {
+        return dir * (parseFloat(av) - parseFloat(bv));
+      } else {
+        return dir * av.localeCompare(bv, "cs");
+      }
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  }
+
+  // ── View toggle ──────────────────────────────────────────────────────────
 
   function setView(view) {
-    localStorage.setItem(STORAGE_KEY, view);
+    localStorage.setItem(STORAGE_VIEW, view);
     document.getElementById("view-table").style.display    = view === "table"    ? "" : "none";
     document.getElementById("view-calendar").style.display = view === "calendar" ? "" : "none";
     document.getElementById("btn-table-view").classList.toggle("active", view === "table");
@@ -129,6 +298,8 @@
       initCalendar();
     }
   }
+
+  // ── Calendar ─────────────────────────────────────────────────────────────
 
   function initCalendar() {
     calendarInitialized = true;
@@ -141,13 +312,17 @@
         center: "title",
         right:  "dayGridMonth,timeGridWeek,listMonth"
       },
-      buttonText: {
-        today:     "Dnes",
-        month:     "Měsíc",
-        week:      "Týden",
-        list:      "Seznam"
+      buttonText: { today: "Dnes", month: "Měsíc", week: "Týden", list: "Seznam" },
+      events: async function(fetchInfo, successCallback, failureCallback) {
+        try {
+          if (!allCalendarEvents) {
+            const r = await fetch(FEED_URL_BASE);
+            allCalendarEvents = await r.json();
+          }
+          const active = loadFilters();
+          successCallback(allCalendarEvents.filter(e => active.includes(e.extendedProps.status_key)));
+        } catch(err) { failureCallback(err); }
       },
-      events: FEED_URL,
       eventClick: function(info) {
         info.jsEvent.preventDefault();
         window.location.href = info.event.url;
@@ -175,9 +350,31 @@
     calendar.render();
   }
 
-  // Restore saved view on page load
+  // ── Init ─────────────────────────────────────────────────────────────────
+
   document.addEventListener("DOMContentLoaded", function() {
-    const saved = localStorage.getItem(STORAGE_KEY) || "table";
+    // Restore sort
+    sortState = loadSort();
+    renderSortIcons();
+    doSort();
+
+    // Attach sort click handlers
+    document.querySelectorAll(".sortable").forEach(th => {
+      th.addEventListener("click", () => sortTable(th.dataset.col));
+    });
+
+    // Attach filter button click handlers
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      btn.addEventListener("click", () => toggleFilter(btn.dataset.status));
+    });
+
+    // Apply saved filters
+    const activeFilters = loadFilters();
+    renderFilterButtons(activeFilters);
+    applyFilters(activeFilters);
+
+    // Restore saved view
+    const saved = localStorage.getItem(STORAGE_VIEW) || "table";
     setView(saved);
   });
 </script>

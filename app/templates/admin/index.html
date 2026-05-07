@@ -81,14 +81,32 @@
 
   {# E-mail fronta #}
   <div class="col-6 col-md-3">
-    {% set q_border = 'danger' if outbox_failed > 0 else ('warning' if outbox_pending > 0 else 'success') %}
+    {% if outbox_last_status == 'sent' %}
+      {% set q_border = 'success' %}
+    {% elif outbox_last_status == 'failed' %}
+      {% set q_border = 'danger' %}
+    {% elif outbox_last_status == 'pending' %}
+      {% set q_border = 'warning' %}
+    {% else %}
+      {% set q_border = 'secondary' %}
+    {% endif %}
     <div class="card h-100 border-{{ q_border }}">
       <div class="card-body py-2 px-3">
-        <div class="small text-muted">Fronta e-mailů</div>
-        <span class="fw-semibold">{{ outbox_pending }} čeká</span>
-        {% if outbox_failed > 0 %}
-          <span class="badge bg-danger ms-1">{{ outbox_failed }} selhalo</span>
-        {% endif %}
+        <div class="small text-muted">Fronta e-mailů (24 h)</div>
+        <div class="d-flex gap-2 flex-wrap align-items-baseline mt-1">
+          {% if outbox_sent > 0 %}
+            <span class="badge bg-success">{{ outbox_sent }} odesláno</span>
+          {% endif %}
+          {% if outbox_pending > 0 %}
+            <span class="badge bg-warning text-dark">{{ outbox_pending }} čeká</span>
+          {% endif %}
+          {% if outbox_failed > 0 %}
+            <span class="badge bg-danger">{{ outbox_failed }} selhalo</span>
+          {% endif %}
+          {% if outbox_sent == 0 and outbox_pending == 0 and outbox_failed == 0 %}
+            <span class="text-muted small">žádná aktivita</span>
+          {% endif %}
+        </div>
         {% if outbox_last_sent %}
           <div class="text-muted" style="font-size:0.75rem">posl. odesláno {{ outbox_last_sent | localdt }}</div>
         {% endif %}
