@@ -25,52 +25,13 @@ MAIL_QUEUE_INTERVAL_SECONDS: int = int(os.environ.get("MAIL_QUEUE_INTERVAL_SECON
 def process_email_queue() -> None:
     """Drain the outbox_email queue one message at a time.
 
-    Called every MAIL_QUEUE_INTERVAL_SECONDS (default 6 s).  Picks the oldest
-    pending (or retriable failed) row, attempts SMTP delivery, then marks it
-    sent or increments the retry counter.  After MAX_RETRIES failures the row
-    is permanently marked 'failed' so it can be inspected by an admin.
+    Called every MAIL_QUEUE_INTERVAL_SECONDS (default 6 s).  Delegates to
+    app.mail.drain_one_outbox_email which contains the actual logic and can
+    also be called directly in tests without importing the scheduler.
     """
     with app.app_context():
-        from app.extensions import db, mail
-        from app.models.outbox import OutboxEmail
-        from flask_mail import Message
-
-        row: OutboxEmail | None = db.session.scalars(
-            db.select(OutboxEmail)
-            .where(
-                OutboxEmail.status == "pending",
-                OutboxEmail.retry_count < OutboxEmail.MAX_RETRIES,
-            )
-            .order_by(OutboxEmail.created_at.asc())
-            .limit(1)
-            .with_for_update(skip_locked=True)
-        ).first()
-
-        if row is None:
-            return
-
-        try:
-            msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)
-            mail.send(msg)
-            row.status = "sent"
-            row.sent_at = datetime.now(timezone.utc)
-            log.info("Mail sent: id=%d to=%s subject=%r", row.id, row.to_email, row.subject)
-        except Exception as exc:  # noqa: BLE001
-            row.retry_count += 1
-            row.last_error = str(exc)
-            if row.retry_count >= OutboxEmail.MAX_RETRIES:
-                row.status = "failed"
-                log.error(
-                    "Mail permanently failed: id=%d to=%s — %s (after %d retries)",
-                    row.id, row.to_email, exc, row.retry_count,
-                )
-            else:
-                log.warning(
-                    "Mail send failed (attempt %d/%d): id=%d to=%s — %s",
-                    row.retry_count, OutboxEmail.MAX_RETRIES, row.id, row.to_email, exc,
-                )
-
-        db.session.commit()
+        from app.mail import drain_one_outbox_email
+        drain_one_outbox_email()
 
 
 def open_assignments() -> None:

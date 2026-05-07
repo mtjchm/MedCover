@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+import click
 from flask import Flask, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
 from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
@@ -155,3 +156,71 @@ def register_cli_commands(app: Flask) -> None:
             sys.exit(1)
         else:
             print(f"Schema OK — verified {table_count} tables, all columns present.")
+
+    @app.cli.command("send-test-email")
+    @click.argument("to_email")
+    def send_test_email(to_email: str) -> None:
+        """Send a live test email to TO_EMAIL to verify the SMTP configuration.
+
+        Bypasses the outbox queue and sends immediately so you get instant
+        feedback on whether the SMTP credentials and relay are working.
+
+        Example:
+            docker compose exec web flask send-test-email you@example.com
+        """
+        import socket
+        import time
+        import sys
+        from flask_mail import Message
+        from app.models.settings import get_settings
+        from app.extensions import mail as _flask_mail
+
+        settings = get_settings()
+        if not settings.smtp_configured:
+            print("✘ SMTP is not configured in AppSettings. Run the setup wizard first.")
+            sys.exit(1)
+
+        print(f"SMTP server : {settings.smtp_server}:{settings.smtp_port}")
+        print(f"Username    : {settings.smtp_username}")
+        print(f"TLS         : {settings.smtp_use_tls}")
+        print(f"Sender      : {settings.smtp_default_sender}")
+        print(f"Recipient   : {to_email}")
+        print()
+
+        # Apply current SMTP settings to app config
+        settings.apply_to_app(app)
+
+        # TCP reachability check
+        print(f"1/2  Checking TCP connectivity to {settings.smtp_server}:{settings.smtp_port} …", end=" ", flush=True)
+        t0 = time.monotonic()
+        try:
+            with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=5):
+                ms = int((time.monotonic() - t0) * 1000)
+                print(f"OK ({ms} ms)")
+        except (TimeoutError, OSError) as exc:
+            print(f"FAILED — {exc}")
+            sys.exit(1)
+
+        # Actual SMTP send
+        print("2/2  Sending test email via SMTP …", end=" ", flush=True)
+        t0 = time.monotonic()
+        try:
+            msg = Message(
+                subject="MedCover — Test SMTP",
+                recipients=[to_email],
+                body=(
+                    "Tento e-mail byl odeslán jako test konfigurace SMTP.\n\n"
+                    f"Server:   {settings.smtp_server}:{settings.smtp_port}\n"
+                    f"Odesílatel: {settings.smtp_default_sender}\n"
+                    f"TLS: {'ano' if settings.smtp_use_tls else 'ne'}\n\n"
+                    "Pokud jste tento e-mail obdrželi, konfigurace SMTP je správná."
+                ),
+            )
+            _flask_mail.send(msg)
+            ms = int((time.monotonic() - t0) * 1000)
+            print(f"OK ({ms} ms)")
+            print(f"\n✔ Test email successfully sent to {to_email}")
+        except Exception as exc:  # noqa: BLE001
+            ms = int((time.monotonic() - t0) * 1000)
+            print(f"FAILED ({ms} ms) — {exc}")
+            sys.exit(1)

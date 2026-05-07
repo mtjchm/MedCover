@@ -16,6 +16,7 @@ All functions are fire-and-forget — exceptions are logged, never raised.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from flask import render_template
@@ -113,3 +114,53 @@ def send_unfilled_spots_reminder(
         f"MedCover — Připomínka: volná místa na akci {event.name}",
         body,
     )
+
+
+# ── Outbox drain (callable from tests and scheduler) ─────────────────────────
+
+def drain_one_outbox_email() -> bool:
+    """Send the oldest pending outbox row within the current app context.
+
+    Returns True if a row was processed (sent or failed), False if the queue
+    was empty.  Designed to be called from both the scheduler and tests.
+    """
+    from app.extensions import mail as _mail
+    from flask_mail import Message
+
+    row: OutboxEmail | None = db.session.scalars(
+        db.select(OutboxEmail)
+        .where(
+            OutboxEmail.status == "pending",
+            OutboxEmail.retry_count < OutboxEmail.MAX_RETRIES,
+        )
+        .order_by(OutboxEmail.created_at.asc())
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    ).first()
+
+    if row is None:
+        return False
+
+    try:
+        msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)
+        _mail.send(msg)
+        row.status = "sent"
+        row.sent_at = datetime.now(timezone.utc)
+        log.info("Mail sent: id=%d to=%s subject=%r", row.id, row.to_email, row.subject)
+    except Exception as exc:  # noqa: BLE001
+        row.retry_count += 1
+        row.last_error = str(exc)
+        if row.retry_count >= OutboxEmail.MAX_RETRIES:
+            row.status = "failed"
+            log.error(
+                "Mail permanently failed: id=%d to=%s — %s (after %d retries)",
+                row.id, row.to_email, exc, row.retry_count,
+            )
+        else:
+            log.warning(
+                "Mail send failed (attempt %d/%d): id=%d to=%s — %s",
+                row.retry_count, OutboxEmail.MAX_RETRIES, row.id, row.to_email, exc,
+            )
+
+    db.session.commit()
+    return True
