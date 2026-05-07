@@ -310,7 +310,9 @@ class TestCreateEventFromTemplate:
     def test_create_event_without_template_uses_spot_count(self, app, admin_client):
         me_id = _make_master_event(app)
         data = _event_form_data(me_id, name="Spot Count Event")
-        data["spot_count"] = "2"
+        data["spot_total"] = "2"
+        data["spot_desc_0"] = "Záchranář"
+        data["spot_desc_1"] = "Zdravotník"
         response = admin_client.post("/events/create", data=data, follow_redirects=False)
         assert response.status_code == 302
         with app.app_context():

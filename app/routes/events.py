@@ -34,6 +34,7 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
+from app.models.credential import Credential
 from app.utils import diff_changes
 import app.mail as mailer
 from zoneinfo import ZoneInfo
@@ -156,12 +157,13 @@ def create() -> str | Response:
     users = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
     ).all()
+    all_credentials = db.session.scalars(db.select(Credential).order_by(Credential.name)).all()
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
         if error or event is None:
             flash(error or "Chyba formuláře.", "danger")
-            return render_template("events/create.html", master_events=master_events, users=users)
+            return render_template("events/create.html", master_events=master_events, users=users, all_credentials=all_credentials)
 
         db.session.add(event)
         db.session.flush()
@@ -183,7 +185,7 @@ def create() -> str | Response:
         flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/create.html", master_events=master_events, users=users)
+    return render_template("events/create.html", master_events=master_events, users=users, all_credentials=all_credentials)
 
 
 # ── Create from template ──────────────────────────────────────────────────────
@@ -205,12 +207,14 @@ def create_from_template(template_id: int) -> str | Response:
     users = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
     ).all()
+    all_credentials = db.session.scalars(db.select(Credential).order_by(Credential.name)).all()
 
     return render_template(
         "events/create.html",
         master_events=master_events,
         users=users,
         template=tmpl,
+        all_credentials=all_credentials,
     )
 
 
@@ -246,6 +250,10 @@ def detail(event_id: int) -> str | Response:
             db.select(EquipmentItem).order_by(EquipmentItem.name)
         ).all()
 
+    all_credentials = db.session.scalars(
+        db.select(Credential).order_by(Credential.name)
+    ).all()
+
     return render_template(
         "events/detail.html",
         event=event,
@@ -253,6 +261,7 @@ def detail(event_id: int) -> str | Response:
         eligible_users=eligible_users,
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
+        all_credentials=all_credentials,
     )
 
 
@@ -446,13 +455,55 @@ def add_spot(event_id: int) -> Response:
         abort(404)
 
     description = request.form.get("description", "").strip() or None
-    spot = EventSpot(event_id=event_id, description=description)
-    db.session.add(spot)
+    try:
+        quantity = max(1, min(10, int(request.form.get("quantity", 1))))
+    except (ValueError, TypeError):
+        quantity = 1
+    cred_ids = [int(c) for c in request.form.getlist("credential_ids") if c.isdigit()]
+    credentials = db.session.scalars(
+        db.select(Credential).where(Credential.id.in_(cred_ids))
+    ).all() if cred_ids else []
+
+    for _ in range(quantity):
+        spot = EventSpot(event_id=event_id, description=description)
+        spot.required_credentials = list(credentials)
+        db.session.add(spot)
+
     event.version += 1
-    _audit("edit", event, f"Přidána pozice k akci '{event.name}'")
+    cred_names = ", ".join(c.name for c in credentials) if credentials else "žádná"
+    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}' (kvalifikace: {cred_names})")
     db.session.commit()
 
-    flash("Místo přidáno.", "success")
+    flash(f"{'Pozice přidány' if quantity > 1 else 'Místo přidáno'}.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+@events_bp.post("/<int:event_id>/spots/<int:spot_id>/edit")
+@login_required
+def edit_spot(event_id: int, spot_id: int) -> Response:
+    if not current_user.has_permission("event.edit"):
+        abort(403)
+    spot = db.session.get(EventSpot, spot_id)
+    if spot is None or spot.event_id != event_id:
+        abort(404)
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+
+    description = request.form.get("description", "").strip() or None
+    cred_ids = [int(c) for c in request.form.getlist("credential_ids") if c.isdigit()]
+    credentials = db.session.scalars(
+        db.select(Credential).where(Credential.id.in_(cred_ids))
+    ).all() if cred_ids else []
+
+    spot.description = description
+    spot.required_credentials = list(credentials)
+    event.version += 1
+    cred_names = ", ".join(c.name for c in credentials) if credentials else "žádná"
+    _audit("edit", event, f"Upravena pozice '{description or '—'}' (kvalifikace: {cred_names})")
+    db.session.commit()
+
+    flash("Pozice upravena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
 
 
@@ -560,10 +611,21 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
 
 
 def _build_spots(event: Event, form: dict) -> None:
-    """Create spots from spot_count field."""
-    spot_count = int(form.get("spot_count", 0) or 0)
-    for _ in range(spot_count):
-        db.session.add(EventSpot(event_id=event.id))
+    """Create spots from the dynamic spot builder fields (spot_desc_N / spot_cred_N)."""
+    try:
+        spot_total = int(form.get("spot_total", 0) or 0)
+    except (ValueError, TypeError):
+        spot_total = 0
+
+    for i in range(spot_total):
+        description = (form.get(f"spot_desc_{i}") or "").strip() or None
+        cred_ids = [int(c) for c in form.getlist(f"spot_cred_{i}") if str(c).isdigit()]
+        credentials = db.session.scalars(
+            db.select(Credential).where(Credential.id.in_(cred_ids))
+        ).all() if cred_ids else []
+        spot = EventSpot(event_id=event.id, description=description)
+        spot.required_credentials = list(credentials)
+        db.session.add(spot)
 
 
 def _build_spots_from_template(event: Event, template: object) -> None:

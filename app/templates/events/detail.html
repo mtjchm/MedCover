@@ -92,7 +92,7 @@
 {# Event details #}
 <div class="row g-3 mb-4">
   <div class="col-12 col-md-6">
-    <div class="card border-0 bg-light h-100">
+    <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
         <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
@@ -104,7 +104,7 @@
     </div>
   </div>
   <div class="col-12 col-md-6">
-    <div class="card border-0 bg-light h-100">
+    <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Obsazení</h6>
         <p class="mb-1">
@@ -119,7 +119,7 @@
   </div>
   {% if event.address or event.contact_person %}
   <div class="col-12 col-md-6">
-    <div class="card border-0 bg-light h-100">
+    <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Místo a kontakt</h6>
         {% if event.address %}<p class="mb-1"><strong>Adresa:</strong> {{ event.address }}</p>{% endif %}
@@ -138,21 +138,56 @@
 <div class="d-flex justify-content-between align-items-center mb-2">
   <h5 class="mb-0">Pozice ({{ event.total_spots }})</h5>
   {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
-    <form method="POST" action="{{ url_for('events.add_spot', event_id=event.id) }}" class="d-flex gap-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis pozice (volitelné)" style="max-width: 220px">
-      <button class="btn btn-outline-danger btn-sm">+ Přidat pozici</button>
-    </form>
+    <button class="btn btn-outline-danger btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#addSpotPanel">+ Přidat pozici</button>
   {% endif %}
 </div>
+
+{% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
+<div class="collapse mb-3" id="addSpotPanel">
+  <div class="card card-body">
+    <form method="POST" action="{{ url_for('events.add_spot', event_id=event.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label small mb-1">Popis pozice</label>
+          <input type="text" class="form-control form-control-sm" name="description" placeholder="např. Záchranář — stanoviště 1">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1">Počet</label>
+          <select class="form-select form-select-sm" name="quantity" style="width: 80px">
+            {% for n in range(1, 11) %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label small mb-1">Požadovaná kvalifikace</label>
+          <div class="d-flex flex-wrap gap-2">
+            {% for cred in all_credentials %}
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="checkbox" name="credential_ids"
+                     value="{{ cred.id }}" id="add_cred_{{ cred.id }}">
+              <label class="form-check-label small" for="add_cred_{{ cred.id }}">{{ cred.name }}</label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-danger btn-sm">Přidat</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% if event.spots %}
 <div class="table-responsive">
   <table class="table table-sm align-middle">
-    <thead class="table-light">
+    <thead>
       <tr>
         <th>#</th>
         <th>Popis</th>
+        <th>Požadovaná kvalifikace</th>
         <th>Přihlášen</th>
         <th></th>
       </tr>
@@ -162,6 +197,15 @@
       <tr>
         <td class="text-muted">{{ loop.index }}</td>
         <td>{{ spot.description or '—' }}</td>
+        <td class="small text-muted">
+          {% if spot.required_credentials %}
+            {% for cred in spot.required_credentials %}
+              <span class="badge bg-secondary">{{ cred.name }}</span>
+            {% endfor %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
         <td>
           {% if spot.assignment %}
             {{ spot.assignment.user.name }}
@@ -176,10 +220,14 @@
               {% set already_assigned = namespace(val=false) %}
               {% for s in event.spots %}{% if s.assignment and s.assignment.user_id == current_user.id %}{% set already_assigned.val = true %}{% endif %}{% endfor %}
               {% if not already_assigned.val %}
-                <form method="POST" action="{{ url_for('assignments.claim', spot_id=spot.id) }}">
+                {% if spot.is_eligible(current_user) %}
+                  <form method="POST" action="{{ url_for('assignments.claim', spot_id=spot.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
-                </form>
+                    <button class="btn btn-success btn-sm py-0">Přihlásit se</button>
+                  </form>
+                {% else %}
+                  <span class="text-muted small" title="Nemáte požadovanou kvalifikaci">Nekvalifikován</span>
+                {% endif %}
               {% endif %}
             {% endif %}
 
@@ -217,6 +265,12 @@
                 <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
               </form>
             {% endif %}
+
+            {# Edit spot (editor) #}
+            {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
+              <button class="btn btn-outline-secondary btn-sm py-0" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#edit-spot-{{ spot.id }}">Upravit</button>
+            {% endif %}
           </div>
 
           {# Collapse: assign another user form #}
@@ -231,6 +285,32 @@
                 {% endfor %}
               </select>
               <button type="submit" class="btn btn-primary btn-sm py-0">OK</button>
+            </form>
+          </div>
+          {% endif %}
+
+          {# Collapse: edit spot form #}
+          {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
+          <div class="collapse mt-2" id="edit-spot-{{ spot.id }}">
+            <form method="POST" action="{{ url_for('events.edit_spot', event_id=event.id, spot_id=spot.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <input type="text" class="form-control form-control-sm" name="description"
+                       value="{{ spot.description or '' }}" placeholder="Popis pozice">
+              </div>
+              <div class="d-flex flex-wrap gap-2 mb-2">
+                {% for cred in all_credentials %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" name="credential_ids"
+                         value="{{ cred.id }}" id="edit_cred_{{ spot.id }}_{{ cred.id }}"
+                         {{ 'checked' if cred in spot.required_credentials }}>
+                  <label class="form-check-label small" for="edit_cred_{{ spot.id }}_{{ cred.id }}">{{ cred.name }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              <button type="submit" class="btn btn-sm btn-danger">Uložit</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="collapse" data-bs-target="#edit-spot-{{ spot.id }}">Zrušit</button>
             </form>
           </div>
           {% endif %}
@@ -257,7 +337,7 @@
   {% if event.equipment_plans %}
   <div class="table-responsive mb-2">
     <table class="table table-sm align-middle">
-      <thead class="table-light">
+      <thead>
         <tr>
           <th>Typ</th>
           <th>Kategorie</th>
@@ -308,7 +388,7 @@
   {% if event.equipment_assignments %}
   <div class="table-responsive mb-2">
     <table class="table table-sm align-middle">
-      <thead class="table-light">
+      <thead>
         <tr>
           <th>Název</th>
           <th>Typ</th>
