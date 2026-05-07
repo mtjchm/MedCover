@@ -347,7 +347,7 @@ def add_spot(event_id: int):
     spot = EventSpot(event_id=event_id, description=description)
     db.session.add(spot)
     event.version += 1
-    _audit("edit", event, f"Přidáno místo k akci '{event.name}'")
+    _audit("edit", event, f"Přidána pozice k akci '{event.name}'")
     db.session.commit()
 
     flash("Místo přidáno.", "success")
@@ -363,13 +363,13 @@ def delete_spot(event_id: int, spot_id: int):
     if spot is None or spot.event_id != event_id:
         abort(404)
     if spot.assignment is not None:
-        flash("Obsazené místo nelze smazat.", "danger")
+        flash("Obsazenou pozici nelze smazat.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
     db.session.delete(spot)
     event = db.session.get(Event, event_id)
     event.version += 1
-    _audit("edit", event, f"Odstraněno místo z akce '{event.name}'")
+    _audit("edit", event, f"Odstraněna pozice z akce '{event.name}'")
     db.session.commit()
 
     flash("Místo odstraněno.", "success")

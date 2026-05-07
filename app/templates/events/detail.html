@@ -102,7 +102,7 @@
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Obsazení</h6>
         <p class="mb-1">
-          <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> míst obsazeno
+          <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> pozic obsazeno
           <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1">
             {{ event.staffing_status }}
           </span>
@@ -130,11 +130,11 @@
 
 {# Spots #}
 <div class="d-flex justify-content-between align-items-center mb-2">
-  <h5 class="mb-0">Místa ({{ event.total_spots }})</h5>
+  <h5 class="mb-0">Pozice ({{ event.total_spots }})</h5>
   {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
     <form method="POST" action="{{ url_for('events.add_spot', event_id=event.id) }}" class="d-flex gap-2">
-      <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis místa (volitelné)" style="max-width: 220px">
-      <button class="btn btn-outline-danger btn-sm">+ Přidat místo</button>
+      <input type="text" class="form-control form-control-sm" name="description" placeholder="Popis pozice (volitelné)" style="max-width: 220px">
+      <button class="btn btn-outline-danger btn-sm">+ Přidat pozici</button>
     </form>
   {% endif %}
 </div>
@@ -178,7 +178,7 @@
             {# Release own assignment #}
             {% if spot.assignment and spot.assignment.user_id == current_user.id and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.release', assignment_id=spot.assignment.id) }}"
-                    onsubmit="return confirm('Odhlásit se z tohoto místa?')">
+                    onsubmit="return confirm('Odhlásit se z této pozice?')">
                 <button class="btn btn-outline-warning btn-sm py-0">Odhlásit se</button>
               </form>
             {% endif %}
@@ -202,7 +202,7 @@
             {# Delete spot (no assignment, editor) #}
             {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
               <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
-                    onsubmit="return confirm('Smazat toto místo?')">
+                    onsubmit="return confirm('Smazat tuto pozici?')">
                 <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
               </form>
             {% endif %}
@@ -229,7 +229,7 @@
   </table>
 </div>
 {% else %}
-  <p class="text-muted">Žádná místa zatím nejsou přidána.</p>
+  <p class="text-muted">Žádné pozice zatím nejsou přidány.</p>
 {% endif %}
 
 <div class="mt-3">

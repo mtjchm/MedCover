@@ -67,7 +67,7 @@
         </div>
         <div class="col-12 col-md-3">
           <label for="spot_count" class="form-label">Počet míst
-            {{ help_icon("Počet zdravotnických míst na akci. Každé místo může mít přiřazenu požadovanou kvalifikaci. Po vytvoření akce lze místa přidávat nebo odebírat.") }}
+            {{ help_icon("Počet zdravotnických pozic na akci. Každá pozice může mít přiřazenu požadovanou kvalifikaci. Po vytvoření akce lze pozice přidávat nebo odebírat.") }}
           </label>
           <input type="number" class="form-control" id="spot_count" name="spot_count"
                  value="{{ request.form.get('spot_count', '1') }}" min="0" max="50">
