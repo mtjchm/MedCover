@@ -36,11 +36,13 @@ def index() -> str:
     now = datetime.now(timezone.utc)
 
     # ── DB health ──────────────────────────────────────────────────────────────
+    db_error: str | None = None
     try:
         db.session.execute(db.text("SELECT 1"))
         db_ok = True
-    except Exception:
+    except Exception as exc:
         db_ok = False
+        db_error = type(exc).__name__
 
     # ── Scheduler heartbeat ────────────────────────────────────────────────────
     sched_last = settings.scheduler_last_seen
@@ -58,13 +60,15 @@ def index() -> str:
 
     # ── SMTP reachability ──────────────────────────────────────────────────────
     smtp_configured = settings.smtp_configured
-    smtp_reachable = None  # None = not tested (not configured)
+    smtp_reachable: bool | None = None  # None = not tested (not configured)
+    smtp_error: str | None = None
     if smtp_configured:
         try:
             with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=2):
                 smtp_reachable = True
-        except Exception:
+        except OSError as exc:
             smtp_reachable = False
+            smtp_error = str(exc)
 
     # ── Statistics ─────────────────────────────────────────────────────────────
     user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount))
@@ -102,11 +106,13 @@ def index() -> str:
     return render_template(
         "admin/index.html",
         db_ok=db_ok,
+        db_error=db_error,
         sched_status=sched_status,
         sched_last=sched_last,
         sched_age_s=sched_age_s,
         smtp_configured=smtp_configured,
         smtp_reachable=smtp_reachable,
+        smtp_error=smtp_error,
         settings=settings,
         user_total=user_total,
         user_active=user_active,
