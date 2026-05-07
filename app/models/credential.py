@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from sqlalchemy.orm import Mapped
 from app.extensions import db
 
 # Self-referential M2M: credential hierarchy
@@ -17,7 +20,7 @@ user_credentials = db.Table(
 )
 
 
-class Credential(db.Model):
+class Credential(db.Model):  # type: ignore[misc]
     __tablename__ = "credential"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -25,7 +28,7 @@ class Credential(db.Model):
     description = db.Column(db.Text, nullable=True)
 
     # Credentials that can substitute for this one (e.g. Doctor is a parent of First Aider)
-    parents = db.relationship(
+    parents: Mapped[list[Credential]] = db.relationship(
         "Credential",
         secondary=credential_parents,
         primaryjoin="Credential.id == credential_parents.c.credential_id",
@@ -41,7 +44,7 @@ class Credential(db.Model):
         lazy="dynamic",
     )
 
-    def can_be_filled_by(self, credential: "Credential") -> bool:
+    def can_be_filled_by(self, credential: Credential) -> bool:
         """Return True if a holder of `credential` can fill a spot requiring self."""
         if credential.id == self.id:
             return True

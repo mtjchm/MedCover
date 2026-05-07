@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from app.extensions import db
 
 
-class OutboxEmail(db.Model):
+class OutboxEmail(db.Model):  # type: ignore[misc]
     """Persistent email outbox — all outgoing emails are queued here and sent
     by the scheduler at a throttled rate (one per MAIL_QUEUE_INTERVAL_SECONDS)."""
 

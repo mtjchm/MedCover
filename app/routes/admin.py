@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 import socket
 
-from flask import Blueprint, current_app, flash, redirect, render_template, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
 from flask_mail import Message
 
@@ -12,7 +14,7 @@ from app.models.settings import get_settings
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
-def _require_permission(code: str):
+def _require_permission(code: str) -> None:
     """Return 403 response if current user lacks the permission."""
     from flask import abort
     if not current_user.has_permission(code):
@@ -21,7 +23,7 @@ def _require_permission(code: str):
 
 @admin_bp.route("/")
 @login_required
-def index():
+def index() -> str:
     _require_permission("admin.view")
 
     from app.models.event import Event, EventStatus
@@ -119,7 +121,7 @@ def index():
 
 @admin_bp.route("/pending-users")
 @login_required
-def pending_users():
+def pending_users() -> str:
     _require_permission("user.activate")
     users = UserAccount.query.filter_by(is_active=False).order_by(UserAccount.created_at).all()
     return render_template("admin/pending_users.html", users=users)
@@ -127,7 +129,7 @@ def pending_users():
 
 @admin_bp.route("/activate/<uuid:user_id>", methods=["POST"])
 @login_required
-def activate_user(user_id):
+def activate_user(user_id: str) -> Response:
     _require_permission("user.activate")
     user = db.session.get(UserAccount, user_id)
     if not user:

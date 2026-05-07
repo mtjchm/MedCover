@@ -10,7 +10,9 @@ Provides:
   POST /dev/login-as/<role>      — instantly logs in as the dev account for that role
 """
 
-from flask import Blueprint, redirect, url_for, abort, flash
+from __future__ import annotations
+
+from flask import Blueprint, Response, redirect, url_for, abort, flash
 from flask_login import login_user
 from app.extensions import db
 from app.models.user import UserAccount
@@ -54,7 +56,7 @@ DEV_ACCOUNTS: list[dict] = [
 
 
 @dev_bp.post("/login-as/<role>")
-def login_as(role: str):
+def login_as(role: str) -> Response:
     account = next((a for a in DEV_ACCOUNTS if a["role"] == role), None)
     if account is None:
         abort(404)

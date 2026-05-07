@@ -1,16 +1,10 @@
-"""
-AppSettings — single-row table holding site-wide configuration.
-
-One row is created during the setup wizard (setup_complete=False initially).
-The SMTP password is stored Fernet-encrypted using a key derived from SECRET_KEY
-so it is not stored in plaintext in the database.
-"""
+from __future__ import annotations
 
 import base64
 from datetime import datetime, timezone
 
 from cryptography.fernet import Fernet
-from flask import current_app
+from flask import Flask, current_app
 
 from app.extensions import db
 
@@ -23,7 +17,7 @@ def _fernet() -> Fernet:
     return Fernet(base64.urlsafe_b64encode(padded))
 
 
-class AppSettings(db.Model):
+class AppSettings(db.Model):  # type: ignore[misc]
     __tablename__ = "app_settings"
 
     id = db.Column(db.Integer, primary_key=True)  # always id=1
@@ -77,7 +71,7 @@ class AppSettings(db.Model):
     def smtp_configured(self) -> bool:
         return bool(self.smtp_server and self.smtp_username and self.smtp_password_enc)
 
-    def apply_to_app(self, app) -> None:
+    def apply_to_app(self, app: Flask) -> None:
         """Push settings into Flask-Mail config so mail is sent using DB values."""
         app.config["MAIL_SERVER"] = self.smtp_server
         app.config["MAIL_PORT"] = self.smtp_port

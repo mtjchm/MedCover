@@ -8,7 +8,9 @@ Permissions:
   master_event.archive / master_event.unarchive — archive toggle
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from __future__ import annotations
+
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -35,7 +37,7 @@ def _audit(action: str, me: MasterEvent, summary: str, changes: dict | None = No
 
 @master_events_bp.get("/")
 @login_required
-def index():
+def index() -> str:
     if not current_user.has_permission("master_event.view"):
         abort(403)
 
@@ -57,7 +59,7 @@ def index():
 
 @master_events_bp.route("/create", methods=["GET", "POST"])
 @login_required
-def create():
+def create() -> str | Response:
     if not current_user.has_permission("master_event.create"):
         abort(403)
 
@@ -98,7 +100,7 @@ def create():
 
 @master_events_bp.get("/<int:me_id>")
 @login_required
-def detail(me_id: int):
+def detail(me_id: int) -> str:
     if not current_user.has_permission("master_event.view"):
         abort(403)
 
@@ -128,7 +130,7 @@ def detail(me_id: int):
 
 @master_events_bp.route("/<int:me_id>/edit", methods=["GET", "POST"])
 @login_required
-def edit(me_id: int):
+def edit(me_id: int) -> str | Response:
     if not current_user.has_permission("master_event.edit"):
         abort(403)
 
@@ -184,7 +186,7 @@ def edit(me_id: int):
 
 @master_events_bp.post("/<int:me_id>/archive")
 @login_required
-def archive(me_id: int):
+def archive(me_id: int) -> Response:
     if not current_user.has_permission("master_event.archive"):
         abort(403)
 
@@ -206,7 +208,7 @@ def archive(me_id: int):
 
 @master_events_bp.post("/<int:me_id>/unarchive")
 @login_required
-def unarchive(me_id: int):
+def unarchive(me_id: int) -> Response:
     if not current_user.has_permission("master_event.unarchive"):
         abort(403)
 

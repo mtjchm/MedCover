@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from app.extensions import db
+from sqlalchemy.orm import Mapped
 
 
 # Many-to-many: Role ↔ Permission
@@ -9,7 +12,7 @@ role_permissions = db.Table(
 )
 
 
-class Role(db.Model):
+class Role(db.Model):  # type: ignore[misc]
     __tablename__ = "role"
 
     ADMIN = "Admin"
@@ -21,7 +24,7 @@ class Role(db.Model):
     name = db.Column(db.String(64), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
 
-    permissions = db.relationship(
+    permissions: Mapped[list[Permission]] = db.relationship(
         "Permission",
         secondary=role_permissions,
         back_populates="roles",
@@ -39,7 +42,7 @@ class Role(db.Model):
         return f"<Role {self.name}>"
 
 
-class Permission(db.Model):
+class Permission(db.Model):  # type: ignore[misc]
     __tablename__ = "permission"
 
     id = db.Column(db.Integer, primary_key=True)

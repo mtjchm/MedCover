@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 import uuid
 import enum
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from flask_login import UserMixin
+from sqlalchemy.orm import Mapped
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
+
+if TYPE_CHECKING:
+    from app.models.role import Role
+    from app.models.credential import Credential
 
 
 class CalendarView(str, enum.Enum):
@@ -21,7 +29,7 @@ user_roles = db.Table(
 )
 
 
-class UserAccount(UserMixin, db.Model):
+class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
     __tablename__ = "user_account"
 
     id = db.Column(db.Uuid, primary_key=True, default=uuid.uuid4)
@@ -50,14 +58,14 @@ class UserAccount(UserMixin, db.Model):
         nullable=False,
     )
 
-    roles = db.relationship(
+    roles: Mapped[list[Role]] = db.relationship(
         "Role",
         secondary=user_roles,
         back_populates="users",
         lazy="selectin",
     )
 
-    credentials = db.relationship(
+    credentials: Mapped[list[Credential]] = db.relationship(
         "Credential",
         secondary="user_credentials",
         back_populates="holders",

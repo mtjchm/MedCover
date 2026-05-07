@@ -1,6 +1,9 @@
-from datetime import datetime, timezone
+from __future__ import annotations
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from datetime import datetime, timezone
+from typing import Any
+
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app.extensions import db, mail
@@ -13,7 +16,7 @@ _RESET_SALT = "pw-reset"
 _INVITE_SALT = "invite"
 
 
-def _send_mail(to: str, subject: str, template: str, **ctx) -> None:
+def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
     """Render a plain-text email template and send it. Silent on misconfigured mail."""
     from flask import render_template as rt
     from flask_mail import Message
@@ -44,7 +47,7 @@ def _load_signed_token(token: str, salt: str, hours: int) -> str | None:
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
-def login():
+def login() -> str | Response:
     if current_user.is_authenticated:
         return redirect(url_for("main.dashboard"))
 
@@ -68,14 +71,14 @@ def login():
 
 @auth_bp.route("/logout")
 @login_required
-def logout():
+def logout() -> Response:
     logout_user()
     flash("Byli jste odhlášeni.", "info")
     return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/forgot-password", methods=["GET", "POST"])
-def forgot_password():
+def forgot_password() -> str | Response:
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         user = UserAccount.query.filter_by(email=email).first()
@@ -99,7 +102,7 @@ def forgot_password():
 
 
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
-def reset_password(token: str):
+def reset_password(token: str) -> str | Response:
     from app.config import RESET_TOKEN_HOURS
     import uuid
 
@@ -130,7 +133,7 @@ def reset_password(token: str):
 
 
 @auth_bp.route("/register/<token>", methods=["GET", "POST"])
-def register(token: str):
+def register(token: str) -> str | Response:
     invite = RegistrationInvite.query.filter_by(token=token).first()
     if not invite or not invite.is_valid:
         flash("Pozvánka je neplatná nebo vypršela.", "danger")

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
 from app.extensions import db
 
 
-class RegistrationInvite(db.Model):
+class RegistrationInvite(db.Model):  # type: ignore[misc]
     __tablename__ = "registration_invite"
 
     id = db.Column(db.Integer, primary_key=True)

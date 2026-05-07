@@ -10,9 +10,11 @@ Routes:
   GET      /debriefing/event/<event_id>  — list all debriefs for an event (coordinator)
 """
 
+from __future__ import annotations
+
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
 
 from app.extensions import db
@@ -37,7 +39,7 @@ def _audit(action: str, record: DebriefingRecord, summary: str) -> None:
 
 @debriefing_bp.route("/<int:assignment_id>", methods=["GET", "POST"])
 @login_required
-def submit(assignment_id: int):
+def submit(assignment_id: int) -> str | Response:
     assignment = db.session.get(Assignment, assignment_id)
     if assignment is None:
         abort(404)
@@ -109,7 +111,7 @@ def submit(assignment_id: int):
 
 @debriefing_bp.get("/event/<int:event_id>")
 @login_required
-def event_overview(event_id: int):
+def event_overview(event_id: int) -> str:
     if not current_user.has_any_permission("event.edit", "event.assign_other"):
         abort(403)
 

@@ -1,3 +1,29 @@
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+exclude = ["migrations/", "tests/", "htmlcov/", "\\.venv/"]
+
+[[tool.mypy.overrides]]
+# Flask-SQLAlchemy models inherit from db.Model which mypy can't resolve
+# from the SQLAlchemy plugin without full stubs; suppress known false positives
+module = ["app.models.*"]
+disable_error_code = ["name-defined", "misc", "assignment"]
+
+[[tool.mypy.overrides]]
+# Flask redirect() returns werkzeug Response (not flask.wrappers.Response);
+# attr-defined suppresses _get_current_object() false positive on LocalProxy
+module = ["app.routes.*"]
+disable_error_code = ["union-attr", "return-value", "attr-defined"]
+
+[[tool.mypy.overrides]]
+module = ["scripts.*"]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
