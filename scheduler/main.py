@@ -195,5 +195,10 @@ while True:
             db.session.commit()
     except Exception as exc:  # noqa: BLE001
         log.warning("Heartbeat write failed: %s", exc)
+    # Also touch a local file so Docker healthcheck can verify without a DB query
+    try:
+        open("/tmp/scheduler_heartbeat", "w").close()
+    except Exception:
+        pass
     time.sleep(5)  # short sleep so email queue is drained promptly
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, render_template
+from flask import Blueprint, jsonify, render_template
 from flask_login import login_required, current_user
 from sqlalchemy import or_
 
@@ -10,6 +10,16 @@ from app.models.assignment import Assignment
 from app.models.user import UserAccount
 
 main_bp = Blueprint("main", __name__)
+
+
+@main_bp.get("/health")
+def health():
+    """Liveness + readiness probe. Returns 200 if DB is reachable, 503 otherwise."""
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        return jsonify({"status": "ok"}), 200
+    except Exception as exc:
+        return jsonify({"status": "error", "detail": str(exc)}), 503
 
 
 @main_bp.route("/dashboard")

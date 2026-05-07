@@ -46,10 +46,11 @@ def create_app(config_name: str | None = None) -> Flask:
         """
         from .models.settings import get_settings
 
-        # Allow static files, setup pages, and auth pages through unconditionally
+        # Allow static files, setup pages, and health probe through unconditionally
         if request.endpoint and (
             request.endpoint.startswith("setup.")
             or request.endpoint == "static"
+            or request.endpoint == "main.health"
         ):
             return None
 
