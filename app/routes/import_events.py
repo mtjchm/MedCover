@@ -10,7 +10,8 @@ Routes:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -18,10 +19,12 @@ from flask import Blueprint, Response, abort, flash, redirect, render_template, 
 from flask_login import current_user, login_required
 
 from app.extensions import db
+from app.models.assignment import Assignment
 from app.models.audit import AuditLogEntry
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
+from app.models.role import Role
 from app.models.user import UserAccount
 
 import_bp = Blueprint("import_events", __name__, url_prefix="/import")
@@ -133,6 +136,11 @@ def _validate_row(row: Any, idx: int) -> tuple[dict | None, list[str]]:
         "contact_person": str(row.get("contact_person") or "").strip() or None,
         "description": str(row.get("description") or "").strip(),
         "time_missing": bool(row.get("time_missing", False)),
+        "signups": [
+            str(s).strip()
+            for s in row.get("signups", [])
+            if isinstance(s, str) and str(s).strip()
+        ],
     }, []
 
 
@@ -162,14 +170,25 @@ def events_preview() -> str | Response:
         flash(f"Neplatný JSON: {exc}", "danger")
         return render_template("import/events.html", json_data=raw)
 
-    if not isinstance(payload, list):
-        flash("JSON musí být pole (array) objektů.", "danger")
+    # Normalise v1 (flat list) vs v2 (dict with version/users/events)
+    if isinstance(payload, list):
+        payload_events: list[Any] = payload
+        payload_users: list[Any] = []
+    elif isinstance(payload, dict) and "events" in payload:
+        payload_events = payload.get("events", [])
+        payload_users = payload.get("users", [])
+    else:
+        flash(
+            "Neplatný formát JSON: očekáváno pole akcí nebo objekt s klíčem 'events'.",
+            "danger",
+        )
         return render_template("import/events.html", json_data=raw)
 
     # ── Load DB lookups ─────────────────────────────────────────────────────
-    users = list(db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
+    all_users = list(db.session.scalars(
+        db.select(UserAccount).order_by(UserAccount.name)
     ).all())
+    active_users = [u for u in all_users if u.is_active]
     master_events = list(db.session.scalars(
         db.select(MasterEvent).order_by(MasterEvent.name)
     ).all())
@@ -177,28 +196,61 @@ def events_preview() -> str | Response:
         db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
     ).all())
 
+    # ── Process users for preview ────────────────────────────────────────────
+    db_by_name: dict[str, UserAccount] = {u.name.lower(): u for u in all_users}
+    db_by_email: dict[str, UserAccount] = {u.email.lower(): u for u in all_users if u.email}
+    users_preview_rows: list[dict[str, Any]] = []
+
+    for pu in payload_users:
+        if not isinstance(pu, dict):
+            continue
+        gs_name = str(pu.get("gs_name", "")).strip()
+        name = str(pu.get("name", "")).strip()
+        email = str(pu.get("email") or "").strip() or None
+        phone = str(pu.get("phone") or "").strip() or None
+        is_zdravotnik = bool(pu.get("is_zdravotnik", False))
+
+        existing_user: UserAccount | None = None
+        match_reason = "none"
+        if name.lower() in db_by_name:
+            existing_user = db_by_name[name.lower()]
+            match_reason = "name"
+        elif email and email.lower() in db_by_email:
+            existing_user = db_by_email[email.lower()]
+            match_reason = "email"
+
+        users_preview_rows.append({
+            "gs_name": gs_name,
+            "name": name,
+            "email": email,
+            "phone": phone,
+            "is_zdravotnik": is_zdravotnik,
+            "existing": existing_user,
+            "match_reason": match_reason,
+        })
+
     # Pre-build set of existing (name, date) pairs for duplicate detection
-    existing: set[tuple[str, str]] = set()
+    existing_events: set[tuple[str, str]] = set()
     for ev in db.session.scalars(db.select(Event.name, Event.start_datetime)).all():
         dt = ev[1]
         if dt:
             date_part = dt[:10] if isinstance(dt, str) else dt.strftime("%Y-%m-%d")
         else:
             date_part = ""
-        existing.add((ev[0], date_part))
+        existing_events.add((ev[0], date_part))
 
     # ── Validate each row + match RP ─────────────────────────────────────────
     parse_errors: list[tuple[int, list[str]]] = []
-    preview_rows: list[dict] = []
+    preview_rows: list[dict[str, Any]] = []
 
-    for idx, raw_row in enumerate(payload):
+    for idx, raw_row in enumerate(payload_events):
         cleaned, errs = _validate_row(raw_row, idx)
         if errs or cleaned is None:
             parse_errors.append((idx + 1, errs))
             continue
         assert cleaned is not None  # help mypy narrow past the guard
 
-        rp_user, rp_confidence = _match_responsible_person(cleaned["responsible_person"], users)
+        rp_user, rp_confidence = _match_responsible_person(cleaned["responsible_person"], active_users)
 
         warnings: list[str] = []
         if cleaned["time_missing"]:
@@ -214,7 +266,7 @@ def events_preview() -> str | Response:
                 f'Zodpovědný zdravotník spárován přibližně: "{rp_name_found}". Zkontrolujte.'
             )
 
-        is_duplicate = (cleaned["name"], cleaned["date"]) in existing
+        is_duplicate = (cleaned["name"], cleaned["date"]) in existing_events
         if is_duplicate:
             warnings.append(
                 "Akce se stejným názvem a datem již v databázi existuje."
@@ -254,12 +306,15 @@ def events_preview() -> str | Response:
     return render_template(
         "import/preview.html",
         preview_rows=preview_rows,
-        users=users,
+        users_preview_rows=users_preview_rows,
+        users=active_users,
         master_events=master_events,
         qualifications=qualifications,
         default_zdravotnik_qual=default_zdravotnik_qual,
         default_zelenac_qual=default_zelenac_qual,
         total=len(preview_rows),
+        users_new=sum(1 for u in users_preview_rows if u["existing"] is None),
+        users_existing=sum(1 for u in users_preview_rows if u["existing"] is not None),
         warnings_count=sum(1 for r in preview_rows if r["warnings"]),
         duplicates_count=sum(1 for r in preview_rows if r["is_duplicate"]),
     )
@@ -281,7 +336,7 @@ def events_confirm() -> Response:
     global_zelenac_qual_id = _get_int("global_zelenac_qual_id")
     global_master_event_id = _get_int("global_master_event_id")
 
-    # Preload qualifications and master events once
+    # Preload qualification and master event caches
     qual_cache: dict[int, Qualification] = {}
     me_cache: dict[int, MasterEvent] = {}
 
@@ -311,10 +366,99 @@ def events_confirm() -> Response:
         flash("Neplatný počet akcí.", "danger")
         return redirect(url_for("import_events.events_paste"))
 
-    created = 0
-    skipped = 0
+    # ── Step 1: Process users ──────────────────────────────────────────────
+    user_count_str = form.get("user_count", "0")
+    user_count = int(user_count_str) if user_count_str.isdigit() else 0
+
+    # Load qualifications for new user assignments
+    def _qual_by_substr(keyword: str) -> Qualification | None:
+        kw = keyword.lower()
+        return db.session.scalars(
+            db.select(Qualification).where(
+                Qualification.is_deleted == False,  # noqa: E712
+                db.func.lower(Qualification.name).contains(kw),
+            )
+        ).first()
+
+    user_zdravotnik_qual = _qual_by_substr("zdravotník") or _qual_by_substr("zdravotnik")
+    user_zelenac_qual = _qual_by_substr("zelenáč") or _qual_by_substr("zelenac")
+    member_role = db.session.scalars(
+        db.select(Role).where(Role.name == "Member")
+    ).first()
+
+    # Pre-build lookup maps for idempotency (avoid per-row queries)
+    pre_existing = list(db.session.scalars(db.select(UserAccount)).all())
+    existing_by_name: dict[str, UserAccount] = {u.name.lower(): u for u in pre_existing}
+    existing_by_email: dict[str, UserAccount] = {
+        u.email.lower(): u for u in pre_existing if u.email
+    }
+
+    created_users = 0
+    skipped_users = 0
 
     try:
+        for i in range(user_count):
+            uprefix = f"user_{i}_"
+            db_id = form.get(f"{uprefix}db_id", "").strip()
+
+            if db_id:
+                # User already exists — skip creation
+                skipped_users += 1
+                continue
+
+            include = form.get(f"{uprefix}include") == "1"
+            if not include:
+                skipped_users += 1
+                continue
+
+            name = form.get(f"{uprefix}name", "").strip()
+            email = form.get(f"{uprefix}email", "").strip()
+            phone = form.get(f"{uprefix}phone", "").strip() or None
+            is_zdravotnik = form.get(f"{uprefix}is_zdravotnik") == "1"
+
+            if not name or not email:
+                skipped_users += 1
+                continue
+
+            # Idempotency: double-check against maps built from DB
+            if name.lower() in existing_by_name or email.lower() in existing_by_email:
+                skipped_users += 1
+                continue
+
+            new_user = UserAccount(name=name, email=email, phone=phone, is_active=True)
+            new_user.set_password(secrets.token_urlsafe(32))
+            if member_role:
+                new_user.roles = [member_role]
+            u_qual = user_zdravotnik_qual if is_zdravotnik else user_zelenac_qual
+            if u_qual:
+                new_user.qualifications = [u_qual]
+
+            db.session.add(new_user)
+            db.session.flush()  # get new_user.id
+
+            # Update local maps so subsequent iterations in same import don't re-create
+            existing_by_name[name.lower()] = new_user
+            if email:
+                existing_by_email[email.lower()] = new_user
+
+            db.session.add(AuditLogEntry(
+                actor_id=current_user.id,
+                action_type="import",
+                entity_type="UserAccount",
+                entity_id=str(new_user.id),
+                summary=f"Uživatel importován z Google Sheets: {name}",
+                changes_json=None,
+            ))
+            created_users += 1
+
+        # Build comprehensive name→user map (all DB users incl. newly created)
+        all_users_now = list(db.session.scalars(db.select(UserAccount)).all())
+        name_to_user: dict[str, UserAccount] = {u.name.lower(): u for u in all_users_now}
+
+        # ── Step 2: Process events ──────────────────────────────────────────
+        created = 0
+        skipped = 0
+
         for i in range(event_count):
             prefix = f"ev_{i}_"
 
@@ -343,19 +487,15 @@ def events_confirm() -> Response:
 
             # Responsible person
             rp_id_str = form.get(f"{prefix}responsible_person_id", "").strip()
-            responsible_person_id = rp_id_str if rp_id_str else None
+            responsible_person_id: str | None = rp_id_str or None
 
             # Datetimes (Prague → UTC)
             start_dt = _parse_datetime(date_str, start_time_str, _PRAGUE_TZ)
             if end_time_str:
                 end_dt = _parse_datetime(date_str, end_time_str, _PRAGUE_TZ)
-                # Handle overnight events
                 if end_dt <= start_dt:
-                    from datetime import timedelta
                     end_dt += timedelta(days=1)
             else:
-                # Default: start + 2 hours
-                from datetime import timedelta
                 end_dt = start_dt + timedelta(hours=2)
 
             event = Event(
@@ -368,25 +508,46 @@ def events_confirm() -> Response:
                 contact_person=contact_person,
                 paid=paid,
                 description=description,
-                responsible_person_id=responsible_person_id or None,
+                responsible_person_id=responsible_person_id,
                 created_by_id=current_user.id,
             )
             db.session.add(event)
             db.session.flush()  # get event.id
 
-            # ── Spots (unless time_missing) ────────────────────────────────
+            # ── Spots + assignments (unless time_missing) ──────────────────
             if not time_missing:
+                # Gather signup names from hidden form fields
+                signup_count_str = form.get(f"{prefix}signup_count", "0")
+                signup_count = int(signup_count_str) if signup_count_str.isdigit() else 0
+                signup_names = [
+                    form.get(f"{prefix}signup_{j}", "").strip()
+                    for j in range(signup_count)
+                ]
+                signup_names = [n for n in signup_names if n]
+
+                total_people = len(signup_names) + (1 if responsible_person_id else 0)
+
                 zdravotnik_qual_id = _get_int(f"{prefix}zdravotnik_qual_id") or global_zdravotnik_qual_id
                 zelenac_qual_id = _get_int(f"{prefix}zelenac_qual_id") or global_zelenac_qual_id
-
                 zdravotnik_qual = _qual(zdravotnik_qual_id)
                 zelenac_qual = _qual(zelenac_qual_id)
 
-                spots_def = [
-                    ("Zdravotník", False, zdravotnik_qual),
-                    ("Zelenáč", False, zelenac_qual),
-                    ("Zelenáč", True, zelenac_qual),
-                ]
+                if total_people <= 3:
+                    spots_def: list[tuple[str, bool, Qualification | None]] = [
+                        ("Zdravotník", False, zdravotnik_qual),
+                        ("Zelenáč", False, zelenac_qual),
+                        ("Zelenáč", True, zelenac_qual),
+                    ]
+                else:
+                    # 1 mandatory Zdravotník + one mandatory Zelenáč per signup
+                    spots_def = [("Zdravotník", False, zdravotnik_qual)]
+                    for _ in signup_names:
+                        spots_def.append(("Zelenáč", False, zelenac_qual))
+
+                # Create all spots first, then flush once to get IDs
+                zdravotnik_spot: EventSpot | None = None
+                zelenac_spots: list[EventSpot] = []
+
                 for desc, is_optional, qual in spots_def:
                     spot = EventSpot(
                         event_id=event.id,
@@ -396,6 +557,34 @@ def events_confirm() -> Response:
                     if qual:
                         spot.required_qualifications = [qual]
                     db.session.add(spot)
+                    if desc == "Zdravotník" and zdravotnik_spot is None:
+                        zdravotnik_spot = spot
+                    else:
+                        zelenac_spots.append(spot)
+
+                db.session.flush()  # get spot IDs for assignment FK
+
+                # RP → Zdravotník spot
+                if responsible_person_id and zdravotnik_spot:
+                    rp_user_obj = db.session.get(UserAccount, responsible_person_id)
+                    if rp_user_obj:
+                        db.session.add(Assignment(
+                            spot_id=zdravotnik_spot.id,
+                            user_id=rp_user_obj.id,
+                            assigned_by_id=current_user.id,
+                        ))
+
+                # Each signup → Zelenáč spots in order
+                for j, signup_name in enumerate(signup_names):
+                    if j >= len(zelenac_spots):
+                        break
+                    signup_user = name_to_user.get(signup_name.lower())
+                    if signup_user:
+                        db.session.add(Assignment(
+                            spot_id=zelenac_spots[j].id,
+                            user_id=signup_user.id,
+                            assigned_by_id=current_user.id,
+                        ))
 
             # ── Audit log ─────────────────────────────────────────────────
             db.session.add(AuditLogEntry(
@@ -416,9 +605,12 @@ def events_confirm() -> Response:
         flash(f"Import selhal: {exc}", "danger")
         return redirect(url_for("import_events.events_paste"))
 
-    flash(
-        f"Import dokončen: vytvořeno {created} akcí"
-        + (f", přeskočeno {skipped}" if skipped else "") + ".",
-        "success",
-    )
+    parts = [f"vytvořeno {created} akcí"]
+    if skipped:
+        parts.append(f"přeskočeno {skipped}")
+    if created_users:
+        parts.append(f"vytvořeno {created_users} uživatelů")
+    if skipped_users:
+        parts.append(f"přeskočeno {skipped_users} uživatelů (existovali)")
+    flash(f"Import dokončen: {', '.join(parts)}.", "success")
     return redirect(url_for("events.index"))
