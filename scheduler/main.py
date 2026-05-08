@@ -104,61 +104,13 @@ def close_completed_events() -> None:
 def send_reminders() -> None:
     """Send unfilled-spot reminder emails for events whose reminder window has arrived.
 
-    For each ASSIGNMENTS_OPEN event, each entry in ``reminder_schedule`` (hours before
-    start) is evaluated independently:
-    - The window opens when ``now >= start_datetime - timedelta(hours=h)``
-    - A reminder is sent at most once per offset (tracked in ``reminder_sent_json``)
-    - If no unfilled mandatory spots remain, no reminder is sent for that event
+    Delegates to app.scheduler_tasks.run_send_reminders for the core logic so
+    that it can be tested without importing this module.
     """
     with app.app_context():
-        from datetime import timedelta
         from app.extensions import db
-        from app.models.event import Event, EventStatus
-        from app.mail import send_unfilled_spots_reminder
-
-        now = datetime.now(timezone.utc)
-
-        events = db.session.scalars(
-            db.select(Event).where(
-                Event.status == EventStatus.ASSIGNMENTS_OPEN,
-                Event.archived == False,  # noqa: E712
-                Event.start_datetime > now,  # don't remind for events already started
-            )
-        ).all()
-
-        for event in events:
-            unfilled = event.mandatory_total_spots - event.mandatory_filled_spots
-            if unfilled <= 0:
-                continue
-
-            sent_map: dict = event.reminder_sent_json or {}
-            changed = False
-
-            for hours in event.reminder_hours():
-                key = str(hours)
-                if key in sent_map:
-                    continue  # already sent for this offset
-                window_open_at = event.start_datetime - timedelta(hours=hours)
-                if now < window_open_at:
-                    continue  # not yet time
-
-                # Collect recipients: RP and/or coordinator
-                recipients: set[tuple[str, str]] = set()
-                if event.responsible_person:
-                    recipients.add((event.responsible_person.email, event.responsible_person.name))
-                if event.master_event and event.master_event.coordinator:
-                    recipients.add((event.master_event.coordinator.email, event.master_event.coordinator.name))
-
-                for email, name in recipients:
-                    send_unfilled_spots_reminder(email, name, event, unfilled)
-                    log.info("Reminder sent for event id=%s (%sh before) to %s", event.id, hours, email)
-
-                sent_map[key] = now.isoformat()
-                changed = True
-
-            if changed:
-                event.reminder_sent_json = sent_map
-                db.session.commit()
+        from app.scheduler_tasks import run_send_reminders
+        run_send_reminders(db.session)
 
 
 def send_admin_digest() -> None:

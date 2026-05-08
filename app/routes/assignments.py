@@ -117,7 +117,7 @@ def claim(spot_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event.id))
 
     flash("Úspěšně přihlášeni na akci.", "success")
-    mailer.send_assignment_confirmed(current_user.email, current_user.name, event)
+    mailer.send_assignment_confirmed(current_user, event)
     return redirect(url_for("events.detail", event_id=event.id))
 
 
@@ -163,7 +163,7 @@ def release(assignment_id: int) -> Response:
     db.session.commit()
 
     flash("Odhlášení z akce bylo úspěšné.", "success")
-    mailer.send_assignment_released(current_user.email, current_user.name, event)
+    mailer.send_assignment_released(current_user, event)
     return redirect(url_for("events.detail", event_id=event_id))
 
 
@@ -231,7 +231,7 @@ def assign_other(spot_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event.id))
 
     flash(f"Uživatel {user.name} byl přiřazen na akci.", "success")
-    mailer.send_assignment_confirmed(user.email, user.name, event)
+    mailer.send_assignment_confirmed(user, event)
     return redirect(url_for("events.detail", event_id=event.id))
 
 
@@ -265,5 +265,5 @@ def unassign_other(assignment_id: int) -> Response:
     db.session.commit()
 
     flash(f"Uživatel {assignment.user.name} byl odhlášen z akce.", "success")
-    mailer.send_assignment_released(assignment.user.email, assignment.user.name, event)
+    mailer.send_assignment_released(assignment.user, event)
     return redirect(url_for("events.detail", event_id=event_id))

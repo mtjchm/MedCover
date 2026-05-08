@@ -9,15 +9,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import Any
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+import sqlalchemy as sa
 
 log = logging.getLogger(__name__)
 
 
-def run_send_reminders(db_session: Session, now: datetime | None = None) -> int:
+def run_send_reminders(db_session: Any, now: datetime | None = None) -> int:
     """Check all ASSIGNMENTS_OPEN events and send reminder emails where due.
 
     Args:
@@ -35,7 +34,7 @@ def run_send_reminders(db_session: Session, now: datetime | None = None) -> int:
         now = datetime.now(timezone.utc)
 
     events = db_session.scalars(
-        db_session.query(Event).where(
+        sa.select(Event).where(
             Event.status == EventStatus.ASSIGNMENTS_OPEN,
             Event.archived == False,  # noqa: E712
             Event.start_datetime > now,
@@ -59,16 +58,16 @@ def run_send_reminders(db_session: Session, now: datetime | None = None) -> int:
             if now < window_open_at:
                 continue  # not yet time
 
-            # Collect recipients: RP and/or coordinator
-            recipients: set[tuple[str, str]] = set()
+            # Collect unique recipient User objects: RP and/or ME coordinator
+            recipients: set = set()
             if event.responsible_person:
-                recipients.add((event.responsible_person.email, event.responsible_person.name))
+                recipients.add(event.responsible_person)
             if event.master_event and event.master_event.coordinator:
-                recipients.add((event.master_event.coordinator.email, event.master_event.coordinator.name))
+                recipients.add(event.master_event.coordinator)
 
-            for email, name in recipients:
-                send_unfilled_spots_reminder(email, name, event, unfilled)
-                log.info("Reminder sent for event id=%s (%sh before) to %s", event.id, hours, email)
+            for user in recipients:
+                send_unfilled_spots_reminder(user, event, unfilled)
+                log.info("Reminder sent for event id=%s (%sh before) to %s", event.id, hours, user.email)
                 total_sent += 1
 
             sent_map[key] = now.isoformat()
