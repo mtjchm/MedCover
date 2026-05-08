@@ -111,7 +111,29 @@
         <p class="mb-1">
           <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> pozic obsazeno
         </p>
-        <p class="mb-0"><strong>Zodpovědný zdravotník:</strong> {{ event.responsible_person.name if event.responsible_person else '—' }}</p>
+        <p class="mb-0">
+          <strong>Zodpovědný zdravotník:</strong>
+          {% if event.responsible_person %}
+            <span class="badge bg-success ms-1">{{ event.responsible_person.name }}</span>
+          {% else %}
+            <span class="badge bg-danger ms-1">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>Chybí vedoucí
+            </span>
+          {% endif %}
+        </p>
+        {% if current_user.has_any_permission("event.set_responsible_person") %}
+          {% if rp_eligible_attendees | length > 1 or (rp_eligible_attendees | length == 1 and event.responsible_person_id != rp_eligible_attendees[0].id) %}
+            <form method="post" action="{{ url_for('events.set_rp', event_id=event.id) }}" class="mt-2 d-flex gap-2 align-items-center">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <select name="user_id" class="form-select form-select-sm" style="max-width:220px">
+                {% for u in rp_eligible_attendees %}
+                  <option value="{{ u.id }}" {% if u.id == event.responsible_person_id %}selected{% endif %}>{{ u.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-primary">Nastavit vedoucího</button>
+            </form>
+          {% endif %}
+        {% endif %}
       </div>
     </div>
   </div>

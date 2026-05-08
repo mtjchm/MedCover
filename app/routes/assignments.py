@@ -55,6 +55,34 @@ def _auto_close_if_full(event: Event) -> None:
         ))
 
 
+def _auto_assign_rp(event: Event, user: UserAccount) -> None:
+    """If event has no RP and user is RP-eligible, assign them as RP."""
+    if event.responsible_person_id is None and user.is_rp_eligible():
+        event.responsible_person_id = user.id
+        event.version += 1
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="Event",
+            entity_id=str(event.id),
+            summary=f"Vedoucí automaticky nastaven na '{user.name}'",
+        ))
+
+
+def _auto_clear_rp(event: Event, user: UserAccount) -> None:
+    """If the leaving user is the current RP, clear the RP field."""
+    if event.responsible_person_id == user.id:
+        event.responsible_person_id = None
+        event.version += 1
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="Event",
+            entity_id=str(event.id),
+            summary=f"Vedoucí odstraněn — '{user.name}' opustil akci",
+        ))
+
+
 # ── Claim (own) ───────────────────────────────────────────────────────────────
 
 @assignments_bp.post("/claim/<int:spot_id>")
@@ -107,6 +135,7 @@ def claim(spot_id: int) -> Response:
     db.session.add(assignment)
     db.session.flush()
     _audit("create", assignment, f"Uživatel '{current_user.name}' se přihlásil na akci '{event.name}'")
+    _auto_assign_rp(event, current_user)
     _auto_close_if_full(event)
 
     try:
@@ -146,6 +175,7 @@ def release(assignment_id: int) -> Response:
 
     event_id = event.id
     _audit("delete", assignment, f"Uživatel '{assignment.user.name}' se odhlásil z akce '{event.name}'")
+    _auto_clear_rp(event, assignment.user)
     db.session.delete(assignment)
 
     # Re-open assignments if they were closed and a spot just freed up
@@ -221,6 +251,7 @@ def assign_other(spot_id: int) -> Response:
     db.session.add(assignment)
     db.session.flush()
     _audit("create", assignment, f"Koordinátor přiřadil '{user.name}' na akci '{event.name}'")
+    _auto_assign_rp(event, user)
     _auto_close_if_full(event)
 
     try:
@@ -256,6 +287,7 @@ def unassign_other(assignment_id: int) -> Response:
 
     event_id = event.id
     _audit("delete", assignment, f"Koordinátor odhlásil '{assignment.user.name}' z akce '{event.name}'")
+    _auto_clear_rp(event, assignment.user)
     db.session.delete(assignment)
 
     if event.status == EventStatus.ASSIGNMENTS_CLOSED:

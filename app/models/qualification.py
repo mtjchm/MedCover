@@ -38,6 +38,7 @@ class Qualification(db.Model):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    can_be_rp = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
     is_deleted = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
     deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)
 

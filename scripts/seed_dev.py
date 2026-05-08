@@ -180,6 +180,10 @@ def seed() -> None:
             c_zdravotnik.parents.append(c_zachranar)
         if c_lekar not in c_zachranar.parents:
             c_zachranar.parents.append(c_lekar)
+        # RP-eligible qualifications
+        c_zdravotnik.can_be_rp = True
+        c_zachranar.can_be_rp = True
+        c_lekar.can_be_rp = True
         db.session.flush()
 
         # Assign qualifications to dev users
