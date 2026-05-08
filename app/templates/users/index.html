@@ -39,7 +39,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   {# Batch toolbar — hidden until at least one checkbox is ticked #}
-  <div id="batchToolbar" class="mb-3 p-2 border rounded bg-light flex-wrap align-items-center gap-2" style="display:none;">
+  <div id="batchToolbar" class="mb-3 p-2 border rounded flex-wrap align-items-center gap-2" style="display:none;">
     <span id="selCount" class="me-2 fw-semibold text-secondary small">0 vybráno</span>
     <select name="role_id" class="form-select form-select-sm" style="max-width:160px;" required>
       <option value="" disabled selected>— Vyber roli —</option>
