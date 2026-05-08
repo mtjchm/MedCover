@@ -573,6 +573,9 @@ def events_confirm() -> Response:
                             user_id=rp_user_obj.id,
                             assigned_by_id=current_user.id,
                         ))
+                        # Set RP on event if user is RP-eligible
+                        if rp_user_obj.is_rp_eligible():
+                            event.responsible_person_id = rp_user_obj.id
 
                 # Each signup → Zelenáč spots in order
                 for j, signup_name in enumerate(signup_names):

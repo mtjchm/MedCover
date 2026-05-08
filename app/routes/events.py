@@ -299,6 +299,13 @@ def detail(event_id: int) -> str | Response:
 
     fillers_map = {str(c.id): list(_fillers(c)) for c in all_qualifications}
 
+    # Users currently assigned to this event who are RP-eligible (for set_rp dropdown)
+    rp_eligible_attendees: list[UserAccount] = []
+    if current_user.has_any_permission("event.set_responsible_person"):
+        for spot in event.spots:
+            if spot.assignment and spot.assignment.user.is_rp_eligible():
+                rp_eligible_attendees.append(spot.assignment.user)
+
     return render_template(
         "events/detail.html",
         event=event,
@@ -308,6 +315,7 @@ def detail(event_id: int) -> str | Response:
         available_equipment_items=available_equipment_items,
         all_qualifications=all_qualifications,
         fillers_map=fillers_map,
+        rp_eligible_attendees=rp_eligible_attendees,
     )
 
 
@@ -961,4 +969,64 @@ def equipment_unassign(event_id: int) -> Response:
     db.session.commit()
 
     flash("Položka vybavení byla vrácena.", "success")
+    return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Set Responsible Person ────────────────────────────────────────────────────
+
+@events_bp.post("/<int:event_id>/set_rp")
+@login_required
+def set_rp(event_id: int) -> Response:
+    """Manually assign a responsible person from RP-eligible attendees."""
+    if not current_user.has_any_permission("event.set_responsible_person"):
+        abort(403)
+
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+
+    user_id_str = request.form.get("user_id", "").strip()
+    if not user_id_str:
+        flash("Vyberte vedoucího.", "warning")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    import uuid as _uuid
+    try:
+        user_id = _uuid.UUID(user_id_str)
+    except ValueError:
+        abort(400)
+
+    user = db.session.get(UserAccount, user_id)
+    if user is None or not user.is_active:
+        flash("Uživatel nenalezen nebo není aktivní.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    if not user.is_rp_eligible():
+        flash("Tento uživatel nemá potřebnou kvalifikaci pro roli vedoucího.", "warning")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    # User must currently occupy a spot on this event
+    assigned = db.session.scalar(
+        db.select(Assignment)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id == event_id, Assignment.user_id == user_id)
+    )
+    if assigned is None:
+        flash("Vybraný uživatel nemá obsazenou pozici na této akci.", "warning")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    old_rp = event.responsible_person_id
+    event.responsible_person_id = user_id
+    event.version += 1
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type="edit",
+        entity_type="Event",
+        entity_id=str(event_id),
+        summary=f"Vedoucí akce nastaven na '{user.name}'",
+        changes_json={"responsible_person_id": {"before": str(old_rp), "after": str(user_id)}},
+    ))
+    db.session.commit()
+
+    flash(f"{user.name} byl nastaven jako vedoucí akce.", "success")
     return redirect(url_for("events.detail", event_id=event_id))

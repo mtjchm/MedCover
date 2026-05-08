@@ -68,7 +68,7 @@ def create() -> str | Response:
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
             return render_template("qualifications/create.html", all_qualifications=all_qualifications)
 
-        cred = Qualification(name=name, description=description)
+        cred = Qualification(name=name, description=description, can_be_rp="can_be_rp" in request.form)
         for pid in parent_ids:
             parent = db.session.get(Qualification, int(pid))
             if parent:
@@ -117,15 +117,16 @@ def edit(cred_id: int) -> str | Response:
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
             return render_template("qualifications/edit.html", cred=cred, all_qualifications=all_qualifications)
 
-        before = {"name": cred.name, "description": cred.description, "parents": str([p.id for p in cred.parents])}
+        before = {"name": cred.name, "description": cred.description, "can_be_rp": cred.can_be_rp, "parents": str([p.id for p in cred.parents])}
         cred.name = name
         cred.description = description
+        cred.can_be_rp = "can_be_rp" in request.form
         # Sync parents
         cred.parents = [c for pid in parent_ids if (c := db.session.get(Qualification, pid)) is not None]
 
         _audit("edit", cred, f"Upravena kvalifikace '{cred.name}'", diff_changes(
             before,
-            {"name": cred.name, "description": cred.description, "parents": str([p.id for p in cred.parents])},
+            {"name": cred.name, "description": cred.description, "can_be_rp": cred.can_be_rp, "parents": str([p.id for p in cred.parents])},
         ))
         db.session.commit()
 

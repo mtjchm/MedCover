@@ -126,6 +126,22 @@ def dashboard() -> str:
             .order_by(UserAccount.created_at)
         ).all())
 
+    # ── Admin/Coordinator: events without RP in the next 7 days ──────────
+    missing_rp_events: list[Event] = []
+    if current_user.has_any_permission("event.publish", "event.assignments.open"):
+        rp_horizon = now + timedelta(days=7)
+        missing_rp_events = list(db.session.scalars(
+            db.select(Event)
+            .where(
+                Event.archived == False,  # noqa: E712
+                Event.status.notin_([EventStatus.DRAFT, EventStatus.CANCELLED]),
+                Event.responsible_person_id == None,  # noqa: E711
+                Event.start_datetime >= now,
+                Event.start_datetime <= rp_horizon,
+            )
+            .order_by(Event.start_datetime)
+        ).all())
+
     return render_template(
         "main/dashboard.html",
         my_events=my_events,
@@ -133,6 +149,7 @@ def dashboard() -> str:
         open_events_all=open_events_all,
         attention_events=attention_events,
         pending_activations=pending_activations,
+        missing_rp_events=missing_rp_events,
         horizon_days=current_user.dashboard_horizon_days,
         EventStatus=EventStatus,
     )

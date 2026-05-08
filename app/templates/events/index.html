@@ -169,7 +169,17 @@
               {% endif %}
             {% endif %}
           </td>
-          <td>{{ event.responsible_person.name if event.responsible_person else '—' }}</td>
+          <td>
+            {% if event.responsible_person %}
+              {{ event.responsible_person.name }}
+            {% elif event.status.name not in ('DRAFT', 'CANCELLED') %}
+              <span class="badge bg-danger" title="Akce nemá přiřazeného vedoucího">
+                <i class="bi bi-exclamation-triangle-fill"></i> Chybí
+              </span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
           <td class="text-end">
             {% set eligible_spots = eligible_spot_map.get(event.id) %}
             {% if eligible_spots %}

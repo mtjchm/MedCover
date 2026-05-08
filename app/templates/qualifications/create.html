@@ -21,6 +21,16 @@
         </label>
         <textarea class="form-control" id="description" name="description" rows="2">{{ request.form.get('description', '') }}</textarea>
       </div>
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="can_be_rp" name="can_be_rp"
+                 {{ 'checked' if request.form.get('can_be_rp') }}>
+          <label class="form-check-label" for="can_be_rp">
+            Může být vedoucí akce
+            {{ help_icon("Zaškrtněte, pokud držitel této kvalifikace může být zodpovědným vedoucím zdravotníkem na akci (vedoucí skupiny). Typicky: Zdravotník ZA, Záchranář, Lékař.") }}
+          </label>
+        </div>
+      </div>
       {% if all_qualifications %}
       <div class="mb-4">
         <label class="form-label">Nadřazené kvalifikace

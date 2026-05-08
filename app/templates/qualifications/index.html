@@ -16,6 +16,7 @@
       <tr>
         <th>Název</th>
         <th>Popis</th>
+        <th>Vedoucí</th>
         <th>Nadřazené (mohou zastoupit)</th>
         <th></th>
       </tr>
@@ -25,6 +26,13 @@
       <tr>
         <td class="fw-semibold">{{ cred.name }}</td>
         <td class="text-muted">{{ cred.description or '—' }}</td>
+        <td>
+          {% if cred.can_be_rp %}
+            <span class="badge bg-success" title="Držitel může být vedoucím akce">✓</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
         <td>
           {% if cred.parents %}
             {% for p in cred.parents %}
