@@ -448,6 +448,32 @@
         - Responsible-person matching is best-effort (exact → case-insensitive → reversed "Lastname Firstname"); unmatched names are highlighted for manual correction in the preview.
         - Bulk status transitions make post-import workflow (publish all, open assignments) feasible in seconds.
 
+- AD17 Role-Based Email Notification Matrix
+    - **Context:** The app sends several categories of outbound email. As real user accounts are imported from external sources (Google Sheets) before users are aware of the app, uncontrolled email delivery to all users is a risk. A clear policy is needed for which roles receive which notification types, and what the Viewer role means in the context of email.
+    - **Decision:** Email notifications are gated by role. The mapping is:
+
+        | Notification type | Admin | Coordinator | Member | Viewer |
+        |---|---|---|---|---|
+        | Daily admin digest | ✓ | — | — | — |
+        | Event published / assignments opened | — | ✓ | ✓ | — |
+        | Assignment confirmed / released | — | — | ✓ | — |
+        | Unfilled spot reminder (RP) | — | ✓ | ✓* | — |
+        | Invite / password reset / account activation | ✓ | ✓ | ✓ | ✓ |
+
+        *\*Member receives unfilled-spot reminders only when they are the Responsible Person of the event.*
+
+    - **Viewer role constraints (additional):**
+        - Viewer is the **minimum role** for accessing the application. Viewers can read most data but cannot be assigned to event spots.
+        - **Member is the minimum role for event participation** (spot assignment, RP designation). This is enforced at the model/route layer when claiming spots and when setting `event.responsible_person`.
+        - Because Viewers cannot hold spots, they can never be RP, which eliminates any ambiguity about RP-targeted emails for Viewer-only accounts.
+        - If a user holds *only* the Viewer role, they receive **no operational emails** (only auth emails: invite, password reset, activation). This makes the Viewer role suitable for imported accounts not yet onboarded.
+        - If a user holds Viewer **plus at least one other role**, the other roles determine notification eligibility (Viewer does not suppress).
+    - **Dev/staging safety net:** A separate `dev_email_block` toggle in AppSettings (see AD15 / admin settings) allows blanket suppression of all non-allowlisted emails on dev instances. This is independent of role-based gating and acts as a last line of defence.
+    - **Consequences:**
+        - No per-user notification preferences needed for MVP; role assignment is the control knob.
+        - Imported users given only the Viewer role are safe from operational spam until they are properly onboarded and given a Member role.
+        - Role-based logic must be applied at every `send_*` call site (not just the outbox drain) so that changes to a user's roles take effect before the email is even enqueued.
+
 MedCover is a standard three-tier web application:
 
 - **Frontend** — a browser-based web client accessed over the public Internet. Optimised for both desktop and mobile screens.
