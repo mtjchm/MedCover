@@ -19,6 +19,18 @@
         <input type="text" class="form-control" id="org_name" name="org_name"
                value="{{ settings.org_name or '' }}">
       </div>
+      <div class="mb-3">
+        <label for="app_base_url" class="form-label">Veřejná adresa aplikace</label>
+        <input type="url" class="form-control" id="app_base_url" name="app_base_url"
+               value="{{ settings.app_base_url or '' }}"
+               placeholder="https://medcoverdev.example.com">
+        <div class="form-text">
+          Pokud aplikace běží za reverzní proxy, zadejte zde veřejnou adresu
+          (bez lomítka na konci). Tato adresa se použije v odkazech v e-mailech
+          (obnova hesla, pozvánky, aktivace účtu).
+          Ponechte prázdné pro automatické zjišťování z požadavku.
+        </div>
+      </div>
       <div class="mb-0">
         <label for="timezone" class="form-label">Časová zóna</label>
         <select class="form-select" id="timezone" name="timezone">

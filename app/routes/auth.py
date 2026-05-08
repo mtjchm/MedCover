@@ -11,6 +11,7 @@ from app.models.invite import RegistrationInvite
 from app.models.role import Role
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
+from app.utils import external_url_for
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -90,7 +91,7 @@ def forgot_password() -> str | Response:
             from app.config import RESET_TOKEN_HOURS
 
             token = _make_signed_token(str(user.id), _RESET_SALT, RESET_TOKEN_HOURS)
-            reset_url = url_for("auth.reset_password", token=token, _external=True)
+            reset_url = external_url_for("auth.reset_password", token=token)
             _send_mail(
                 to=user.email,
                 subject="MedCover — obnovení hesla",

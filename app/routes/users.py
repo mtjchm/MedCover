@@ -19,7 +19,7 @@ from app.models.role import Role
 from app.models.invite import RegistrationInvite
 from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import diff_changes, external_url_for
 from app.config import INVITE_TOKEN_HOURS
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
@@ -512,7 +512,7 @@ def create_invite() -> Response:
 def _queue_invite_email(invite: RegistrationInvite) -> None:
     """Enqueue invite email into outbox and link it to the invite row."""
     from app.config import INVITE_TOKEN_HOURS as _HOURS
-    register_url = url_for("auth.register", token=invite.token, _external=True)
+    register_url = external_url_for("auth.register", token=invite.token)
     body = render_template(
         "email/invite.txt",
         invite=invite,
@@ -586,7 +586,7 @@ def cancel_invite(invite_id: int) -> Response:
 
 
 def _send_activation_email(user: UserAccount) -> None:
-    login_url = url_for("auth.login", _external=True)
+    login_url = external_url_for("auth.login")
     body = render_template("email/account_activated.txt", user=user, login_url=login_url)
     msg = Message(
         subject="MedCover — váš účet byl aktivován",

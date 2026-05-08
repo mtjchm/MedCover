@@ -9,7 +9,7 @@
 
 {% if entries %}
 <div class="table-responsive">
-  <table class="table table-hover align-middle">
+  <table class="table table-hover">
     <thead class="table-light">
       <tr>
         <th style="width:14rem">Datum</th>
@@ -43,10 +43,10 @@
         <td style="max-width:30rem">
           <span class="d-block" style="white-space:pre-wrap">{{ entry.message }}</span>
         </td>
-        <td class="text-muted small" style="max-width:18rem">
-          {% if entry.screen_info %}<div>🖥 {{ entry.screen_info }}</div>{% endif %}
+        <td class="small" style="max-width:22rem;word-break:break-word;">
+          {% if entry.screen_info %}<div class="text-muted">🖥 {{ entry.screen_info }}</div>{% endif %}
           {% if entry.user_agent %}
-            <div class="text-truncate" title="{{ entry.user_agent }}" style="max-width:18rem">{{ entry.user_agent }}</div>
+            <div class="text-muted" style="white-space:pre-wrap;overflow-wrap:break-word;">{{ entry.user_agent }}</div>
           {% endif %}
         </td>
         <td class="text-end">
