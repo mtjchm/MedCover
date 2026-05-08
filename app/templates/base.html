@@ -71,7 +71,7 @@
         <ul class="navbar-nav">
           {% if current_user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('feedback.feedback_form', **{'from': request.url}) }}"
+              <a class="nav-link" href="{{ url_for('feedback.feedback_form', **{'from': request.full_path.rstrip('?')}) }}"
                  title="Zpětná vazba">
                 💬 Zpětná vazba
               </a>
