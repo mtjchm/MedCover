@@ -39,7 +39,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   {# Batch toolbar — hidden until at least one checkbox is ticked #}
-  <div id="batchToolbar" class="d-none mb-3 p-2 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
+  <div id="batchToolbar" class="mb-3 p-2 border rounded bg-light flex-wrap align-items-center gap-2" style="display:none;">
     <span id="selCount" class="me-2 fw-semibold text-secondary small">0 vybráno</span>
     <select name="role_id" class="form-select form-select-sm" style="max-width:160px;" required>
       <option value="" disabled selected>— Vyber roli —</option>
@@ -141,7 +141,7 @@
 {% endif %}
 {% endblock %}
 
-{% block scripts %}
+{% block extra_scripts %}
 <script>
 (function () {
   const selectAll = document.getElementById('selectAll');
@@ -151,17 +151,21 @@
 
   if (!selectAll) return; // user lacks permission
 
+  function allRows()     { return Array.from(document.querySelectorAll('.row-check')); }
+  function checkedRows() { return allRows().filter(cb => cb.checked); }
+
   function updateToolbar() {
-    const checked = document.querySelectorAll('.row-check:checked');
-    const n = checked.length;
-    toolbar.classList.toggle('d-none', n === 0);
-    selCount.textContent = n + ' vybráno';
-    selectAll.indeterminate = n > 0 && n < document.querySelectorAll('.row-check').length;
-    selectAll.checked = n > 0 && n === document.querySelectorAll('.row-check').length;
+    const total   = allRows().length;
+    const n       = checkedRows().length;
+    toolbar.style.display = n > 0 ? 'flex' : 'none';
+    selCount.textContent  = n + ' vybráno';
+    selectAll.indeterminate = n > 0 && n < total;
+    selectAll.checked       = total > 0 && n === total;
   }
 
   selectAll.addEventListener('change', function () {
-    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+    const checked = selectAll.checked;
+    allRows().forEach(cb => { cb.checked = checked; });
     updateToolbar();
   });
 
@@ -170,7 +174,7 @@
   });
 
   clearBtn.addEventListener('click', function () {
-    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+    allRows().forEach(cb => { cb.checked = false; });
     selectAll.checked = false;
     updateToolbar();
   });
