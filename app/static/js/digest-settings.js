@@ -26,7 +26,7 @@
     btn.addEventListener('click', function () {
       var url = btn.dataset.toggleUrl;
       var csrf = btn.dataset.csrf;
-      var blockId = btn.dataset.blockId;
+      var blockId = btn.dataset.toggleBlockId;
       var badge = document.getElementById('badge-' + blockId);
 
       fetch(url, {
