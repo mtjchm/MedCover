@@ -27,6 +27,10 @@
 {# ── Summary bar ──────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-3 mb-4 align-items-center">
   <span class="badge bg-primary fs-6">{{ total }} akcí celkem</span>
+  {% if users_preview_rows %}
+  <span class="badge bg-success fs-6">{{ users_new }} nových uživatelů</span>
+  <span class="badge bg-secondary fs-6">{{ users_existing }} existujících</span>
+  {% endif %}
   {% if warnings_count %}
   <span class="badge bg-warning text-dark fs-6">{{ warnings_count }} varování</span>
   {% endif %}
@@ -38,6 +42,113 @@
 <form method="POST" action="{{ url_for('import_events.events_confirm') }}" id="confirmForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="event_count" value="{{ preview_rows | length }}">
+
+  {# ── Users section (v2 only) ─────────────────────────────────────────── #}
+  {% if users_preview_rows %}
+  <input type="hidden" name="user_count" value="{{ users_preview_rows | length }}">
+  <div class="card mb-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+      Uživatelé z importu
+      {% if users_new %}
+      <span class="badge bg-success">{{ users_new }} nových</span>
+      {% endif %}
+      {% if users_existing %}
+      <span class="badge bg-secondary">{{ users_existing }} existujících</span>
+      {% endif %}
+      {{ help_icon(
+        "Noví uživatelé budou vytvořeni s rolí Člen a odpovídající kvalifikací. "
+        "Existující uživatelé jsou zobrazeni pro informaci — nebudou znovu vytvořeni. "
+        "Zrušením zaškrtnutí vyřadíte nového uživatele z importu (nebude vytvořen). "
+        "Bez e-mailu nelze uživatele vytvořit — doplňte ho ručně.",
+        title="Import uživatelů"
+      ) }}
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-secondary">
+            <tr>
+              <th style="width:2.5rem;">Zahrnout</th>
+              <th style="min-width:160px;">Jméno</th>
+              <th style="min-width:180px;">E-mail</th>
+              <th style="min-width:120px;">Telefon</th>
+              <th style="width:110px;">Kvalifikace</th>
+              <th style="width:130px;">Stav</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for urow in users_preview_rows %}
+            {% set j = loop.index0 %}
+            <tr class="{% if urow.existing %}table-light text-muted{% endif %}">
+              <td class="text-center">
+                {# Hidden fields always submitted regardless of checkbox #}
+                <input type="hidden" name="user_{{ j }}_db_id"
+                       value="{{ urow.existing.id if urow.existing else '' }}">
+                <input type="hidden" name="user_{{ j }}_gs_name" value="{{ urow.gs_name }}">
+                <input type="hidden" name="user_{{ j }}_is_zdravotnik"
+                       value="{{ '1' if urow.is_zdravotnik else '0' }}">
+                {% if not urow.existing %}
+                <input type="checkbox" class="form-check-input user-include"
+                       name="user_{{ j }}_include" value="1" checked>
+                {% endif %}
+              </td>
+              <td>
+                {% if urow.existing %}
+                <span>{{ urow.existing.name }}</span>
+                {% else %}
+                <input type="text" class="form-control form-control-sm"
+                       name="user_{{ j }}_name" value="{{ urow.name }}">
+                {% endif %}
+              </td>
+              <td>
+                {% if urow.existing %}
+                <span class="small">{{ urow.existing.email }}</span>
+                {% else %}
+                <input type="email" class="form-control form-control-sm"
+                       name="user_{{ j }}_email" value="{{ urow.email or '' }}"
+                       {% if not urow.email %}
+                       placeholder="Doplňte e-mail!"
+                       style="border-color:var(--bs-warning);"
+                       {% endif %}>
+                {% endif %}
+              </td>
+              <td>
+                {% if urow.existing %}
+                <span class="small">{{ urow.existing.phone or '—' }}</span>
+                {% else %}
+                <input type="text" class="form-control form-control-sm"
+                       name="user_{{ j }}_phone" value="{{ urow.phone or '' }}">
+                {% endif %}
+              </td>
+              <td>
+                {% if urow.is_zdravotnik %}
+                <span class="badge bg-danger">Zdravotník</span>
+                {% else %}
+                <span class="badge bg-success">Zelenáč</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if urow.existing %}
+                <span class="badge bg-secondary">
+                  Existuje
+                  {% if urow.match_reason == 'name' %}(jméno){% else %}(e-mail){% endif %}
+                </span>
+                {% elif not urow.email %}
+                <span class="badge bg-warning text-dark">⚠ Chybí e-mail</span>
+                {% else %}
+                <span class="badge bg-success">Nový</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <input type="hidden" name="user_count" value="0">
+  {% endif %}
 
   {# ── Global defaults ────────────────────────────────────────────────── #}
   <div class="card mb-4">
@@ -98,8 +209,9 @@
         </div>
       </div>
       <div class="mt-3 text-muted" style="font-size:.85rem;">
-        <strong>Pozice:</strong> každá importovaná akce dostane 3 pozice —
-        1× <em>Zdravotník (povinná)</em>, 1× <em>Zelenáč (povinná)</em>, 1× <em>Zelenáč (volitelná)</em>.
+        <strong>Pozice:</strong>
+        Akce s ≤3 přihlášenými → 1× <em>Zdravotník (povinná)</em>, 1× <em>Zelenáč (povinná)</em>, 1× <em>Zelenáč (volitelná)</em>.
+        Akce s více přihlášenými → počet pozic odpovídá počtu přihlášených.
         Akce bez zadaného času budou vytvořeny bez pozic.
       </div>
     </div>
@@ -146,6 +258,19 @@
           <td>
             <input type="text" class="form-control form-control-sm"
                    name="ev_{{ i }}_name" value="{{ row.name }}" required>
+            {% if row.signups %}
+            <div class="text-muted mt-1" style="font-size:.75rem;"
+                 title="{{ row.signups | join(', ') }}">
+              👥 {{ row.signups | length }}× přihlášeni
+            </div>
+            {% endif %}
+            {# Hidden signup fields for assignments #}
+            <input type="hidden" name="ev_{{ i }}_signup_count"
+                   value="{{ row.signups | length }}">
+            {% for s in row.signups %}
+            <input type="hidden" name="ev_{{ i }}_signup_{{ loop.index0 }}"
+                   value="{{ s }}">
+            {% endfor %}
           </td>
 
           {# Date (read-only display + hidden) #}
