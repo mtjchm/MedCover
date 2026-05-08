@@ -75,22 +75,66 @@ def save() -> Response:
 
 # ── Block config ──────────────────────────────────────────────────────────────
 
-@bp.route("/blocks/<block_type>/save", methods=["POST"])
+_MAX_INSTANCES_PER_TYPE = 5
+
+
+@bp.route("/blocks/add", methods=["POST"])
 @login_required
-def save_block(block_type: str) -> Response:
+def add_block() -> Response:
     _require_digest_perm()
     from app.models.digest import get_digest_schedule, DigestBlock
     from app.digest.registry import BLOCK_REGISTRY
     import sqlalchemy as sa
 
+    block_type = request.form.get("block_type", "").strip()
     if block_type not in BLOCK_REGISTRY:
-        abort(404)
+        flash("Neplatný typ bloku.", "danger")
+        return redirect(url_for("admin_digest.index"))
+
+    cls = BLOCK_REGISTRY[block_type]
+    schedule = get_digest_schedule()
+
+    count = db.session.scalar(
+        sa.select(sa.func.count()).select_from(DigestBlock).where(
+            DigestBlock.digest_schedule_id == schedule.id,
+            DigestBlock.block_type == block_type,
+        )
+    ) or 0
+    if count >= _MAX_INSTANCES_PER_TYPE:
+        flash(f'Blok "{cls.label}" lze přidat nejvýše {_MAX_INSTANCES_PER_TYPE}×.', "danger")
+        return redirect(url_for("admin_digest.index"))
+
+    max_order = db.session.scalar(
+        sa.select(sa.func.max(DigestBlock.sort_order)).where(
+            DigestBlock.digest_schedule_id == schedule.id
+        )
+    ) or 0
+
+    db.session.add(DigestBlock(
+        digest_schedule_id=schedule.id,
+        block_type=block_type,
+        enabled=True,
+        sort_order=max_order + 1,
+        config_json=dict(cls.default_config),
+    ))
+    db.session.commit()
+    flash(f'Blok "{cls.label}" byl přidán.', "success")
+    return redirect(url_for("admin_digest.index"))
+
+
+@bp.route("/blocks/<int:block_id>/save", methods=["POST"])
+@login_required
+def save_block(block_id: int) -> Response:
+    _require_digest_perm()
+    from app.models.digest import get_digest_schedule, DigestBlock
+    from app.digest.registry import BLOCK_REGISTRY
+    import sqlalchemy as sa
 
     schedule = get_digest_schedule()
     block = db.session.scalar(
         sa.select(DigestBlock).where(
+            DigestBlock.id == block_id,
             DigestBlock.digest_schedule_id == schedule.id,
-            DigestBlock.block_type == block_type,
         ).with_for_update()
     )
     if block is None:
@@ -102,16 +146,41 @@ def save_block(block_type: str) -> Response:
         return redirect(url_for("admin_digest.index"))
 
     block.enabled = bool(request.form.get("enabled"))
-    cls = BLOCK_REGISTRY[block_type]
+    cls = BLOCK_REGISTRY[block.block_type]
     new_config = dict(block.config_json or cls.default_config)
 
-    # Merge form values for known config keys
-    _merge_block_config(block_type, new_config, request.form)
+    _merge_block_config(block.block_type, new_config, request.form)
 
     block.config_json = new_config
     block.version += 1
     db.session.commit()
     flash(f'Blok "{cls.label}" byl uložen.', "success")
+    return redirect(url_for("admin_digest.index"))
+
+
+@bp.route("/blocks/<int:block_id>/delete", methods=["POST"])
+@login_required
+def delete_block(block_id: int) -> Response:
+    _require_digest_perm()
+    from app.models.digest import get_digest_schedule, DigestBlock
+    from app.digest.registry import BLOCK_REGISTRY
+    import sqlalchemy as sa
+
+    schedule = get_digest_schedule()
+    block = db.session.scalar(
+        sa.select(DigestBlock).where(
+            DigestBlock.id == block_id,
+            DigestBlock.digest_schedule_id == schedule.id,
+        )
+    )
+    if block is None:
+        abort(404)
+
+    cls = BLOCK_REGISTRY.get(block.block_type)
+    label = cls.label if cls else block.block_type
+    db.session.delete(block)
+    db.session.commit()
+    flash(f'Blok "{label}" byl odstraněn.', "success")
     return redirect(url_for("admin_digest.index"))
 
 
@@ -152,23 +221,19 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
 
 # ── Block enable toggle ───────────────────────────────────────────────────────
 
-@bp.route("/blocks/<block_type>/toggle", methods=["POST"])
+@bp.route("/blocks/<int:block_id>/toggle", methods=["POST"])
 @login_required
-def toggle_block(block_type: str) -> dict[str, object]:
+def toggle_block(block_id: int) -> dict[str, object]:
     _require_digest_perm()
     from app.models.digest import get_digest_schedule, DigestBlock
-    from app.digest.registry import BLOCK_REGISTRY
     import sqlalchemy as sa
-
-    if block_type not in BLOCK_REGISTRY:
-        abort(404)
 
     schedule = get_digest_schedule()
     block = db.session.scalar(
         sa.select(DigestBlock)
         .where(
+            DigestBlock.id == block_id,
             DigestBlock.digest_schedule_id == schedule.id,
-            DigestBlock.block_type == block_type,
         )
         .with_for_update()
     )
@@ -187,16 +252,14 @@ def toggle_block(block_type: str) -> dict[str, object]:
 @login_required
 def reorder_blocks() -> dict[str, bool]:
     _require_digest_perm()
-    from app.models.digest import get_digest_schedule, DigestBlock
+    from app.models.digest import DigestBlock
     import sqlalchemy as sa
 
-    order: list[str] = request.get_json(silent=True) or []
-    schedule = get_digest_schedule()
-
-    for i, btype in enumerate(order):
+    ids: list[int] = request.get_json(silent=True) or []
+    for i, block_id in enumerate(ids):
         db.session.execute(
             sa.update(DigestBlock)
-            .where(DigestBlock.digest_schedule_id == schedule.id, DigestBlock.block_type == btype)
+            .where(DigestBlock.id == block_id)
             .values(sort_order=i)
         )
     db.session.commit()

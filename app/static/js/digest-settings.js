@@ -10,12 +10,12 @@
       handle: '[data-drag-handle]',
       animation: 150,
       onEnd: function () {
-        var order = Array.from(list.querySelectorAll('[data-block-type]'))
-                         .map(function (el) { return el.dataset.blockType; });
+        var ids = Array.from(list.querySelectorAll('[data-block-id]'))
+                       .map(function (el) { return parseInt(el.dataset.blockId, 10); });
         fetch(reorderUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': reorderCsrf },
-          body: JSON.stringify(order),
+          body: JSON.stringify(ids),
         });
       },
     });
@@ -26,8 +26,8 @@
     btn.addEventListener('click', function () {
       var url = btn.dataset.toggleUrl;
       var csrf = btn.dataset.csrf;
-      var blockType = btn.closest('[data-block-type]').dataset.blockType;
-      var badge = document.getElementById('badge-' + blockType);
+      var blockId = btn.dataset.blockId;
+      var badge = document.getElementById('badge-' + blockId);
 
       fetch(url, {
         method: 'POST',
@@ -37,11 +37,13 @@
         .then(function (data) {
           if (data.enabled) {
             btn.textContent = 'Zapnuto';
-            btn.className = btn.className.replace('btn-outline-secondary', 'btn-success');
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
             if (badge) { badge.className = 'badge bg-success'; badge.textContent = 'Aktivní'; }
           } else {
             btn.textContent = 'Vypnuto';
-            btn.className = btn.className.replace('btn-success', 'btn-outline-secondary');
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
             if (badge) { badge.className = 'badge bg-secondary'; badge.textContent = 'Neaktivní'; }
           }
         });

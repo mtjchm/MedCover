@@ -74,7 +74,18 @@
   <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span class="fw-semibold">Bloky přehledu</span>
-      <small class="text-muted">Přetažením změníte pořadí</small>
+      <div class="d-flex align-items-center gap-2">
+        <small class="text-muted">Přetažením změníte pořadí</small>
+        <form method="POST" action="{{ url_for('admin_digest.add_block') }}" class="d-flex gap-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select class="form-select form-select-sm" name="block_type" style="width:auto;">
+            {% for btype, cls in block_registry.items() %}
+            <option value="{{ btype }}">{{ cls.label }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">+ Přidat blok</button>
+        </form>
+      </div>
     </div>
     <div class="card-body p-0">
       <div id="block-list"
@@ -83,35 +94,40 @@
         {% for block in schedule.blocks %}
         {% set cls = block_registry.get(block.block_type) %}
         {% if cls %}
-        <div class="border-bottom p-3" data-block-type="{{ block.block_type }}" id="block-row-{{ block.block_type }}">
+        <div class="border-bottom p-3" data-block-id="{{ block.id }}" id="block-row-{{ block.id }}">
           <div class="d-flex align-items-center gap-2">
             <span class="text-muted" style="cursor:grab;" data-drag-handle title="Přetáhnout">☰</span>
-            <strong>{{ cls.label }}</strong>
+            <strong>{{ block.config_json.get('title') or cls.label }}</strong>
             <span class="badge bg-secondary ms-1 text-lowercase">{{ block.block_type }}</span>
             {% if block.enabled %}
-              <span class="badge bg-success" id="badge-{{ block.block_type }}">Aktivní</span>
+              <span class="badge bg-success" id="badge-{{ block.id }}">Aktivní</span>
             {% else %}
-              <span class="badge bg-secondary" id="badge-{{ block.block_type }}">Neaktivní</span>
+              <span class="badge bg-secondary" id="badge-{{ block.id }}">Neaktivní</span>
             {% endif %}
             <button type="button"
                     class="btn btn-sm ms-auto {% if block.enabled %}btn-success{% else %}btn-outline-secondary{% endif %}"
-                    id="toggle-{{ block.block_type }}"
-                    data-toggle-url="{{ url_for('admin_digest.toggle_block', block_type=block.block_type) }}"
+                    data-toggle-url="{{ url_for('admin_digest.toggle_block', block_id=block.id) }}"
                     data-csrf="{{ csrf_token() }}"
-                    data-enabled="{{ 'true' if block.enabled else 'false' }}"
+                    data-block-id="{{ block.id }}"
                     title="Zapnout / vypnout blok">
               {% if block.enabled %}Zapnuto{% else %}Vypnuto{% endif %}
             </button>
             <button class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="collapse"
-                    data-bs-target="#block-cfg-{{ block.block_type }}">
+                    data-bs-target="#block-cfg-{{ block.id }}">
               Nastavení
             </button>
+            <form method="POST"
+                  action="{{ url_for('admin_digest.delete_block', block_id=block.id) }}"
+                  onsubmit="return confirm('Opravdu odstranit tento blok?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-danger btn-sm" title="Odstranit blok">🗑</button>
+            </form>
           </div>
 
-          <div class="collapse mt-3" id="block-cfg-{{ block.block_type }}">
+          <div class="collapse mt-3" id="block-cfg-{{ block.id }}">
             <form method="POST"
-                  action="{{ url_for('admin_digest.save_block', block_type=block.block_type) }}"
+                  action="{{ url_for('admin_digest.save_block', block_id=block.id) }}"
                   class="ps-4">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="version" value="{{ block.version }}">
