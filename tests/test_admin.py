@@ -110,10 +110,25 @@ class TestAppSettings:
         response = admin_client.get("/admin/settings/")
         assert response.status_code == 200
 
-    def test_settings_page_does_not_expose_smtp_password(self, admin_client):
+    def test_settings_page_does_not_expose_smtp_password(self, app, admin_client):
+        """The plaintext SMTP password must never appear in the settings page HTML."""
+        from app.extensions import db
+        from app.models.settings import get_settings
+        from cryptography.fernet import Fernet
+
+        # Configure a real (encrypted) SMTP password in settings
+        test_password = "super_secret_smtp_pass_99"
+        with app.app_context():
+            settings = get_settings()
+            key = Fernet.generate_key()
+            f = Fernet(key)
+            settings.smtp_password_encrypted = f.encrypt(test_password.encode()).decode()
+            db.session.commit()
+
         response = admin_client.get("/admin/settings/")
-        # SMTP password must never appear in the HTML response
-        assert b"smtp_password" not in response.data.lower() or b'type="password"' in response.data
+        assert response.status_code == 200
+        # The plaintext password must never appear in the HTML
+        assert test_password.encode() not in response.data
 
 
 class TestAuditLogUI:

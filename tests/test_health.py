@@ -14,9 +14,16 @@ def test_health_returns_json(client):
 
 
 def test_health_accessible_without_login(client):
-    """Health endpoint must work without authentication (used by Docker healthcheck)."""
+    """Health endpoint must return 200 without authentication (Docker healthcheck)."""
     response = client.get("/health")
-    assert response.status_code in (200, 503)
+    assert response.status_code == 200
+
+
+def test_health_response_has_no_detail_key_when_ok(client):
+    """A healthy response should not include an error detail field."""
+    response = client.get("/health")
+    data = response.get_json()
+    assert "detail" not in data
 
 
 def test_health_db_ok_returns_ok_status(client):

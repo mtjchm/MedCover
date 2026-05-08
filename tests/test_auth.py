@@ -34,7 +34,8 @@ class TestLoginPage:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        assert b"/auth/login" in response.request.path.encode() or b"login" in response.data.lower()
+        assert response.request.path == "/auth/login"
+        assert "Nesprávný e-mail nebo heslo".encode() in response.data
 
     def test_login_unknown_email_stays_on_login(self, client):
         response = client.post(
@@ -57,8 +58,9 @@ class TestLoginPage:
             data={"email": "inactive@example.com", "password": "testpass123"},
             follow_redirects=True,
         )
-        # Should not reach dashboard
-        assert b"/dashboard" not in response.data
+        # Must stay on login page with activation warning
+        assert response.request.path == "/auth/login"
+        assert b"aktivaci" in response.data
 
 
 class TestLogout:
@@ -104,3 +106,43 @@ class TestForgotPassword:
             follow_redirects=True,
         )
         assert response.status_code == 200
+
+
+class TestOpenRedirectProtection:
+    """The ?next= parameter on login must not redirect to external URLs."""
+
+    def test_external_next_redirects_to_dashboard(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=https://evil.example.com/steal",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert "evil.example.com" not in location
+        assert "/dashboard" in location
+
+    def test_protocol_relative_next_redirects_to_dashboard(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=//evil.example.com/steal",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert "evil.example.com" not in location
+
+    def test_same_origin_next_is_honoured(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=/events/",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert "/events/" in response.headers["Location"]

@@ -51,6 +51,11 @@ class TestAssignmentClaim:
                 db.select(Assignment).where(Assignment.spot_id == spot_id)
             )
             assert assignment is not None
+            # Verify the correct user is stored
+            member = db.session.scalar(
+                db.select(UserAccount).where(UserAccount.email == "member@test.com")
+            )
+            assert assignment.user_id == member.id
 
     def test_claim_already_taken_spot_is_rejected(self, app, member_client):
         event_id, spot_id = _setup_open_event(app)
@@ -166,3 +171,53 @@ class TestAdminAssignment:
             follow_redirects=False,
         )
         assert response.status_code == 403
+
+    def test_second_user_cannot_claim_taken_spot(self, app, member_client):
+        """A different user should not be able to claim a spot already taken by another user."""
+        event_id, spot_id = _setup_open_event(app)
+
+        # First member claims the spot
+        member_client.post(f"/assignments/claim/{spot_id}", follow_redirects=True)
+
+        # Second member (fresh client — separate session) tries to claim the same spot
+        with app.app_context():
+            _make_user("member2@test.com", "Second Member", Role.MEMBER)
+
+        from tests.conftest import _login
+        second_client = app.test_client()
+        _login(second_client, "member2@test.com")
+        response = second_client.post(f"/assignments/claim/{spot_id}", follow_redirects=True)
+
+        assert response.status_code == 200
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(Assignment).where(Assignment.spot_id == spot_id)
+            )
+            assert count == 1  # Still only one assignment
+
+
+class TestAssignmentReleaseOwnership:
+    def test_member_cannot_release_others_assignment(self, app, member_client):
+        """A member must not be able to release another user's assignment."""
+        event_id, spot_id = _setup_open_event(app)
+
+        # First member claims the spot
+        member_client.post(f"/assignments/claim/{spot_id}", follow_redirects=True)
+        with app.app_context():
+            assignment = db.session.scalar(
+                db.select(Assignment).where(Assignment.spot_id == spot_id)
+            )
+            assignment_id = assignment.id
+
+        # Second member (fresh client — separate session) tries to release it
+        with app.app_context():
+            _make_user("member2@test.com", "Second Member", Role.MEMBER)
+        from tests.conftest import _login
+        second_client = app.test_client()
+        _login(second_client, "member2@test.com")
+        response = second_client.post(f"/assignments/release/{assignment_id}", follow_redirects=False)
+
+        assert response.status_code == 403
+        with app.app_context():
+            remaining = db.session.get(Assignment, assignment_id)
+            assert remaining is not None  # Assignment must still exist

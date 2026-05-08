@@ -304,3 +304,34 @@ class TestAuditChangeTracking:
             assert entry is not None
             # No fields changed → changes_json should be None or {}
             assert not entry.changes_json
+
+    def test_create_event_end_before_start_rejected(self, app, admin_client):
+        me_id = _make_master_event(app)
+        data = _event_form_data(me_id)
+        # Swap: end is before start
+        data["start_datetime"] = "2030-06-01T18:00"
+        data["end_datetime"] = "2030-06-01T10:00"
+        response = admin_client.post(
+            "/events/create",
+            data=data,
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        with app.app_context():
+            count = db.session.scalar(db.select(db.func.count()).select_from(Event))
+            assert count == 0
+
+    def test_create_event_equal_start_end_rejected(self, app, admin_client):
+        me_id = _make_master_event(app)
+        data = _event_form_data(me_id)
+        data["start_datetime"] = "2030-06-01T10:00"
+        data["end_datetime"] = "2030-06-01T10:00"
+        response = admin_client.post(
+            "/events/create",
+            data=data,
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        with app.app_context():
+            count = db.session.scalar(db.select(db.func.count()).select_from(Event))
+            assert count == 0
