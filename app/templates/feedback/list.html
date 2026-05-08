@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Zpětná vazba — Administrace — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Zpětná vazba uživatelů</h2>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Administrace</a>
+</div>
+
+{% if entries %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th style="width:14rem">Datum</th>
+        <th>Uživatel</th>
+        <th>Stránka</th>
+        <th>Zpráva</th>
+        <th>Prohlížeč / obrazovka</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for entry in entries %}
+      <tr>
+        <td class="text-nowrap text-muted small">
+          {{ entry.submitted_at.astimezone().strftime("%d.%m.%Y %H:%M") }}
+        </td>
+        <td>
+          {% if entry.user %}
+            <a href="{{ url_for('users.detail', user_id=entry.user.id) }}">{{ entry.user.name }}</a>
+          {% else %}
+            <span class="text-muted">(smazaný uživatel)</span>
+          {% endif %}
+        </td>
+        <td class="text-muted small" style="max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          {% if entry.page_url %}
+            <span title="{{ entry.page_url }}">{{ entry.page_url }}</span>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td style="max-width:30rem">
+          <span class="d-block" style="white-space:pre-wrap">{{ entry.message }}</span>
+        </td>
+        <td class="text-muted small" style="max-width:18rem">
+          {% if entry.screen_info %}<div>🖥 {{ entry.screen_info }}</div>{% endif %}
+          {% if entry.user_agent %}
+            <div class="text-truncate" title="{{ entry.user_agent }}" style="max-width:18rem">{{ entry.user_agent }}</div>
+          {% endif %}
+        </td>
+        <td class="text-end">
+          <form method="POST"
+                action="{{ url_for('feedback.feedback_delete', entry_id=entry.id) }}"
+                onsubmit="return confirm('Smazat tuto zpětnou vazbu?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm">Smazat</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-info">Zatím nebyla odeslána žádná zpětná vazba.</div>
+{% endif %}
+{% endblock %}

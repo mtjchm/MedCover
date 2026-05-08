@@ -33,6 +33,7 @@ _MUTABLE_TABLES = " ,".join([
     "registration_invite",
     "outbox_email",
     "audit_log_entry",
+    "user_feedback",
     "user_roles",
     "user_account",
 ])

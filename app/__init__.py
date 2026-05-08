@@ -53,6 +53,11 @@ def create_app(
     register_blueprints(app)
     register_cli_commands(app)
 
+    @app.context_processor
+    def _inject_app_config() -> dict:
+        """Inject app config into all templates as `config`."""
+        return {"config": app.config}
+
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
         """Convert a UTC datetime to Europe/Prague local time and format it."""

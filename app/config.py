@@ -14,6 +14,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     WTF_CSRF_ENABLED = True
     DEV_LOGIN_ENABLED = False
+    # Short git commit hash injected at Docker build time via ARG GIT_COMMIT.
+    # Falls back to "dev" when running outside of Docker (local dev, tests).
+    GIT_COMMIT: str = os.environ.get("GIT_COMMIT", "dev")
 
 
 class DevelopmentConfig(Config):
