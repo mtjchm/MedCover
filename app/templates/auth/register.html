@@ -10,8 +10,8 @@
         <form method="POST" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
-            <label for="full_name" class="form-label">Celé jméno</label>
-            <input type="text" class="form-control" id="full_name" name="full_name" autofocus required>
+            <label for="full_name" class="form-label">Celé jméno <small class="text-muted fw-normal">(Příjmení Jméno)</small></label>
+            <input type="text" class="form-control" id="full_name" name="full_name" placeholder="Novák Jan" autofocus required>
           </div>
           <div class="mb-3">
             <label for="password" class="form-label">Heslo</label>

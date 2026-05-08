@@ -139,7 +139,7 @@ def seed() -> None:
                 continue
             user = UserAccount(
                 email=email,
-                name=f"Dev {account_def['label']}",
+                name=account_def["name"],
                 is_active=(account_def["role"] != "inactive"),
             )
             user.set_password("devpassword")

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}{{ user.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -40,17 +41,23 @@
         <div class="card-body">
           {% if current_user.has_permission('user.edit_any') %}
           <div class="mb-3">
-            <label class="form-label" for="edit_name">Jméno</label>
+            <label class="form-label" for="edit_name">Celé jméno <small class="text-muted fw-normal">(Příjmení Jméno)</small>
+              {{ help_icon("Zadejte nejdříve příjmení, pak jméno — např. Novák Jan. Tento formát se zobrazuje ve všech přehledech a výkazech.") }}
+            </label>
             <input class="form-control" type="text" id="edit_name" name="name"
-                   value="{{ user.name }}" required>
+                   value="{{ user.name }}" placeholder="Novák Jan" required>
           </div>
           <div class="mb-3">
-            <label class="form-label" for="edit_email">E-mail</label>
+            <label class="form-label" for="edit_email">E-mail
+              {{ help_icon("Přihlašovací e-mail uživatele. Musí být unikátní v celém systému.") }}
+            </label>
             <input class="form-control" type="email" id="edit_email" name="email"
                    value="{{ user.email }}" required>
           </div>
           <div class="mb-3">
-            <label class="form-label" for="edit_phone">Telefon</label>
+            <label class="form-label" for="edit_phone">Telefon
+              {{ help_icon("Nepovinné. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).") }}
+            </label>
             <input class="form-control" type="tel" id="edit_phone" name="phone"
                    value="{{ user.phone or '' }}">
             <div class="invalid-feedback">Neplatný formát. Povolené formáty: +420 123 456 789, 00420 123 456 789, 123 456 789 (mezery jsou volitelné).</div>
@@ -71,9 +78,11 @@
         <div class="card-header fw-semibold">Nastavit heslo <span class="text-muted fw-normal fs-6">(volitelné)</span></div>
         <div class="card-body">
           <div class="mb-2">
+            <label class="form-label" for="new_password">Nové heslo
+              {{ help_icon("Ponechte prázdné, pokud heslo neměníte. Heslo musí mít alespoň 8 znaků.") }}
+            </label>
             <input class="form-control" type="password" id="new_password" name="new_password"
                    autocomplete="new-password" placeholder="Nové heslo (min. 8 znaků)">
-            <div class="form-text">Ponechte prázdné, pokud heslo neměníte.</div>
             <div class="invalid-feedback">Heslo musí mít alespoň 8 znaků.</div>
           </div>
         </div>
@@ -87,7 +96,9 @@
 
       {% if current_user.has_permission('user.assign_role') %}
       <div class="card mb-4">
-        <div class="card-header fw-semibold">Role</div>
+        <div class="card-header fw-semibold">Role
+          {{ help_icon("Role určují, co uživatel v systému smí dělat — jaké stránky vidí a jaké akce může provádět.") }}
+        </div>
         <div class="card-body">
           <div class="d-flex flex-wrap gap-2">
             {% for role in all_roles %}
@@ -105,7 +116,9 @@
 
       {% if current_user.has_permission('user.assign_qualification') %}
       <div class="card mb-4">
-        <div class="card-header fw-semibold">Kvalifikace</div>
+        <div class="card-header fw-semibold">Kvalifikace
+          {{ help_icon("Kvalifikace určují, na jaké pozice může uživatel nastoupit. Přiřazení zde ovlivňuje, které místa si může uživatel vybrat při přihlašování na akci.") }}
+        </div>
         <div class="card-body">
           <div class="row g-2">
             {% for cred in all_qualifications %}
