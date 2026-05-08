@@ -70,12 +70,14 @@
         </ul>
         <ul class="navbar-nav">
           {% if current_user.is_authenticated %}
+            {% if feedback_enabled %}
             <li class="nav-item">
               <a class="nav-link" href="{{ url_for('feedback.feedback_form', **{'from': request.full_path.rstrip('?')}) }}"
                  title="Zpětná vazba">
                 💬 Zpětná vazba
               </a>
             </li>
+            {% endif %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('users.profile') }}">{{ current_user.name }}</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Odhlásit</a></li>
           {% elif request.endpoint != 'auth.login' %}

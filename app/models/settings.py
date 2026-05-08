@@ -39,6 +39,7 @@ class AppSettings(db.Model):  # type: ignore[misc]
 
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
+    feedback_enabled = db.Column(db.Boolean, default=True, nullable=False)
     scheduler_last_seen = db.Column(db.DateTime(timezone=True), nullable=True)
     updated_at = db.Column(
         db.DateTime(timezone=True),

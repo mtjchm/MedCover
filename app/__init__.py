@@ -55,8 +55,14 @@ def create_app(
 
     @app.context_processor
     def _inject_app_config() -> dict:
-        """Inject app config into all templates as `config`."""
-        return {"config": app.config}
+        """Inject app config and feature flags into all templates."""
+        try:
+            from .models.settings import get_settings as _gs
+            _s = _gs()
+            feedback_enabled = _s.feedback_enabled
+        except Exception:
+            feedback_enabled = True
+        return {"config": app.config, "feedback_enabled": feedback_enabled}
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:

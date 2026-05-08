@@ -136,3 +136,52 @@ class TestCommitHash:
         with app.app_context():
             from flask import current_app
             assert current_app.config["GIT_COMMIT"] == "dev"
+
+
+# ── app_version stored in feedback ────────────────────────────────────────────
+
+
+class TestFeedbackAppVersion:
+    def test_app_version_stored_on_submit(self, app, member_client):
+        _post_feedback(member_client, "Version test")
+        with app.app_context():
+            entry = db.session.scalar(db.select(UserFeedback))
+            # In test env GIT_COMMIT defaults to "dev"
+            assert entry.app_version == "dev"
+
+    def test_app_version_shown_in_admin_list(self, app, admin_client, member_client):
+        _post_feedback(member_client, "Version visible")
+        rv = admin_client.get("/admin/feedback/")
+        assert rv.status_code == 200
+        assert b"dev" in rv.data
+
+
+# ── feedback_enabled toggle ───────────────────────────────────────────────────
+
+
+class TestFeedbackEnabled:
+    def _set_enabled(self, app, enabled: bool) -> None:
+        from app.models.settings import get_settings
+        from app.extensions import db as _db
+        with app.app_context():
+            s = get_settings()
+            s.feedback_enabled = enabled
+            _db.session.commit()
+
+    def test_form_accessible_when_enabled(self, app, member_client):
+        self._set_enabled(app, True)
+        rv = member_client.get("/feedback/")
+        assert rv.status_code == 200
+
+    def test_form_returns_404_when_disabled(self, app, member_client):
+        self._set_enabled(app, False)
+        rv = member_client.get("/feedback/")
+        assert rv.status_code == 404
+
+    def test_submit_returns_404_when_disabled(self, app, member_client):
+        self._set_enabled(app, False)
+        rv = member_client.post(
+            "/feedback/submit",
+            data={"message": "test", "page_url": "/"},
+        )
+        assert rv.status_code == 404

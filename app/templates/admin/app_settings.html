@@ -31,6 +31,14 @@
           Ponechte prázdné pro automatické zjišťování z požadavku.
         </div>
       </div>
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="feedback_enabled" name="feedback_enabled"
+                 {% if settings.feedback_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="feedback_enabled">Povolit funkci zpětné vazby</label>
+        </div>
+        <div class="form-text">Když je vypnuto, tlačítko zmizí z navigace a formulář bude nedostupný.</div>
+      </div>
       <div class="mb-0">
         <label for="timezone" class="form-label">Časová zóna</label>
         <select class="form-select" id="timezone" name="timezone">

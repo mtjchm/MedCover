@@ -17,6 +17,7 @@
         <th>Stránka</th>
         <th>Zpráva</th>
         <th>Prohlížeč / obrazovka</th>
+        <th>Verze</th>
         <th></th>
       </tr>
     </thead>
@@ -48,6 +49,12 @@
           {% if entry.user_agent %}
             <div class="text-muted" style="white-space:pre-wrap;overflow-wrap:break-word;">{{ entry.user_agent }}</div>
           {% endif %}
+        </td>
+        <td class="text-muted small text-nowrap">
+          {% if entry.app_version %}
+            <a href="https://github.com/spidermila/MedCover/commit/{{ entry.app_version }}"
+               target="_blank" rel="noopener" title="Zobrazit commit na GitHubu">{{ entry.app_version }}</a>
+          {% else %}—{% endif %}
         </td>
         <td class="text-end">
           <form method="POST"

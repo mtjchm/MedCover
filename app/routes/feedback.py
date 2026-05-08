@@ -13,6 +13,7 @@ from flask import (
     Blueprint,
     Response,
     abort,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -24,8 +25,15 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.models.audit import AuditLogEntry
 from app.models.feedback import UserFeedback
+from app.models.settings import get_settings
 
 feedback_bp = Blueprint("feedback", __name__)
+
+
+def _require_feedback_enabled() -> None:
+    """Abort with 404 if the feedback feature has been disabled by an admin."""
+    if not get_settings().feedback_enabled:
+        abort(404)
 
 
 # ── Submit ─────────────────────────────────────────────────────────────────────
@@ -35,6 +43,7 @@ feedback_bp = Blueprint("feedback", __name__)
 @login_required
 def feedback_form() -> str:
     """Render the feedback submission form."""
+    _require_feedback_enabled()
     return render_template(
         "feedback/submit.html",
         page_url=request.args.get("from", ""),
@@ -45,6 +54,7 @@ def feedback_form() -> str:
 @login_required
 def feedback_submit() -> Response:
     """Save submitted feedback to the database."""
+    _require_feedback_enabled()
     message = request.form.get("message", "").strip()
     if not message:
         flash("Zpráva nesmí být prázdná.", "warning")
@@ -53,6 +63,7 @@ def feedback_submit() -> Response:
     page_url = request.form.get("page_url", "").strip() or None
     user_agent = request.form.get("user_agent", "").strip() or None
     screen_info = request.form.get("screen_info", "").strip() or None
+    app_version = current_app.config.get("GIT_COMMIT") or None
 
     entry = UserFeedback(
         user_id=current_user.id,
@@ -60,6 +71,7 @@ def feedback_submit() -> Response:
         page_url=page_url,
         user_agent=user_agent,
         screen_info=screen_info,
+        app_version=app_version,
     )
     db.session.add(entry)
     db.session.commit()
