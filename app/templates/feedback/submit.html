@@ -46,20 +46,5 @@
   </div>
 </div>
 
-<script>
-  // Collect browser/OS info and fill hidden fields before the form is submitted.
-  (function () {
-    document.querySelector("form").addEventListener("submit", function () {
-      document.getElementById("user_agent_field").value = navigator.userAgent || "";
-      var s = window.screen;
-      document.getElementById("screen_info_field").value =
-        s.width + "×" + s.height + " (" + s.colorDepth + "-bit)";
-      // If page_url was not supplied via query param, use referrer
-      var puField = document.getElementById("page_url_field");
-      if (!puField.value) {
-        puField.value = document.referrer || window.location.href;
-      }
-    });
-  })();
-</script>
+<script src="{{ url_for('static', filename='js/feedback-submit.js') }}"></script>
 {% endblock %}

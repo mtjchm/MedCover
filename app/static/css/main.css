@@ -125,3 +125,15 @@
   background-color: transparent !important;
   color: var(--bs-body-color) !important;
 }
+
+/* Dark mode: FullCalendar header/toolbar background overrides */
+[data-bs-theme="dark"] .fc .fc-col-header-cell,
+[data-bs-theme="dark"] .fc .fc-col-header {
+  background-color: transparent !important;
+}
+[data-bs-theme="dark"] .fc .fc-toolbar {
+  background-color: transparent !important;
+}
+[data-bs-theme="dark"] .fc .fc-list-sticky .fc-list-day > * {
+  background-color: var(--bs-body-bg) !important;
+}

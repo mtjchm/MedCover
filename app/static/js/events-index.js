@@ -1,0 +1,298 @@
+/* Events list + calendar page.
+ * Page config is read from <script id="events-page-cfg" type="application/json"> */
+(function () {
+  var cfg = {};
+  try {
+    var cfgEl = document.getElementById("events-page-cfg");
+    if (cfgEl) cfg = JSON.parse(cfgEl.textContent);
+  } catch (e) {}
+
+  var FEED_URL_BASE  = cfg.feedUrl  || "";
+  var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
+  var CLAIM_BASE     = cfg.claimBase || "";
+
+  var STORAGE_VIEW  = "medcover_events_view";
+  var STORAGE_FILT  = "medcover_events_filters";
+  var STORAGE_SORT  = "medcover_events_sort";
+
+  var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+
+  var calendarInitialized = false;
+  var calendar = null;
+  var allCalendarEvents = null;
+  var sortState = { col: "start", dir: "asc" };
+
+  // ── Filter state ──────────────────────────────────────────────────────────
+
+  function loadFilters() {
+    try { var s = localStorage.getItem(STORAGE_FILT); if (s) return JSON.parse(s); } catch(e) {}
+    return DEFAULT_FILTERS.slice();
+  }
+  function saveFilters(f) { localStorage.setItem(STORAGE_FILT, JSON.stringify(f)); }
+  function loadSort() {
+    try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
+    return { col: "start", dir: "asc" };
+  }
+  function saveSort(s) { localStorage.setItem(STORAGE_SORT, JSON.stringify(s)); }
+
+  // ── Filter buttons ────────────────────────────────────────────────────────
+
+  function renderFilterButtons(activeFilters) {
+    document.querySelectorAll(".filter-btn").forEach(function (btn) {
+      var key = btn.dataset.status;
+      var on = activeFilters.includes(key);
+      btn.classList.toggle("active", on);
+      if (key === "ASSIGNMENTS_CLOSED") {
+        btn.style.backgroundColor = on ? "#ffc107" : "";
+        btn.style.color = on ? "#000" : "";
+        btn.style.borderColor = "#ffc107";
+      }
+    });
+  }
+
+  function toggleFilter(key) {
+    var f = loadFilters();
+    var idx = f.indexOf(key);
+    if (idx >= 0) f.splice(idx, 1); else f.push(key);
+    saveFilters(f);
+    renderFilterButtons(f);
+    applyFilters(f);
+  }
+
+  function resetFilters() {
+    saveFilters(DEFAULT_FILTERS.slice());
+    renderFilterButtons(DEFAULT_FILTERS.slice());
+    applyFilters(DEFAULT_FILTERS.slice());
+  }
+
+  // ── Table filter + sort ───────────────────────────────────────────────────
+
+  function applyFilters(activeFilters) {
+    var tbody = document.querySelector("#events-table tbody");
+    if (!tbody) return;
+    var visibleCount = 0;
+    tbody.querySelectorAll("tr").forEach(function (row) {
+      var visible = activeFilters.includes(row.dataset.status);
+      row.style.display = visible ? "" : "none";
+      if (visible) visibleCount++;
+    });
+    var emptyMsg = document.getElementById("table-empty-msg");
+    if (emptyMsg) emptyMsg.style.display = visibleCount === 0 ? "" : "none";
+    if (calendarInitialized && calendar) calendar.refetchEvents();
+  }
+
+  function sortTable(col) {
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+    } else {
+      sortState.col = col;
+      sortState.dir = "asc";
+    }
+    saveSort(sortState);
+    renderSortIcons();
+    doSort();
+  }
+
+  function renderSortIcons() {
+    document.querySelectorAll(".sortable").forEach(function (th) {
+      var icon = th.querySelector(".sort-icon");
+      if (!icon) return;
+      if (th.dataset.col === sortState.col) {
+        icon.textContent = sortState.dir === "asc" ? "↑" : "↓";
+        icon.classList.remove("text-muted");
+      } else {
+        icon.textContent = "↕";
+        icon.classList.add("text-muted");
+      }
+    });
+  }
+
+  function doSort() {
+    var tbody = document.querySelector("#events-table tbody");
+    if (!tbody) return;
+    var rows = Array.from(tbody.querySelectorAll("tr"));
+    var col = sortState.col;
+    var dir = sortState.dir === "asc" ? 1 : -1;
+    rows.sort(function (a, b) {
+      var aVals = JSON.parse(a.dataset.sv || "{}");
+      var bVals = JSON.parse(b.dataset.sv || "{}");
+      var av = aVals[col] != null ? String(aVals[col]) : "";
+      var bv = bVals[col] != null ? String(bVals[col]) : "";
+      if (col === "start") return dir * av.localeCompare(bv);
+      if (col === "staffing" || col === "total") return dir * (parseFloat(av) - parseFloat(bv));
+      return dir * av.localeCompare(bv, "cs");
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+  }
+
+  // ── View toggle ───────────────────────────────────────────────────────────
+
+  function setView(view) {
+    localStorage.setItem(STORAGE_VIEW, view);
+    document.getElementById("view-table").style.display    = view === "table"    ? "" : "none";
+    document.getElementById("view-calendar").style.display = view === "calendar" ? "" : "none";
+    document.getElementById("btn-table-view").classList.toggle("active", view === "table");
+    document.getElementById("btn-calendar-view").classList.toggle("active", view === "calendar");
+    if (view === "calendar" && !calendarInitialized) initCalendar();
+  }
+
+  // ── Calendar ──────────────────────────────────────────────────────────────
+
+  function initCalendar() {
+    calendarInitialized = true;
+    var el = document.getElementById("fullcalendar");
+    calendar = new FullCalendar.Calendar(el, {
+      initialView: "dayGridMonth",
+      locale: "cs",
+      headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,listMonth" },
+      buttonText: { today: "Dnes", month: "Měsíc", week: "Týden", list: "Seznam" },
+      events: async function (fetchInfo, successCallback, failureCallback) {
+        try {
+          if (!allCalendarEvents) {
+            var r = await fetch(FEED_URL_BASE);
+            allCalendarEvents = await r.json();
+          }
+          var active = loadFilters();
+          successCallback(allCalendarEvents.filter(function (e) { return active.includes(e.extendedProps.status_key); }));
+        } catch (err) { failureCallback(err); }
+      },
+      eventClick: function (info) {
+        info.jsEvent.preventDefault();
+        window.location.href = info.event.url;
+      },
+      eventDidMount: function (info) {
+        var p = info.event.extendedProps;
+        var cancelled = p.status === "Zrušena";
+        var spotsLine = cancelled ? "" : "\nObsazení: " + p.filled + "/" + p.total;
+        var title = p.me_name ? info.event.title + " (" + p.me_name + ")" : info.event.title;
+        var rpLine = p.rp ? "\nZodpovědný zdravotník: " + p.rp : "";
+        info.el.setAttribute("title",
+          title + "\n" + p.start_local + " – " + p.end_local + spotsLine + rpLine + "\nStav: " + p.status);
+        if (cancelled) {
+          info.el.style.opacity = "0.55";
+          var titleEl = info.el.querySelector(".fc-list-event-title a") || info.el.querySelector(".fc-event-title");
+          if (titleEl) { titleEl.style.textDecoration = "line-through"; titleEl.style.color = "#6c757d"; }
+        }
+      },
+      height: "auto"
+    });
+    calendar.render();
+  }
+
+  // ── Spot pick modal ───────────────────────────────────────────────────────
+
+  function initSpotPickModal() {
+    var modal = document.getElementById('spotPickModal');
+    if (!modal || !CLAIM_BASE) return;
+    modal.addEventListener('show.bs.modal', function (e) {
+      var btn = e.relatedTarget;
+      var eventName = btn.dataset.eventName;
+      var spots = JSON.parse(btn.dataset.spots);
+      var csrf = btn.dataset.csrf;
+      document.getElementById('spotPickModalLabel').textContent = eventName;
+      var body = document.getElementById('spotPickBody');
+      body.innerHTML = '';
+      spots.forEach(function (s) {
+        var spotId = s[0], desc = s[1] || 'Pozice #' + spotId;
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = CLAIM_BASE + spotId;
+        form.className = 'mb-1';
+        form.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrf + '">' +
+          '<button class="btn btn-success btn-sm w-100 text-start">' + desc + '</button>';
+        body.appendChild(form);
+      });
+    });
+  }
+
+  // ── Bulk selection ────────────────────────────────────────────────────────
+
+  function clearSelection() {
+    document.querySelectorAll(".row-event-check").forEach(function (cb) { cb.checked = false; });
+    var ca = document.getElementById("check-all-events");
+    if (ca) { ca.checked = false; ca.indeterminate = false; }
+    var tb = document.getElementById("bulk-toolbar");
+    if (tb) tb.classList.add("d-none");
+  }
+
+  function submitBulk(action) {
+    var ids = Array.from(document.querySelectorAll(".row-event-check:checked")).map(function (cb) { return cb.value; });
+    if (ids.length === 0) return;
+    var actionLabels = { publish: "Zveřejnit", open_assignments: "Otevřít přihlášky", cancel: "Zrušit" };
+    var label = actionLabels[action] || action;
+    if (!confirm("Akce: " + label + "\nPočet vybraných akcí: " + ids.length + "\n\nPokračovat?")) return;
+    var form = document.getElementById("bulk-form");
+    document.getElementById("bulk-action-input").value = action;
+    var container = document.getElementById("bulk-ids-container");
+    container.innerHTML = "";
+    ids.forEach(function (id) {
+      var inp = document.createElement("input");
+      inp.type = "hidden"; inp.name = "event_ids"; inp.value = id;
+      container.appendChild(inp);
+    });
+    form.submit();
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  document.addEventListener("DOMContentLoaded", function () {
+    sortState = loadSort();
+    renderSortIcons();
+    doSort();
+
+    document.querySelectorAll(".sortable").forEach(function (th) {
+      th.addEventListener("click", function () { sortTable(th.dataset.col); });
+    });
+    document.querySelectorAll(".filter-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); });
+    });
+
+    var activeFilters = loadFilters();
+    renderFilterButtons(activeFilters);
+    applyFilters(activeFilters);
+
+    var saved = localStorage.getItem(STORAGE_VIEW) || "table";
+    setView(saved);
+
+    // Bulk selection
+    var checkAll   = document.getElementById("check-all-events");
+    var toolbar    = document.getElementById("bulk-toolbar");
+    var countLabel = document.getElementById("bulk-count-label");
+
+    function visibleChecks() {
+      return Array.from(document.querySelectorAll(".row-event-check")).filter(function (cb) {
+        var tr = cb.closest("tr");
+        return tr && tr.style.display !== "none";
+      });
+    }
+
+    function updateBulkToolbar() {
+      if (!toolbar) return;
+      var checked = visibleChecks().filter(function (cb) { return cb.checked; });
+      var total   = visibleChecks().length;
+      toolbar.classList.toggle("d-none", checked.length === 0);
+      if (countLabel) countLabel.textContent = checked.length + " vybráno";
+      if (checkAll) {
+        checkAll.indeterminate = checked.length > 0 && checked.length < total;
+        checkAll.checked = total > 0 && checked.length === total;
+      }
+    }
+
+    if (checkAll) {
+      checkAll.addEventListener("change", function () {
+        visibleChecks().forEach(function (cb) { cb.checked = checkAll.checked; });
+        updateBulkToolbar();
+      });
+    }
+    document.querySelectorAll(".row-event-check").forEach(function (cb) {
+      cb.addEventListener("change", updateBulkToolbar);
+    });
+
+    initSpotPickModal();
+  });
+
+  // Expose globals used by inline HTML onclick attributes in the template
+  window.clearSelection = clearSelection;
+  window.submitBulk = submitBulk;
+  window.resetFilters = resetFilters;
+})();

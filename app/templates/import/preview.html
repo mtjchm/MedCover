@@ -367,44 +367,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-  const checkAll  = document.getElementById("checkAll");
-  const rowChecks = document.querySelectorAll(".row-include");
-  const btnImport = document.getElementById("btnImport");
-  const countSpan = document.getElementById("selectedCount");
-
-  function updateCount() {
-    const selected = [...rowChecks].filter(c => c.checked).length;
-    countSpan.textContent = `Vybráno: ${selected} z ${rowChecks.length}`;
-    btnImport.disabled = selected === 0;
-    // Dim excluded rows
-    rowChecks.forEach(c => {
-      c.closest("tr").classList.toggle("row-excluded", !c.checked);
-    });
-  }
-
-  // Check-all toggle
-  checkAll.addEventListener("change", function () {
-    rowChecks.forEach(c => { c.checked = checkAll.checked; });
-    updateCount();
-  });
-  rowChecks.forEach(c => c.addEventListener("change", function () {
-    checkAll.checked = [...rowChecks].every(c => c.checked);
-    updateCount();
-  }));
-
-  // Confirm before submitting
-  document.getElementById("confirmForm").addEventListener("submit", function (e) {
-    const selected = [...rowChecks].filter(c => c.checked).length;
-    if (!confirm(`Opravdu chcete importovat ${selected} akcí? Tato operace vytvoří nové záznamy v databázi.`)) {
-      e.preventDefault();
-    }
-  });
-
-  // Initial count
-  updateCount();
-});
-</script>
+<script src="{{ url_for('static', filename='js/import-preview.js') }}"></script>
 {% endblock %}

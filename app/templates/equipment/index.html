@@ -26,7 +26,10 @@
     </thead>
     <tbody>
       {% for et in types %}
-      <tr>
+      <tr {% if current_user.has_permission('equipment_type.edit') %}
+          style="cursor:pointer"
+          onclick="window.location='{{ url_for('equipment.type_edit', type_id=et.id) }}'"
+          {% endif %}>
         <td class="fw-semibold">{{ et.name }}</td>
         <td>
           {% if et.category.value == 'personal' %}
@@ -38,14 +41,11 @@
         <td class="text-muted small">{{ et.description or '—' }}</td>
         <td class="text-center">{{ et.items | length }}</td>
         <td class="text-end">
-          {% if current_user.has_permission('equipment_type.edit') %}
-            <a href="{{ url_for('equipment.type_edit', type_id=et.id) }}"
-               class="btn btn-outline-secondary btn-sm">Upravit</a>
-          {% endif %}
           {% if current_user.has_permission('equipment_type.delete') %}
             <form method="POST" action="{{ url_for('equipment.type_delete', type_id=et.id) }}"
                   class="d-inline"
-                  onsubmit="return confirm('Smazat typ „{{ et.name }}"?')">
+                  onsubmit="return confirm('Smazat typ „{{ et.name }}"?')"
+                  onclick="event.stopPropagation()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-outline-danger btn-sm">Smazat</button>
             </form>

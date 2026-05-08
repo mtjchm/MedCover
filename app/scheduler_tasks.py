@@ -43,8 +43,8 @@ def run_send_reminders(db_session: Any, now: datetime | None = None) -> int:
 
     total_sent = 0
     for event in events:
-        unfilled = event.mandatory_total_spots - event.mandatory_filled_spots
-        if unfilled <= 0:
+        unfilled = event.unfilled_spots
+        if not unfilled:
             continue
 
         sent_map: dict = event.reminder_sent_json or {}

@@ -57,7 +57,6 @@
               <li><a class="dropdown-item" href="{{ url_for('import_events.events_paste') }}">Import akcí</a></li>
               {% endif %}
               {% if current_user.has_permission('qualification.view') %}
-              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
               {% endif %}
               {% if current_user.has_permission('admin.view') %}
@@ -109,37 +108,7 @@
   <!-- Flatpickr JS + global init for all .flatpickr-dt inputs -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/cs.js"></script>
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      // Initialise all Bootstrap popovers (used by help_icon macro)
-      document.querySelectorAll('[data-bs-toggle="popover"]').forEach(function (el) {
-        new bootstrap.Popover(el, { html: false });
-      });
-      // Initialise all Bootstrap tooltips
-      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
-        new bootstrap.Tooltip(el);
-      });
-      // Initialise all flatpickr datetime inputs
-      flatpickr(".flatpickr-dt", {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: "Y-m-dTH:i",
-        altInput: true,
-        altFormat: "d.m.Y H:i",
-        locale: "cs",
-        allowInput: true,
-      });
-    });
-
-    // Set a flatpickr field to the current date/time.
-    // Called by the "Teď" button placed inside the same .input-group wrapper.
-    function fpNow(btn) {
-      var input = btn.closest(".input-group").querySelector(".flatpickr-dt");
-      if (input && input._flatpickr) {
-        input._flatpickr.setDate(new Date(), true);
-      }
-    }
-  </script>
+  <script src="{{ url_for('static', filename='js/app-init.js') }}"></script>
 
   <!-- Client-side validation -->
   <script src="{{ url_for('static', filename='js/validate.js') }}"></script>

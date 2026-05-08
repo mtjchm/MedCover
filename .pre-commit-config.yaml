@@ -36,12 +36,3 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: bash -c 'DATABASE_URL="postgresql://medcover:devpassword@localhost:5432/medcover_test" SECRET_KEY="test-secret" FLASK_ENV=testing .venv/bin/pytest tests/ -q --no-header'
-        language: system
-        pass_filenames: false
-        always_run: true

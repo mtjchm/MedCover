@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 from datetime import datetime, timezone
 
 from cryptography.fernet import Fernet
@@ -10,11 +11,13 @@ from app.extensions import db
 
 
 def _fernet() -> Fernet:
-    """Derive a Fernet key from the app SECRET_KEY (URL-safe base64, 32 bytes)."""
-    raw = current_app.config["SECRET_KEY"].encode()
-    # Pad or truncate to 32 bytes, then base64url-encode → valid Fernet key
-    padded = (raw * ((32 // len(raw)) + 1))[:32]
-    return Fernet(base64.urlsafe_b64encode(padded))
+    """Derive a Fernet key from the app SECRET_KEY using SHA-256.
+
+    SHA-256 always produces exactly 32 bytes regardless of SECRET_KEY length,
+    eliminating the risk of a short key being padded/truncated insecurely.
+    """
+    digest = hashlib.sha256(current_app.config["SECRET_KEY"].encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
 
 
 class AppSettings(db.Model):  # type: ignore[misc]

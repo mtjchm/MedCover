@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -141,7 +142,7 @@ while True:
         log.warning("Heartbeat write failed: %s", exc)
     # Also touch a local file so Docker healthcheck can verify without a DB query
     try:
-        open("/tmp/scheduler_heartbeat", "w").close()
+        Path("/tmp/scheduler_heartbeat").touch()
     except Exception:
         pass
     time.sleep(5)  # short sleep so email queue is drained promptly

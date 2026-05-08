@@ -142,42 +142,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  const selectAll = document.getElementById('selectAll');
-  const toolbar   = document.getElementById('batchToolbar');
-  const selCount  = document.getElementById('selCount');
-  const clearBtn  = document.getElementById('clearSel');
-
-  if (!selectAll) return; // user lacks permission
-
-  function allRows()     { return Array.from(document.querySelectorAll('.row-check')); }
-  function checkedRows() { return allRows().filter(cb => cb.checked); }
-
-  function updateToolbar() {
-    const total   = allRows().length;
-    const n       = checkedRows().length;
-    toolbar.style.display = n > 0 ? 'flex' : 'none';
-    selCount.textContent  = n + ' vybráno';
-    selectAll.indeterminate = n > 0 && n < total;
-    selectAll.checked       = total > 0 && n === total;
-  }
-
-  selectAll.addEventListener('change', function () {
-    const checked = selectAll.checked;
-    allRows().forEach(cb => { cb.checked = checked; });
-    updateToolbar();
-  });
-
-  document.querySelectorAll('.row-check').forEach(cb => {
-    cb.addEventListener('change', updateToolbar);
-  });
-
-  clearBtn.addEventListener('click', function () {
-    allRows().forEach(cb => { cb.checked = false; });
-    selectAll.checked = false;
-    updateToolbar();
-  });
-})();
-</script>
+<script src="{{ url_for('static', filename='js/users-index.js') }}"></script>
 {% endblock %}
