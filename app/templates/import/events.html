@@ -67,7 +67,8 @@
           JSON data
           {{ help_icon(
             "Vložte sem celý obsah souboru import_events.json vygenerovaného skriptem. "
-            "Pole musí obsahovat platné JSON pole (začíná [ a končí ]).",
+            "Formát je JSON objekt s klíči 'version', 'users' a 'events' (v2), "
+            "nebo starší formát: pole akcí (začíná [ a končí ]).",
             title="Formát dat"
           ) }}
         </label>
@@ -81,7 +82,7 @@
           required>{{ json_data or '' }}</textarea>
         <div class="form-text">
           Každý objekt v poli představuje jednu akci. Viz <code>scripts/README_import.md</code>
-          pro popis formátu.
+          pro popis formátu (v2: objekt s klíči <code>version</code>, <code>users</code>, <code>events</code>).
         </div>
       </div>
 
