@@ -132,6 +132,107 @@ class TestOutboxEnqueue:
             assert all(r.status == "pending" for r in rows)
 
 
+# ── Dev email block tests ─────────────────────────────────────────────────────
+
+class TestDevEmailBlock:
+    """Verify the dev_email_block + allowlist logic in drain_one_outbox_email."""
+
+    def _seed_pending(self, app, to: str = "user@example.com") -> int:
+        with app.app_context():
+            row = OutboxEmail(to_email=to, subject="Test", body="Tělo")
+            db.session.add(row)
+            db.session.commit()
+            return row.id
+
+    def _set_dev_block(self, app, block: bool, allowlist: str | None = None) -> None:
+        with app.app_context():
+            from app.models.settings import get_settings
+            s = get_settings()
+            s.dev_email_block = block
+            s.dev_email_allowlist = allowlist
+            db.session.commit()
+
+    def test_block_off_sends_normally(self, app):
+        """When dev_email_block is False, email sends normally."""
+        self._set_dev_block(app, False)
+        row_id = self._seed_pending(app)
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_block_on_no_allowlist_skips_email(self, app):
+        """When block is on and allowlist is empty, email is skipped."""
+        self._set_dev_block(app, True, None)
+        row_id = self._seed_pending(app)
+        with app.app_context():
+            with patch("flask_mail.Mail.send") as mock_send:
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        mock_send.assert_not_called()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "skipped"
+            assert "dev_email_block" in row.last_error
+
+    def test_block_on_recipient_not_in_allowlist_skips(self, app):
+        """Recipient not in allowlist is skipped even with other entries present."""
+        self._set_dev_block(app, True, "admin@example.com, tester@example.com")
+        row_id = self._seed_pending(app, to="outsider@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send") as mock_send:
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        mock_send.assert_not_called()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "skipped"
+
+    def test_block_on_recipient_in_allowlist_sends(self, app):
+        """Recipient in allowlist is sent even when block is on."""
+        self._set_dev_block(app, True, "admin@example.com, tester@example.com")
+        row_id = self._seed_pending(app, to="tester@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_allowlist_matching_is_case_insensitive(self, app):
+        """Allowlist matching ignores case differences."""
+        self._set_dev_block(app, True, "Admin@Example.COM")
+        row_id = self._seed_pending(app, to="admin@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_is_email_allowed_helper(self, app):
+        """Unit test AppSettings.is_email_allowed() directly."""
+        with app.app_context():
+            from app.models.settings import get_settings
+            s = get_settings()
+            s.dev_email_block = False
+            assert s.is_email_allowed("anyone@example.com") is True
+
+            s.dev_email_block = True
+            s.dev_email_allowlist = None
+            assert s.is_email_allowed("anyone@example.com") is False
+
+            s.dev_email_allowlist = "a@b.com, c@d.com"
+            assert s.is_email_allowed("a@b.com") is True
+            assert s.is_email_allowed("A@B.COM") is True
+            assert s.is_email_allowed("x@y.com") is False
+
+
 # ── Scheduler queue processing tests ─────────────────────────────────────────
 
 class TestProcessEmailQueue:

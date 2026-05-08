@@ -155,6 +155,10 @@ def clean_db(app):
 
     TRUNCATE ... CASCADE handles FK ordering automatically. The app fixture no
     longer holds a persistent connection, so the ACCESS EXCLUSIVE lock is safe.
+
+    AppSettings is NOT truncated (it is reference data seeded once) but any
+    fields that tests may mutate are explicitly reset to their defaults so that
+    test order does not matter.
     """
     yield
     with app.app_context():
@@ -164,6 +168,15 @@ def clean_db(app):
                 f"TRUNCATE TABLE {_MUTABLE_TABLES} RESTART IDENTITY CASCADE"
             ))
             conn.commit()
+        # Reset mutable AppSettings fields to their defaults
+        settings = _db.session.get(AppSettings, 1)
+        if settings:
+            settings.dev_email_block = False
+            settings.dev_email_allowlist = None
+            settings.feedback_enabled = True
+            settings.app_base_url = None
+            _db.session.commit()
+        _db.session.remove()
 
 
 @pytest.fixture

@@ -159,6 +159,19 @@ def drain_one_outbox_email() -> bool:
     if row is None:
         return False
 
+    # --- Dev email block check ---
+    from app.models.settings import get_settings as _get_settings
+    _settings = _get_settings()
+    if not _settings.is_email_allowed(row.to_email):
+        row.status = "skipped"
+        row.last_error = "dev_email_block: recipient not in allowlist"
+        db.session.commit()
+        log.warning(
+            "Mail suppressed (dev_email_block): id=%d to=%s subject=%r",
+            row.id, row.to_email, row.subject,
+        )
+        return True
+
     try:
         msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)
         _mail.send(msg)
