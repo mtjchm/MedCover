@@ -433,6 +433,102 @@ def update_qualifications(user_id: uuid.UUID) -> Response:
     return redirect(url_for("users.detail", user_id=user_id))
 
 
+# ── Batch actions ─────────────────────────────────────────────────────────────
+
+@users_bp.route("/batch", methods=["POST"])
+@login_required
+def batch_action() -> Response:
+    """Apply a role action to multiple selected users at once.
+
+    POST body:
+        user_ids   — one or more user UUID strings (repeated field)
+        action     — 'add_role' | 'remove_role'
+        role_id    — integer role ID
+
+    Requires user.assign_role permission.
+    """
+    _require_permission("user.assign_role")
+
+    raw_ids: list[str] = request.form.getlist("user_ids")
+    action = request.form.get("action", "").strip()
+    role_id_raw = request.form.get("role_id", "").strip()
+
+    # --- Validate inputs ---
+    if not raw_ids:
+        flash("Nebyl vybrán žádný uživatel.", "warning")
+        return redirect(url_for("users.index"))
+
+    if action not in ("add_role", "remove_role"):
+        flash("Neznámá akce.", "danger")
+        return redirect(url_for("users.index"))
+
+    if not role_id_raw or not role_id_raw.isdigit():
+        flash("Vyberte platnou roli.", "warning")
+        return redirect(url_for("users.index"))
+
+    role = db.session.get(Role, int(role_id_raw))
+    if role is None:
+        flash("Role nebyla nalezena.", "danger")
+        return redirect(url_for("users.index"))
+
+    # --- Parse UUIDs ---
+    user_uuids: list[uuid.UUID] = []
+    for raw in raw_ids:
+        try:
+            user_uuids.append(uuid.UUID(raw))
+        except ValueError:
+            continue
+
+    if not user_uuids:
+        flash("Žádní platní uživatelé nevybrání.", "warning")
+        return redirect(url_for("users.index"))
+
+    users_list = db.session.scalars(
+        db.select(UserAccount).where(UserAccount.id.in_(user_uuids))
+    ).all()
+
+    # --- Apply action ---
+    changed = 0
+    for user in users_list:
+        current_role_ids = {r.id for r in user.roles}
+        if action == "add_role":
+            if role.id in current_role_ids:
+                continue
+            before = sorted(r.name for r in user.roles)
+            user.roles = list(user.roles) + [role]
+            user.version += 1
+        else:  # remove_role
+            if role.id not in current_role_ids:
+                continue
+            before = sorted(r.name for r in user.roles)
+            user.roles = [r for r in user.roles if r.id != role.id]
+            user.version += 1
+
+        after = sorted(r.name for r in user.roles)
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="edit",
+            entity_type="UserAccount",
+            entity_id=str(user.id),
+            summary=(
+                f"Hromadná akce: {'přidána' if action == 'add_role' else 'odebrána'} "
+                f"role '{role.name}' uživateli {user.name}"
+            ),
+            changes_json=diff_changes({"roles": before}, {"roles": after}),
+        ))
+        changed += 1
+
+    db.session.commit()
+
+    action_label = "přidána" if action == "add_role" else "odebrána"
+    flash(
+        f"Role '{role.name}' byla {action_label} u {changed} uživatel(ů). "
+        f"{len(users_list) - changed} přeskočeno (role již byla / nebyla přiřazena).",
+        "success" if changed else "info",
+    )
+    return redirect(url_for("users.index"))
+
+
 # ── Invites ───────────────────────────────────────────────────────────────────
 
 @users_bp.route("/invites")

@@ -550,3 +550,141 @@ class TestPhoneValidationAdminEdit:
             follow_redirects=True,
         )
         assert "Neplatný formát telefonního čísla".encode() in resp.data
+
+
+# ── Batch action tests ────────────────────────────────────────────────────────
+
+class TestBatchAction:
+    """Tests for POST /users/batch role add/remove."""
+
+    def _make_users(self, app, count: int = 3):
+        """Create *count* active Member users, return list of (user, uuid_str)."""
+        from app.models.user import UserAccount
+        from app.models.role import Role
+        from app.extensions import db
+        with app.app_context():
+            member_role = db.session.scalar(db.select(Role).where(Role.name == "Member"))
+            users = []
+            for i in range(count):
+                u = UserAccount(email=f"batchuser{i}@test.cz", name=f"Batch User {i}", is_active=True)
+                u.set_password("pass")
+                u.roles = [member_role]
+                db.session.add(u)
+            db.session.commit()
+            users = db.session.scalars(db.select(UserAccount).where(
+                UserAccount.email.like("batchuser%@test.cz")
+            )).all()
+            return [(u, str(u.id)) for u in users]
+
+    def _get_role_id(self, app, name: str) -> int:
+        from app.models.role import Role
+        from app.extensions import db
+        with app.app_context():
+            return db.session.scalar(db.select(Role).where(Role.name == name)).id
+
+    def test_add_role_to_selected_users(self, app, admin_client):
+        """add_role assigns the role to all selected users."""
+        pairs = self._make_users(app)
+        viewer_id = self._get_role_id(app, "Viewer")
+        uids = [uid for _, uid in pairs]
+
+        resp = admin_client.post(
+            "/users/batch",
+            data={"user_ids": uids, "action": "add_role", "role_id": str(viewer_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        from app.extensions import db
+        from app.models.user import UserAccount
+        with app.app_context():
+            for _, uid in pairs:
+                u = db.session.get(UserAccount, uid)
+                role_names = {r.name for r in u.roles}
+                assert "Viewer" in role_names
+
+    def test_remove_role_from_selected_users(self, app, admin_client):
+        """remove_role strips the role from all selected users."""
+        pairs = self._make_users(app)
+        member_id = self._get_role_id(app, "Member")
+        uids = [uid for _, uid in pairs]
+
+        resp = admin_client.post(
+            "/users/batch",
+            data={"user_ids": uids, "action": "remove_role", "role_id": str(member_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        from app.extensions import db
+        from app.models.user import UserAccount
+        with app.app_context():
+            for _, uid in pairs:
+                u = db.session.get(UserAccount, uid)
+                role_names = {r.name for r in u.roles}
+                assert "Member" not in role_names
+
+    def test_add_role_skips_users_already_having_it(self, app, admin_client):
+        """Users that already have the role are counted as skipped, not double-added."""
+        pairs = self._make_users(app, 2)
+        member_id = self._get_role_id(app, "Member")
+        uids = [uid for _, uid in pairs]
+
+        resp = admin_client.post(
+            "/users/batch",
+            data={"user_ids": uids, "action": "add_role", "role_id": str(member_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "přeskočeno" in resp.data.decode()
+
+    def test_batch_writes_audit_log(self, app, admin_client):
+        """Each affected user gets an AuditLogEntry."""
+        pairs = self._make_users(app, 2)
+        viewer_id = self._get_role_id(app, "Viewer")
+        uids = [uid for _, uid in pairs]
+
+        admin_client.post(
+            "/users/batch",
+            data={"user_ids": uids, "action": "add_role", "role_id": str(viewer_id)},
+            follow_redirects=True,
+        )
+
+        from app.extensions import db
+        from app.models.audit import AuditLogEntry
+        with app.app_context():
+            entries = db.session.scalars(
+                db.select(AuditLogEntry).where(AuditLogEntry.action_type == "edit")
+            ).all()
+            assert len(entries) >= 2
+
+    def test_batch_requires_permission(self, member_client):
+        """Member (no user.assign_role) gets 403."""
+        resp = member_client.post(
+            "/users/batch",
+            data={"user_ids": ["00000000-0000-0000-0000-000000000001"],
+                  "action": "add_role", "role_id": "1"},
+        )
+        assert resp.status_code == 403
+
+    def test_batch_no_users_selected_redirects(self, admin_client):
+        """Empty user_ids gets a warning flash and redirects."""
+        resp = admin_client.post(
+            "/users/batch",
+            data={"action": "add_role", "role_id": "1"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "Nebyl vybrán".encode() in resp.data
+
+    def test_batch_invalid_action_redirects(self, admin_client, app):
+        """Unknown action gets a danger flash."""
+        pairs = self._make_users(app, 1)
+        member_id = self._get_role_id(app, "Member")
+        resp = admin_client.post(
+            "/users/batch",
+            data={"user_ids": [pairs[0][1]], "action": "delete_all", "role_id": str(member_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "Neznámá akce".encode() in resp.data

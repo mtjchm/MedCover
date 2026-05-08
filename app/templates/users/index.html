@@ -19,10 +19,39 @@
   </div>
 </form>
 
+{# ── Batch action form wrapping the table ─────────────────────────────────── #}
+{% if current_user.has_permission('user.assign_role') %}
+<form method="POST" action="{{ url_for('users.batch_action') }}" id="batchForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {# Batch toolbar — hidden until at least one checkbox is ticked #}
+  <div id="batchToolbar" class="d-none mb-3 p-2 border rounded bg-light d-flex flex-wrap align-items-center gap-2">
+    <span id="selCount" class="me-2 fw-semibold text-secondary small">0 vybráno</span>
+    <select name="role_id" class="form-select form-select-sm" style="max-width:160px;" required>
+      <option value="" disabled selected>— Vyber roli —</option>
+      {% for r in roles %}
+      <option value="{{ r.id }}">{{ r.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" name="action" value="add_role" class="btn btn-sm btn-success">
+      + Přidat roli
+    </button>
+    <button type="submit" name="action" value="remove_role" class="btn btn-sm btn-outline-danger">
+      − Odebrat roli
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="clearSel">Zrušit výběr</button>
+  </div>
+{% endif %}
+
 <div class="table-responsive">
   <table class="table table-hover align-middle">
     <thead class="table-light">
       <tr>
+        {% if current_user.has_permission('user.assign_role') %}
+        <th style="width:2rem;">
+          <input class="form-check-input" type="checkbox" id="selectAll" title="Vybrat vše">
+        </th>
+        {% endif %}
         {% set cols = [('name','Jméno'), ('email','E-mail'), ('status','Stav')] %}
         {% for col_key, col_label in cols %}
         {% set next_dir = 'desc' if (sort == col_key and sort_dir == 'asc') else 'asc' %}
@@ -42,7 +71,12 @@
     </thead>
     <tbody>
       {% for u in users %}
-      <tr>
+      <tr class="user-row">
+        {% if current_user.has_permission('user.assign_role') %}
+        <td>
+          <input class="form-check-input row-check" type="checkbox" name="user_ids" value="{{ u.id }}">
+        </td>
+        {% endif %}
         <td>
           <a href="{{ url_for('users.detail', user_id=u.id) }}"
              class="{{ 'text-warning' if not u.is_active }}">{{ u.name }}</a>
@@ -64,11 +98,18 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="text-muted text-center">Žádní uživatelé.</td></tr>
+      <tr>
+        <td colspan="{{ 5 if current_user.has_permission('user.assign_role') else 4 }}"
+            class="text-muted text-center">Žádní uživatelé.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{% if current_user.has_permission('user.assign_role') %}
+</form>
+{% endif %}
 
 {% if total_pages > 1 %}
 <nav>
@@ -81,4 +122,41 @@
   </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const selectAll = document.getElementById('selectAll');
+  const toolbar   = document.getElementById('batchToolbar');
+  const selCount  = document.getElementById('selCount');
+  const clearBtn  = document.getElementById('clearSel');
+
+  if (!selectAll) return; // user lacks permission
+
+  function updateToolbar() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const n = checked.length;
+    toolbar.classList.toggle('d-none', n === 0);
+    selCount.textContent = n + ' vybráno';
+    selectAll.indeterminate = n > 0 && n < document.querySelectorAll('.row-check').length;
+    selectAll.checked = n > 0 && n === document.querySelectorAll('.row-check').length;
+  }
+
+  selectAll.addEventListener('change', function () {
+    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+    updateToolbar();
+  });
+
+  document.querySelectorAll('.row-check').forEach(cb => {
+    cb.addEventListener('change', updateToolbar);
+  });
+
+  clearBtn.addEventListener('click', function () {
+    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = false; });
+    selectAll.checked = false;
+    updateToolbar();
+  });
+})();
+</script>
 {% endblock %}
