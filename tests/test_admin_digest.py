@@ -565,3 +565,88 @@ class TestSendNow:
     def test_send_now_member_forbidden(self, app, member_client):
         resp = member_client.post("/admin/digest/send-now", data={})
         assert resp.status_code == 403
+
+
+# ── _merge_block_config per-type branches ────────────────────────────────────
+
+
+class TestMergeBlockConfig:
+    """Verify that save_block correctly merges form fields for each block type."""
+
+    def _save(self, client, app, block_type: str, extra: dict) -> None:
+        """POST save_block for the first block of block_type."""
+        _seed_schedule(app)
+        block_id = _first_block_id(app, block_type)
+        with app.app_context():
+            version = db.session.get(DigestBlock, block_id).version
+        csrf = _get_csrf(client)
+        data = {"csrf_token": csrf, "title": "T", "version": str(version)}
+        data.update(extra)
+        resp = client.post(
+            f"/admin/digest/blocks/{block_id}/save", data=data, follow_redirects=True
+        )
+        assert resp.status_code == 200
+        return block_id
+
+    def test_server_stats_config_saved(self, app, admin_client):
+        block_id = self._save(admin_client, app, "server_stats", {
+            "show_user_count": "1",
+            "show_event_count": "1",
+            "peak_hours": "12",
+        })
+        with app.app_context():
+            cfg = db.session.get(DigestBlock, block_id).config_json
+        assert cfg["show_user_count"] is True
+        assert cfg["show_event_count"] is True
+        assert cfg["show_db_size"] is False  # unchecked → False
+        assert cfg["peak_hours"] == 12
+
+    def test_audit_log_config_saved(self, app, admin_client):
+        block_id = self._save(admin_client, app, "audit_log", {
+            "hours": "48",
+            "max_rows": "100",
+            "show_actor": "1",
+            "entity_types": ["Event", "UserAccount"],
+            "action_types": ["create", "delete"],
+        })
+        with app.app_context():
+            cfg = db.session.get(DigestBlock, block_id).config_json
+        assert cfg["hours"] == 48
+        assert cfg["max_rows"] == 100
+        assert cfg["show_actor"] is True
+        assert "Event" in cfg["entity_types"]
+        assert "create" in cfg["action_types"]
+
+    def test_upcoming_events_config_saved(self, app, admin_client):
+        block_id = self._save(admin_client, app, "upcoming_events", {
+            "days_ahead": "14",
+            "max_rows": "20",
+            "show_unfilled_only": "1",
+        })
+        with app.app_context():
+            cfg = db.session.get(DigestBlock, block_id).config_json
+        assert cfg["days_ahead"] == 14
+        assert cfg["max_rows"] == 20
+        assert cfg["show_unfilled_only"] is True
+
+    def test_new_users_config_saved(self, app, admin_client):
+        block_id = self._save(admin_client, app, "new_users", {
+            "hours": "72",
+            "max_rows": "30",
+            "show_pending_only": "1",
+        })
+        with app.app_context():
+            cfg = db.session.get(DigestBlock, block_id).config_json
+        assert cfg["hours"] == 72
+        assert cfg["max_rows"] == 30
+        assert cfg["show_pending_only"] is True
+
+    def test_feedback_summary_config_saved(self, app, admin_client):
+        block_id = self._save(admin_client, app, "feedback_summary", {
+            "hours": "12",
+            "max_rows": "50",
+        })
+        with app.app_context():
+            cfg = db.session.get(DigestBlock, block_id).config_json
+        assert cfg["hours"] == 12
+        assert cfg["max_rows"] == 50
