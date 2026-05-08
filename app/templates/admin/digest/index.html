@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Přehledový e-mail — MedCover{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <h1 class="h3 mb-0">Přehledový e-mail</h1>
+    <a href="{{ url_for('admin_digest.preview') }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+      👁 Náhled e-mailu
+    </a>
+  </div>
+
+  {# ── Schedule settings ──────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Plán odesílání</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin_digest.save') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="version" value="{{ schedule.version }}">
+
+        <div class="row g-3 mb-3">
+          <div class="col-auto d-flex align-items-center">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="enabled" id="digest_enabled" value="1"
+                     {{ 'checked' if schedule.enabled }}>
+              <label class="form-check-label" for="digest_enabled">Přehledový e-mail aktivní</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4">
+            <label class="form-label">Frekvence odesílání</label>
+            <select class="form-select" name="frequency_hours">
+              {% for val, lbl in frequency_options %}
+              <option value="{{ val }}" {{ 'selected' if schedule.frequency_hours == val }}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label">Preferovaná hodina odeslání (UTC)</label>
+            <select class="form-select" name="preferred_hour_utc">
+              {% for h in hour_options %}
+              <option value="{{ h }}" {{ 'selected' if schedule.preferred_hour_utc == h }}>{{ '%02d:00'|format(h) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Předmět e-mailu</label>
+          <input type="text" class="form-control" name="email_subject"
+                 value="{{ schedule.email_subject }}" maxlength="255" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Úvodní text (HTML, volitelné)</label>
+          <textarea class="form-control font-monospace" name="header_html" rows="3">{{ schedule.header_html or '' }}</textarea>
+          <div class="form-text">Zobrazí se nad prvním blokem. Lze použít HTML tagy.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Závěrečný text (HTML, volitelné)</label>
+          <textarea class="form-control font-monospace" name="footer_html" rows="3">{{ schedule.footer_html or '' }}</textarea>
+          <div class="form-text">Zobrazí se pod posledním blokem. Lze použít HTML tagy.</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Uložit plán</button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Blocks ─────────────────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Bloky přehledu</span>
+      <small class="text-muted">Přetažením změníte pořadí</small>
+    </div>
+    <div class="card-body p-0">
+      <div id="block-list"
+           data-reorder-url="{{ url_for('admin_digest.reorder_blocks') }}"
+           data-csrf="{{ csrf_token() }}">
+        {% for block in schedule.blocks %}
+        {% set cls = block_registry.get(block.block_type) %}
+        {% if cls %}
+        <div class="border-bottom p-3" data-block-type="{{ block.block_type }}" id="block-row-{{ block.block_type }}">
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-muted" style="cursor:grab;" data-drag-handle title="Přetáhnout">☰</span>
+            <strong>{{ cls.label }}</strong>
+            <span class="badge bg-secondary ms-1 text-lowercase">{{ block.block_type }}</span>
+            {% if block.enabled %}
+              <span class="badge bg-success">Aktivní</span>
+            {% else %}
+              <span class="badge bg-secondary">Neaktivní</span>
+            {% endif %}
+            <button class="btn btn-outline-secondary btn-sm ms-auto"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#block-cfg-{{ block.block_type }}">
+              Nastavení
+            </button>
+          </div>
+
+          <div class="collapse mt-3" id="block-cfg-{{ block.block_type }}">
+            <form method="POST"
+                  action="{{ url_for('admin_digest.save_block', block_type=block.block_type) }}"
+                  class="ps-4">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version" value="{{ block.version }}">
+
+              {# Common: enabled toggle + title #}
+              <div class="row g-2 mb-2">
+                <div class="col-auto">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" name="enabled" value="1"
+                           {{ 'checked' if block.enabled }}>
+                    <label class="form-check-label">Aktivní</label>
+                  </div>
+                </div>
+                <div class="col-sm-5">
+                  <input type="text" class="form-control form-control-sm" name="title"
+                         placeholder="Nadpis bloku"
+                         value="{{ block.config_json.get('title', cls.default_config.get('title', '')) }}">
+                </div>
+              </div>
+
+              {# Per-block fields #}
+              {% if block.block_type == 'server_stats' %}
+                {% set cfg = block.config_json %}
+                <div class="d-flex flex-wrap gap-3 mb-2">
+                  {% for key, lbl in [
+                      ('show_user_count','Počet uživatelů'),
+                      ('show_event_count','Počet akcí'),
+                      ('show_db_size','Velikost DB'),
+                      ('show_scheduler_heartbeat','Scheduler'),
+                      ('show_outbox_pending','Fronta e-mailů'),
+                      ('show_outbox_peak','Maximum fronty'),
+                  ] %}
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="{{ key }}" value="1"
+                           {{ 'checked' if cfg.get(key, True) }}>
+                    <label class="form-check-label">{{ lbl }}</label>
+                  </div>
+                  {% endfor %}
+                </div>
+                <div class="col-sm-3 mb-2">
+                  <label class="form-label form-label-sm">Okno pro maximum (hodiny)</label>
+                  <input type="number" class="form-control form-control-sm" name="peak_hours"
+                         value="{{ cfg.get('peak_hours', 24) }}" min="1" max="720">
+                </div>
+
+              {% elif block.block_type == 'audit_log' %}
+                {% set cfg = block.config_json %}
+                <div class="row g-2 mb-2">
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Posledních (hodin)</label>
+                    <input type="number" class="form-control form-control-sm" name="hours"
+                           value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
+                  </div>
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Max. řádků</label>
+                    <input type="number" class="form-control form-control-sm" name="max_rows"
+                           value="{{ cfg.get('max_rows', 50) }}" min="1" max="200">
+                  </div>
+                  <div class="col-auto d-flex align-items-end pb-1">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="show_actor" value="1"
+                             {{ 'checked' if cfg.get('show_actor', True) }}>
+                      <label class="form-check-label">Zobrazit uživatele</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-sm-6">
+                    <label class="form-label form-label-sm">Filtr typů entit (prázdné = vše)</label>
+                    <select class="form-select form-select-sm" name="entity_types" multiple size="4">
+                      {% for et in ['Event','EventSpot','Assignment','UserAccount','MasterEvent',
+                                    'EventTemplate','EquipmentItem','AppSettings','RegistrationInvite','OutboxEmail'] %}
+                      <option value="{{ et }}" {{ 'selected' if et in cfg.get('entity_types', []) }}>{{ et }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-sm-4">
+                    <label class="form-label form-label-sm">Filtr typů akcí (prázdné = vše)</label>
+                    <select class="form-select form-select-sm" name="action_types" multiple size="4">
+                      {% for at in ['create','edit','delete','status_change','email_failed'] %}
+                      <option value="{{ at }}" {{ 'selected' if at in cfg.get('action_types', []) }}>{{ at }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+
+              {% elif block.block_type == 'upcoming_events' %}
+                {% set cfg = block.config_json %}
+                <div class="row g-2 mb-2">
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Počet dní dopředu</label>
+                    <input type="number" class="form-control form-control-sm" name="days_ahead"
+                           value="{{ cfg.get('days_ahead', 7) }}" min="1" max="365">
+                  </div>
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Max. řádků</label>
+                    <input type="number" class="form-control form-control-sm" name="max_rows"
+                           value="{{ cfg.get('max_rows', 15) }}" min="1" max="100">
+                  </div>
+                  <div class="col-auto d-flex align-items-end pb-1">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="show_unfilled_only" value="1"
+                             {{ 'checked' if cfg.get('show_unfilled_only', False) }}>
+                      <label class="form-check-label">Jen akce s volnými místy</label>
+                    </div>
+                  </div>
+                </div>
+
+              {% elif block.block_type == 'new_users' %}
+                {% set cfg = block.config_json %}
+                <div class="row g-2 mb-2">
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Posledních (hodin)</label>
+                    <input type="number" class="form-control form-control-sm" name="hours"
+                           value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
+                  </div>
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Max. řádků</label>
+                    <input type="number" class="form-control form-control-sm" name="max_rows"
+                           value="{{ cfg.get('max_rows', 20) }}" min="1" max="100">
+                  </div>
+                  <div class="col-auto d-flex align-items-end pb-1">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="show_pending_only" value="1"
+                             {{ 'checked' if cfg.get('show_pending_only', False) }}>
+                      <label class="form-check-label">Jen neaktivované účty</label>
+                    </div>
+                  </div>
+                </div>
+
+              {% elif block.block_type == 'feedback_summary' %}
+                {% set cfg = block.config_json %}
+                <div class="row g-2 mb-2">
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Posledních (hodin)</label>
+                    <input type="number" class="form-control form-control-sm" name="hours"
+                           value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
+                  </div>
+                  <div class="col-sm-2">
+                    <label class="form-label form-label-sm">Max. řádků</label>
+                    <input type="number" class="form-control form-control-sm" name="max_rows"
+                           value="{{ cfg.get('max_rows', 20) }}" min="1" max="100">
+                  </div>
+                </div>
+
+              {% elif block.block_type == 'free_text' %}
+                {% set cfg = block.config_json %}
+                <div class="mb-2">
+                  <label class="form-label form-label-sm">Obsah (HTML)</label>
+                  <textarea class="form-control font-monospace form-control-sm" name="content" rows="5">{{ cfg.get('content', '') }}</textarea>
+                  <div class="form-text">Obsah se zobrazí přesně tak, jak je zadán. Lze použít HTML tagy.</div>
+                </div>
+              {% endif %}
+
+              <button type="submit" class="btn btn-sm btn-primary mt-1">Uložit blok</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Send test ───────────────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Testovací odeslání</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin_digest.send_test') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-sm-5">
+          <label class="form-label">E-mailová adresa příjemce</label>
+          <input type="email" class="form-control" name="test_email"
+                 value="{{ current_user.email }}" required>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-outline-primary">Odeslat testovací e-mail</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Send now ────────────────────────────────────────────────────────── #}
+  <form method="POST" action="{{ url_for('admin_digest.send_now') }}"
+        onsubmit="return confirm('Opravdu odeslat přehledový e-mail všem administrátorům?')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-danger">Odeslat nyní všem administrátorům</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/digest-settings.js') }}"></script>
+{% endblock %}

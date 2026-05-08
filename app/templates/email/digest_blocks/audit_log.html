@@ -1,0 +1,35 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  {% if entries %}
+  <table class="data-table" role="presentation">
+    <tr>
+      <th>Čas</th>
+      {% if show_actor %}<th>Uživatel</th>{% endif %}
+      <th>Akce</th>
+      <th>Entita</th>
+      <th>Popis</th>
+    </tr>
+    {% for e in entries %}
+    <tr>
+      <td style="white-space:nowrap;">{{ e.timestamp.strftime('%d.%m %H:%M') }}</td>
+      {% if show_actor %}
+      <td>{{ e.actor.name if e.actor else '—' }}</td>
+      {% endif %}
+      <td><span class="badge
+        {%- if e.action_type == 'create' %} badge-ok
+        {%- elif e.action_type == 'delete' %} badge-err
+        {%- elif e.action_type == 'email_failed' %} badge-err
+        {%- else %} badge-warn
+        {%- endif %}">{{ e.action_type }}</span></td>
+      <td style="white-space:nowrap;">{{ e.entity_type }}</td>
+      <td>{{ e.summary }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if truncated %}
+  <p class="truncation-note">Zobrazeno pouze posledních {{ entries | length }} záznamů za posledních {{ hours }} hodin.</p>
+  {% endif %}
+  {% else %}
+  <p style="color:#999;font-size:13px;">Za posledních {{ hours }} hodin nebyla zaznamenána žádná aktivita.</p>
+  {% endif %}
+</div>

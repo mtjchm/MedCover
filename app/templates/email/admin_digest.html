@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ schedule.email_subject }}</title>
+  <style>
+    /* Reset */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    /* Base */
+    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #333333; }
+    /* Wrapper */
+    .wrapper { width: 100%; background-color: #f4f4f4; padding: 20px 0; }
+    /* Container */
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 6px; overflow: hidden; }
+    /* Header */
+    .email-header { background-color: #c0392b; padding: 24px 32px; }
+    .email-header h1 { margin: 0; font-size: 20px; color: #ffffff; font-weight: bold; }
+    .email-header .subtitle { margin: 4px 0 0 0; font-size: 12px; color: #f5b7b1; }
+    /* Header text */
+    .header-text { padding: 20px 32px 0 32px; font-size: 14px; line-height: 1.6; color: #555555; }
+    /* Block */
+    .block { padding: 20px 32px; border-bottom: 1px solid #eeeeee; }
+    .block:last-child { border-bottom: none; }
+    .block h2 { margin: 0 0 12px 0; font-size: 15px; color: #c0392b; border-bottom: 2px solid #f5b7b1; padding-bottom: 6px; }
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th { background-color: #f9f9f9; color: #666666; font-weight: bold; text-align: left; padding: 6px 8px; border-bottom: 1px solid #dddddd; }
+    .data-table td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    .data-table tr:last-child td { border-bottom: none; }
+    /* Status badges */
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+    .badge-ok { background-color: #d4edda; color: #155724; }
+    .badge-warn { background-color: #fff3cd; color: #856404; }
+    .badge-err { background-color: #f8d7da; color: #721c24; }
+    /* Footer */
+    .email-footer { padding: 16px 32px; background-color: #f9f9f9; border-top: 1px solid #eeeeee; font-size: 11px; color: #aaaaaa; }
+    .email-footer a { color: #aaaaaa; }
+    /* Truncation note */
+    .truncation-note { font-size: 11px; color: #999999; font-style: italic; margin-top: 6px; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <table class="container" role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+    <!-- Header -->
+    <tr>
+      <td class="email-header">
+        <h1>{{ schedule.email_subject }}</h1>
+        <p class="subtitle">{{ now.strftime('%d. %m. %Y %H:%M') }} UTC</p>
+      </td>
+    </tr>
+
+    {% if schedule.header_html %}
+    <tr>
+      <td class="header-text">{{ schedule.header_html | safe }}</td>
+    </tr>
+    {% endif %}
+
+    <!-- Blocks -->
+    {% for section in block_sections %}
+    <tr>
+      <td>{{ section | safe }}</td>
+    </tr>
+    {% endfor %}
+
+    {% if schedule.footer_html %}
+    <tr>
+      <td class="email-footer" style="padding-top: 0;">{{ schedule.footer_html | safe }}</td>
+    </tr>
+    {% endif %}
+
+    <!-- Auto-footer -->
+    <tr>
+      <td class="email-footer">
+        Tento e-mail byl automaticky vygenerován systémem MedCover.
+      </td>
+    </tr>
+  </table>
+</div>
+</body>
+</html>

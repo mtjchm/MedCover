@@ -1,0 +1,27 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  {% if rows %}
+  <table class="data-table" role="presentation">
+    <tr>
+      <th>Akce</th>
+      <th>Datum</th>
+      <th>Volná místa</th>
+    </tr>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.event.name }}</td>
+      <td style="white-space:nowrap;">{{ row.event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</td>
+      <td>
+        {% if row.unfilled_count > 0 %}
+          <span class="badge badge-warn">{{ row.unfilled_count }} / {{ row.total_spots }}</span>
+        {% else %}
+          <span class="badge badge-ok">Obsazeno</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style="color:#999;font-size:13px;">Žádné nadcházející akce v příštích {{ days_ahead }} dnech.</p>
+  {% endif %}
+</div>

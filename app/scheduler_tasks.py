@@ -78,3 +78,81 @@ def run_send_reminders(db_session: Any, now: datetime | None = None) -> int:
             db_session.commit()
 
     return total_sent
+
+
+def run_record_metrics(db_session: Any, now: datetime | None = None) -> None:
+    """Record a snapshot of current outbox queue depth for peak tracking.
+
+    Called by the scheduler every ~15 minutes.  Rows older than 30 days
+    are pruned in the same call.
+    """
+    from app.models.digest import DigestMetricSnapshot
+    from app.models.outbox import OutboxEmail
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    pending = db_session.scalar(
+        sa.select(sa.func.count()).select_from(OutboxEmail)
+        .where(OutboxEmail.status == "pending")
+    ) or 0
+
+    db_session.add(DigestMetricSnapshot(
+        snapshot_at=now,
+        metric_name="outbox_pending_count",
+        metric_value=float(pending),
+    ))
+
+    cutoff = now - timedelta(days=30)
+    db_session.execute(
+        sa.delete(DigestMetricSnapshot).where(DigestMetricSnapshot.snapshot_at < cutoff)
+    )
+    db_session.commit()
+    log.debug("Metric snapshot: outbox_pending_count=%d", pending)
+
+
+def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
+    """Send the admin digest if it is due according to DigestSchedule.
+
+    Returns True if the digest was enqueued, False if skipped.
+    """
+    from app.models.digest import get_digest_schedule
+    from app.digest.renderer import render_digest
+    from app.mail import send_admin_digest, user_can_receive_notification
+    from app.models.user import UserAccount
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    schedule = get_digest_schedule()
+
+    if not schedule.enabled:
+        return False
+
+    if now.hour != schedule.preferred_hour_utc:
+        return False
+
+    if schedule.last_sent_at is not None:
+        elapsed = (now - schedule.last_sent_at).total_seconds()
+        if elapsed < schedule.frequency_hours * 3600:
+            return False
+
+    recipients = db_session.scalars(
+        sa.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+    ).all()
+    eligible = [u for u in recipients if user_can_receive_notification(u, "admin_digest")]
+
+    if not eligible:
+        log.info("Admin digest: no eligible recipients, skipping.")
+        schedule.last_sent_at = now
+        db_session.commit()
+        return False
+
+    html = render_digest(db_session)
+    for user in eligible:
+        send_admin_digest(user.email, schedule.email_subject, html)
+        log.info("Admin digest enqueued for %s", user.email)
+
+    schedule.last_sent_at = now
+    db_session.commit()
+    return True

@@ -66,11 +66,11 @@ def user_can_receive_notification(user: UserAccount, notification_type: str) -> 
     return bool(user_role_names & allowed)
 
 
-def _enqueue(to: str, subject: str, body: str) -> None:
+def _enqueue(to: str, subject: str, body: str, html_body: str | None = None) -> None:
     """Insert a pending email row.  Must be called inside a Flask app context
     and inside an active DB session (the caller's transaction is fine)."""
     try:
-        db.session.add(OutboxEmail(to_email=to, subject=subject, body=body))
+        db.session.add(OutboxEmail(to_email=to, subject=subject, body=body, html_body=html_body))
         db.session.flush()   # assign id without a separate commit
     except Exception as exc:  # noqa: BLE001
         log.warning("Failed to enqueue mail to %s — %s", to, exc)
@@ -163,6 +163,17 @@ def send_unfilled_spots_reminder(
     )
 
 
+# ── Admin digest ──────────────────────────────────────────────────────────────
+
+def send_admin_digest(recipient_email: str, subject: str, html_body: str) -> None:
+    """Enqueue a digest email to a single recipient.
+
+    Plain-text fallback is a minimal message directing the user to an HTML-capable client.
+    """
+    plain_fallback = "Tento e-mail obsahuje formátovaný obsah. Otevřete jej v e-mailovém klientovi s podporou HTML."
+    _enqueue(recipient_email, subject, plain_fallback, html_body=html_body)
+
+
 # ── Outbox drain (callable from tests and scheduler) ─────────────────────────
 
 
@@ -221,6 +232,8 @@ def drain_one_outbox_email() -> bool:
 
     try:
         msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)
+        if row.html_body:
+            msg.html = row.html_body
         _mail.send(msg)
         row.status = "sent"
         row.sent_at = datetime.now(timezone.utc)
