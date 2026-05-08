@@ -10,6 +10,7 @@ from app.digest.base import BaseBlock
 class NewUsersBlock(BaseBlock):
     block_type = "new_users"
     label = "Noví uživatelé"
+    description = "Přehled nově vytvořených nebo aktivovaných uživatelských účtů za zvolené časové okno."
     template = "email/digest_blocks/new_users.html"
     default_config: dict[str, Any] = {
         "title": "Noví uživatelé",

@@ -10,6 +10,7 @@ from app.digest.base import BaseBlock
 class FeedbackSummaryBlock(BaseBlock):
     block_type = "feedback_summary"
     label = "Zpětná vazba"
+    description = "Výpis zpráv zpětné vazby odeslaných uživateli za zvolené časové okno."
     template = "email/digest_blocks/feedback_summary.html"
     default_config: dict[str, Any] = {
         "title": "Zpětná vazba",

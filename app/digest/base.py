@@ -14,6 +14,8 @@ class BaseBlock(ABC):
     # Czech display label shown in the settings UI
     label: str
 
+    # Short Czech description shown as a tooltip on the block type badge
+    description: str = ""
     # Defaults merged into DigestBlock.config_json when the block is first seeded.
     # Must include at least {"title": "<Czech heading>"}.
     default_config: dict[str, Any] = {}

@@ -10,6 +10,7 @@ from app.digest.base import BaseBlock
 class UpcomingEventsBlock(BaseBlock):
     block_type = "upcoming_events"
     label = "Nadcházející akce"
+    description = "Seznam akcí začínajících v nejbližších N dnech s počtem neobsazených míst."
     template = "email/digest_blocks/upcoming_events.html"
     default_config: dict[str, Any] = {
         "title": "Nadcházející akce",

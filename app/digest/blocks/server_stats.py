@@ -10,6 +10,7 @@ from app.digest.base import BaseBlock
 class ServerStatsBlock(BaseBlock):
     block_type = "server_stats"
     label = "Servisní statistiky"
+    description = "Přehled systémových ukazatelů: počty uživatelů a akcí, velikost databáze, stav scheduleru a e-mailové fronty."
     template = "email/digest_blocks/server_stats.html"
     default_config: dict[str, Any] = {
         "title": "Servisní statistiky",

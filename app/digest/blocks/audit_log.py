@@ -17,6 +17,7 @@ _ALL_ACTION_TYPES = ["create", "edit", "delete", "status_change", "email_failed"
 class AuditLogBlock(BaseBlock):
     block_type = "audit_log"
     label = "Audit log"
+    description = "Výpis záznamů z auditního logu za zvolené časové okno s volitelným filtrováním podle typu entity nebo akce."
     template = "email/digest_blocks/audit_log.html"
     default_config: dict[str, Any] = {
         "title": "Audit log",
