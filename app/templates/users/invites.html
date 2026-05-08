@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Pozvánky — MedCover{% endblock %}
 
 {% block content %}
@@ -13,18 +14,24 @@
     <form method="POST" action="{{ url_for('users.create_invite') }}" class="row g-3" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-12 col-md-6">
-        <label for="email" class="form-label">E-mail pozvaného</label>
+        <label for="email" class="form-label">E-mail pozvaného
+          {{ help_icon("Zadejte e-mailovou adresu osoby, které chcete vytvořit účet. Na tuto adresu bude odeslán registrační odkaz.") }}
+        </label>
         <input type="email" class="form-control" id="email" name="email" required placeholder="jan.novak@example.com">
       </div>
       <div class="col-12 col-md-6">
-        <label for="custom_subject" class="form-label">Předmět e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <label for="custom_subject" class="form-label">Předmět e-mailu <span class="text-muted fw-normal">(volitelné)</span>
+          {{ help_icon("Předmět odeslaného e-mailu. Pokud necháte prázdné, použije se výchozí: 'MedCover — pozvánka k registraci'.") }}
+        </label>
         <input type="text" class="form-control" id="custom_subject" name="custom_subject"
                value="{{ last_invite.custom_subject if last_invite and last_invite.custom_subject else '' }}"
                placeholder="MedCover — pozvánka k registraci">
         <div class="form-text">Výchozí předmět je z poslední odeslané pozvánky.</div>
       </div>
       <div class="col-12">
-        <label for="custom_message" class="form-label">Text e-mailu <span class="text-muted fw-normal">(volitelné)</span></label>
+        <label for="custom_message" class="form-label">Text e-mailu <span class="text-muted fw-normal">(volitelné)</span>
+          {{ help_icon("Napište celý text e-mailu včetně pozdravu a podpisu. Registrační odkaz bude připojen automaticky na konec. Pokud necháte prázdné, použije se výchozí text.") }}
+        </label>
         <textarea class="form-control font-monospace" id="custom_message" name="custom_message" rows="7"
                   placeholder="Dobrý den,&#10;&#10;zveme Vás do systému MedCover pro plánování zdravotního zabezpečení.&#10;&#10;S pozdravem,&#10;Tým MedCover">{{ last_invite.custom_message if last_invite and last_invite.custom_message else '' }}</textarea>
         <div class="form-text">
@@ -80,9 +87,20 @@
           {% endif %}
         </td>
 
-        {# ── Link clicked ── #}
+        {# ── Link clicked + copy URL ── #}
         <td>
-          {% if inv.link_clicked_at %}
+          {% if not inv.is_cancelled and not inv.is_used %}
+            {% set reg_url = url_for('auth.register', token=inv.token, _external=True) %}
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary copy-invite-btn"
+                    data-invite-url="{{ reg_url }}"
+                    data-bs-toggle="tooltip"
+                    title="{{ reg_url }}"
+                    onclick="copyInviteUrl(this)">📋 Odkaz</button>
+            {% if inv.link_clicked_at %}
+            <br><span class="badge bg-success mt-1" title="{{ inv.link_clicked_at | localdt }}">Otevřen</span>
+            {% endif %}
+          {% elif inv.link_clicked_at %}
             <span class="badge bg-success" title="{{ inv.link_clicked_at | localdt }}">Otevřen</span>
           {% else %}
             <span class="text-muted">—</span>
@@ -125,4 +143,8 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/invites.js') }}"></script>
 {% endblock %}

@@ -21,6 +21,9 @@ services:
     env_file: .env.prod
     ports:
       - "5000:5000"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       db:
         condition: service_healthy
@@ -37,6 +40,9 @@ services:
     build: .
     command: python scheduler/main.py
     env_file: .env.prod
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       db:
         condition: service_healthy
