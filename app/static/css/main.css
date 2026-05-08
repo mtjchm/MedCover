@@ -126,14 +126,47 @@
   color: var(--bs-body-color) !important;
 }
 
-/* Dark mode: FullCalendar header/toolbar background overrides */
-[data-bs-theme="dark"] .fc .fc-col-header-cell,
-[data-bs-theme="dark"] .fc .fc-col-header {
-  background-color: transparent !important;
+/* Dark mode: FullCalendar — wire FullCalendar CSS variables to Bootstrap */
+[data-bs-theme="dark"] .fc {
+  --fc-page-bg-color: var(--bs-body-bg);
+  --fc-neutral-bg-color: var(--bs-secondary-bg);
+  --fc-border-color: var(--bs-border-color);
+  --fc-event-text-color: #fff;
+  --fc-list-event-hover-bg-color: var(--bs-tertiary-bg);
 }
+
+/* Month/week view: day-name header row — match events table thead */
+[data-bs-theme="dark"] .fc .fc-col-header-cell,
+[data-bs-theme="dark"] .fc .fc-col-header-cell a {
+  background-color: var(--bs-body-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
+/* Month/week view: day-number cells */
+[data-bs-theme="dark"] .fc .fc-daygrid-day,
+[data-bs-theme="dark"] .fc .fc-timegrid-col {
+  background-color: var(--bs-body-bg) !important;
+}
+
+/* Month view: "other month" faded day cells */
+[data-bs-theme="dark"] .fc .fc-day-other .fc-daygrid-day-top {
+  opacity: 0.4;
+}
+
+/* List view: sticky day-header rows — same color as table thead */
+[data-bs-theme="dark"] .fc .fc-list-sticky .fc-list-day > *,
+[data-bs-theme="dark"] .fc .fc-list-day-cushion {
+  background-color: var(--bs-body-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
+/* List view: event rows */
+[data-bs-theme="dark"] .fc .fc-list-event td {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
+/* Toolbar */
 [data-bs-theme="dark"] .fc .fc-toolbar {
   background-color: transparent !important;
-}
-[data-bs-theme="dark"] .fc .fc-list-sticky .fc-list-day > * {
-  background-color: var(--bs-body-bg) !important;
 }
