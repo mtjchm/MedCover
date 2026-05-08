@@ -7,17 +7,13 @@
 <div class="container-fluid py-3">
   <div class="d-flex align-items-center gap-3 mb-4">
     <h1 class="h3 mb-0">Přehledový e-mail</h1>
-    <a href="{{ url_for('admin_digest.preview') }}" target="_blank" class="btn btn-outline-secondary btn-sm"
-       data-bs-toggle="tooltip" title="Zobrazí aktuální podobu e-mailu v prohlížeči. E-mail se neodešle.">
-      👁 Náhled e-mailu
-    </a>
   </div>
 
   {# ── Schedule settings ──────────────────────────────────────────────── #}
   <div class="card mb-4">
     <div class="card-header fw-semibold">Plán odesílání</div>
     <div class="card-body">
-      <form method="POST" action="{{ url_for('admin_digest.save') }}">
+      <form id="schedule-form" method="POST" action="{{ url_for('admin_digest.save') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="version" value="{{ schedule.version }}">
 
@@ -69,7 +65,7 @@
           <div class="form-text">Zobrazí se pod posledním blokem. Lze použít HTML tagy.</div>
         </div>
 
-        <button type="submit" class="btn btn-primary">Uložit plán</button>
+        <button type="submit" class="btn btn-primary visually-hidden" aria-hidden="true">Uložit</button>
       </form>
     </div>
   </div>
@@ -342,6 +338,19 @@
         {% endfor %}
       </div>
     </div>
+  </div>
+
+  {# ── Action bar ──────────────────────────────────────────────────────── #}
+  <div class="d-flex gap-2 mb-4">
+    <button type="submit" form="schedule-form" class="btn btn-primary"
+            data-bs-toggle="tooltip"
+            title="Uloží nastavení plánu odesílání (frekvence, hodina, předmět, záhlaví a zápatí). Nastavení jednotlivých bloků se ukládají tlačítkem Uložit blok v každém bloku zvlášť.">
+      Uložit nastavení
+    </button>
+    <a href="{{ url_for('admin_digest.preview') }}" target="_blank" class="btn btn-outline-secondary"
+       data-bs-toggle="tooltip" title="Zobrazí aktuální podobu e-mailu v prohlížeči. E-mail se neodešle.">
+      👁 Náhled e-mailu
+    </a>
   </div>
 
   {# ── Send test ───────────────────────────────────────────────────────── #}
