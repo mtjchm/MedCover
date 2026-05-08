@@ -50,7 +50,11 @@
     </thead>
     <tbody>
       {% for item in equipment_items %}
-      <tr data-sv='{"name":{{ item.name | lower | tojson }},"type":{{ item.equipment_type.name | lower | tojson }},"issued":{{ (item.issued_to.name | lower if item.issued_to else "") | tojson }}}'>
+      <tr data-sv='{"name":{{ item.name | lower | tojson }},"type":{{ item.equipment_type.name | lower | tojson }},"issued":{{ (item.issued_to.name | lower if item.issued_to else "") | tojson }}}'
+          {% if current_user.has_permission('equipment_item.edit') %}
+          style="cursor:pointer"
+          onclick="window.location='{{ url_for('equipment.item_edit', item_id=item.id) }}'"
+          {% endif %}>
         <td class="fw-semibold">{{ item.name }}</td>
         <td>{{ item.equipment_type.name }}</td>
         <td class="text-muted small">{{ item.serial_number or '—' }}</td>
@@ -62,12 +66,8 @@
             <span class="text-muted">—</span>
           {% endif %}
         </td>
-        <td class="text-end">
+        <td class="text-end" onclick="event.stopPropagation()">
           <div class="d-flex gap-1 justify-content-end flex-wrap">
-            {% if current_user.has_permission('equipment_item.edit') %}
-              <a href="{{ url_for('equipment.item_edit', item_id=item.id) }}"
-                 class="btn btn-outline-secondary btn-sm">Upravit</a>
-            {% endif %}
             {% if current_user.has_permission('equipment_item.issue_personal') and not item.issued_to %}
               <button class="btn btn-outline-success btn-sm" type="button"
                       data-bs-toggle="collapse" data-bs-target="#issue-form-{{ item.id }}">
@@ -116,39 +116,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  var tbody = document.querySelector('#itemsTable tbody');
-  if (!tbody) return;
-  var sortCol = 'name', sortDir = 1;
-
-  function getRows() { return Array.from(tbody.querySelectorAll('tr')); }
-  function val(row, col) {
-    var sv = row.dataset.sv ? JSON.parse(row.dataset.sv) : {};
-    return (sv[col] !== undefined && sv[col] !== null) ? String(sv[col]) : '';
-  }
-  function sort() {
-    var rows = getRows();
-    rows.sort(function (a, b) {
-      var av = val(a, sortCol), bv = val(b, sortCol);
-      var an = parseFloat(av), bn = parseFloat(bv);
-      if (!isNaN(an) && !isNaN(bn)) return (an - bn) * sortDir;
-      return av.localeCompare(bv) * sortDir;
-    });
-    rows.forEach(function (r) { tbody.appendChild(r); });
-    document.querySelectorAll('#itemsTable th.sortable').forEach(function (th) {
-      var icon = th.querySelector('.sort-icon');
-      if (!icon) return;
-      icon.textContent = th.dataset.col === sortCol ? (sortDir === 1 ? '↑' : '↓') : '↕';
-    });
-  }
-  document.querySelectorAll('#itemsTable th.sortable').forEach(function (th) {
-    th.addEventListener('click', function () {
-      if (sortCol === th.dataset.col) { sortDir *= -1; } else { sortCol = th.dataset.col; sortDir = 1; }
-      sort();
-    });
-  });
-  sort();
-})();
-</script>
+<script src="{{ url_for('static', filename='js/table-sort.js') }}"></script>
 {% endblock %}

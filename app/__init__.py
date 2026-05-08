@@ -104,11 +104,10 @@ def create_app(
     @app.after_request
     def _add_security_headers(response: WerkzeugResponse) -> WerkzeugResponse:
         """Add Content-Security-Policy and other security headers."""
-        config_name_used = os.getenv("FLASK_ENV", "development")
-        if config_name_used != "development":
+        if not app.config.get("TESTING") and not app.config.get("DEBUG"):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "script-src 'self' cdn.jsdelivr.net; "
                 "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
                 "font-src 'self' cdn.jsdelivr.net; "
                 "img-src 'self' data:;"

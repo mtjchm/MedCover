@@ -24,7 +24,11 @@
     </thead>
     <tbody>
       {% for tmpl in templates %}
-      <tr data-sv='{"name":{{ tmpl.name | lower | tojson }},"paid":{{ (1 if tmpl.paid else 0) }},"spots":{{ tmpl.spot_templates | length }}}'>
+      <tr data-sv='{"name":{{ tmpl.name | lower | tojson }},"paid":{{ (1 if tmpl.paid else 0) }},"spots":{{ tmpl.spot_templates | length }}}'
+          {% if current_user.has_permission('event_template.edit') %}
+          style="cursor:pointer"
+          onclick="window.location='{{ url_for('templates.edit', template_id=tmpl.id) }}'"
+          {% endif %}>
         <td class="fw-semibold">{{ tmpl.name }}</td>
         <td class="text-muted small">{{ tmpl.description or '—' }}</td>
         <td class="text-center">
@@ -39,16 +43,13 @@
         <td class="text-end">
           {% if current_user.has_permission('event.create') %}
           <a href="{{ url_for('events.create_from_template', template_id=tmpl.id) }}"
-             class="btn btn-outline-danger btn-sm">Použít</a>
-          {% endif %}
-          {% if current_user.has_permission('event_template.edit') %}
-          <a href="{{ url_for('templates.edit', template_id=tmpl.id) }}"
-             class="btn btn-outline-secondary btn-sm">Upravit</a>
+             class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation()">Použít</a>
           {% endif %}
           {% if current_user.has_permission('event_template.delete') %}
           <form method="POST" action="{{ url_for('templates.delete', template_id=tmpl.id) }}"
                 class="d-inline"
-                onsubmit="return confirm('Opravdu smazat šablonu „{{ tmpl.name }}"?')">
+                onsubmit="return confirm('Opravdu smazat šablonu „{{ tmpl.name }}"?')"
+                onclick="event.stopPropagation()">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-warning btn-sm">Smazat</button>
           </form>
@@ -65,39 +66,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  var tbody = document.querySelector('#templatesTable tbody');
-  if (!tbody) return;
-  var sortCol = 'name', sortDir = 1;
-
-  function getRows() { return Array.from(tbody.querySelectorAll('tr')); }
-  function val(row, col) {
-    var sv = row.dataset.sv ? JSON.parse(row.dataset.sv) : {};
-    return (sv[col] !== undefined && sv[col] !== null) ? String(sv[col]) : '';
-  }
-  function sort() {
-    var rows = getRows();
-    rows.sort(function (a, b) {
-      var av = val(a, sortCol), bv = val(b, sortCol);
-      var an = parseFloat(av), bn = parseFloat(bv);
-      if (!isNaN(an) && !isNaN(bn)) return (an - bn) * sortDir;
-      return av.localeCompare(bv) * sortDir;
-    });
-    rows.forEach(function (r) { tbody.appendChild(r); });
-    document.querySelectorAll('#templatesTable th.sortable').forEach(function (th) {
-      var icon = th.querySelector('.sort-icon');
-      if (!icon) return;
-      icon.textContent = th.dataset.col === sortCol ? (sortDir === 1 ? '↑' : '↓') : '↕';
-    });
-  }
-  document.querySelectorAll('#templatesTable th.sortable').forEach(function (th) {
-    th.addEventListener('click', function () {
-      if (sortCol === th.dataset.col) { sortDir *= -1; } else { sortCol = th.dataset.col; sortDir = 1; }
-      sort();
-    });
-  });
-  sort();
-})();
-</script>
+<script src="{{ url_for('static', filename='js/table-sort.js') }}"></script>
 {% endblock %}

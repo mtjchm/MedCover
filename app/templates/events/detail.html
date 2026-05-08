@@ -313,7 +313,9 @@
 
           {# Collapse: edit spot form #}
           {% if current_user.has_permission('event.edit') and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
-          <div class="collapse mt-2" id="edit-spot-{{ spot.id }}">
+          <div class="collapse mt-2 spot-edit-panel" id="edit-spot-{{ spot.id }}"
+               data-spot-id="{{ spot.id }}"
+               {% if spot.assignment %}data-user-cred-ids="{{ spot.assignment.user.qualifications | map(attribute='id') | list | tojson | e }}"{% endif %}>
             <form method="POST" action="{{ url_for('events.edit_spot', event_id=event.id, spot_id=spot.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="mb-2">
@@ -346,26 +348,6 @@
                   </label>
                 </div>
               </div>
-              <script>
-              (function() {
-                var userCredIds = {{ spot.assignment.user.qualifications | map(attribute='id') | list | tojson }};
-                var fillersMap = {{ fillers_map | tojson }};
-                var warning = document.getElementById('unassign-warning-{{ spot.id }}');
-                var panel = document.getElementById('edit-spot-{{ spot.id }}');
-                function check() {
-                  var selected = Array.from(panel.querySelectorAll('input[name="qualification_ids"]:checked'))
-                                      .map(function(cb) { return String(cb.value); });
-                  var eligible = selected.length === 0 || selected.every(function(reqId) {
-                    var fillers = fillersMap[reqId] || [parseInt(reqId)];
-                    return userCredIds.some(function(uid) { return fillers.indexOf(uid) !== -1; });
-                  });
-                  warning.classList.toggle('d-none', eligible);
-                }
-                panel.querySelectorAll('input[name="qualification_ids"]').forEach(function(cb) {
-                  cb.addEventListener('change', check);
-                });
-              })();
-              </script>
               {% endif %}
               <button type="submit" class="btn btn-sm btn-danger">Uložit</button>
               <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -493,5 +475,10 @@
   {% endif %}
 </div>
 
+<div id="fillers-map-data" data-fillers-map="{{ fillers_map | tojson | e }}" hidden></div>
 
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/events-detail.js') }}"></script>
 {% endblock %}

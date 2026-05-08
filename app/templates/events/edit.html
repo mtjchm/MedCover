@@ -122,12 +122,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  const cb = document.getElementById('paid');
-  const lbl = cb ? cb.closest('.form-check').querySelector('.paid-label') : null;
-  function update() { lbl && lbl.classList.toggle('is-paid', cb.checked); }
-  if (cb) { cb.addEventListener('change', update); update(); }
-})();
-</script>
+<script src="{{ url_for('static', filename='js/event-form.js') }}"></script>
 {% endblock %}

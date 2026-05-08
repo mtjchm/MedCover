@@ -123,6 +123,7 @@
     </span>
     {% if open_events_all | length > open_events | length %}
     <button class="btn btn-outline-secondary btn-sm py-0" id="btn-show-all"
+            data-open-count="{{ open_events_all|length }}"
             onclick="toggleOpenAll()">Zobrazit vše ({{ open_events_all|length }})</button>
     {% endif %}
   </div>
@@ -184,16 +185,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-  let showingAll = false;
-  function toggleOpenAll() {
-    showingAll = !showingAll;
-    document.getElementById("open-eligible").style.display = showingAll ? "none" : "";
-    document.getElementById("open-all").style.display      = showingAll ? ""     : "none";
-    document.getElementById("open-label").textContent = showingAll ? "(všechny)" : "(jen vaše kvalifikace)";
-    document.getElementById("btn-show-all").textContent = showingAll
-      ? "Jen moje kvalifikace"
-      : "Zobrazit vše ({{ open_events_all|length }})";
-  }
-</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

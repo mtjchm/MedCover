@@ -145,7 +145,7 @@ def send_event_cancelled(user: UserAccount, event: Event) -> None:
 def send_unfilled_spots_reminder(
     user: UserAccount,
     event: Event,
-    unfilled: int,
+    unfilled: list,
 ) -> None:
     """Remind coordinator/RP that an event still has unfilled spots."""
     if not user_can_receive_notification(user, "unfilled_reminder"):

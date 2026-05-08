@@ -137,54 +137,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-(function () {
-  function validatePhoneInput(input) {
-    const val = input.value.trim();
-    if (val === '') {
-      input.classList.remove('is-invalid', 'is-valid');
-      return true;
-    }
-    const stripped = val.replace(/\s+/g, '');
-    const ok = /^\d{9}$/.test(stripped) || /^(\+|00)\d{10,15}$/.test(stripped);
-    input.classList.toggle('is-invalid', !ok);
-    input.classList.toggle('is-valid', ok);
-    return ok;
-  }
-
-  function validatePasswordInput(input) {
-    const val = input.value;
-    if (val === '') {
-      input.classList.remove('is-invalid', 'is-valid');
-      return true;
-    }
-    const ok = val.length >= 8;
-    input.classList.toggle('is-invalid', !ok);
-    input.classList.toggle('is-valid', ok);
-    return ok;
-  }
-
-  const phoneInput = document.getElementById('edit_phone');
-  if (phoneInput) {
-    phoneInput.addEventListener('input', () => validatePhoneInput(phoneInput));
-    phoneInput.addEventListener('blur', () => validatePhoneInput(phoneInput));
-  }
-
-  const pwInput = document.getElementById('new_password');
-  if (pwInput) {
-    pwInput.addEventListener('input', () => validatePasswordInput(pwInput));
-    pwInput.addEventListener('blur', () => validatePasswordInput(pwInput));
-  }
-
-  const form = document.querySelector('form[action*="/save"]');
-  if (form) {
-    form.addEventListener('submit', function (e) {
-      let ok = true;
-      if (phoneInput && !validatePhoneInput(phoneInput)) ok = false;
-      if (pwInput && !validatePasswordInput(pwInput)) ok = false;
-      if (!ok) e.preventDefault();
-    });
-  }
-})();
-</script>
+<script src="{{ url_for('static', filename='js/user-form.js') }}"></script>
 {% endblock %}

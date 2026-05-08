@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -17,6 +18,17 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 _RESET_SALT = "pw-reset"
 _INVITE_SALT = "invite"
+
+
+def _safe_next(next_url: str | None) -> str:
+    """Return next_url only if it is same-origin, else fall back to dashboard."""
+    if not next_url:
+        return url_for("main.dashboard")
+    parsed = urlsplit(next_url)
+    # Reject anything with a scheme or netloc (external URL or protocol-relative)
+    if parsed.scheme or parsed.netloc:
+        return url_for("main.dashboard")
+    return next_url
 
 
 def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
@@ -57,15 +69,14 @@ def login() -> str | Response:
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        user = UserAccount.query.filter_by(email=email).first()
+        user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
 
         if user and user.check_password(password):
             if not user.is_active:
                 flash("Váš účet čeká na aktivaci administrátorem.", "warning")
                 return redirect(url_for("auth.login"))
             login_user(user)
-            next_page = request.args.get("next") or url_for("main.dashboard")
-            return redirect(next_page)
+            return redirect(_safe_next(request.args.get("next")))
 
         flash("Nesprávný e-mail nebo heslo.", "danger")
 
@@ -84,7 +95,7 @@ def logout() -> Response:
 def forgot_password() -> str | Response:
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
-        user = UserAccount.query.filter_by(email=email).first()
+        user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
         # Always show the same message to prevent user enumeration.
         flash("Pokud je e-mail registrován, byl odeslán odkaz pro obnovení hesla.", "info")
         if user:
@@ -154,7 +165,7 @@ def reset_password(token: str) -> str | Response:
 
 @auth_bp.route("/register/<token>", methods=["GET", "POST"])
 def register(token: str) -> str | Response:
-    invite = RegistrationInvite.query.filter_by(token=token).first()
+    invite = db.session.scalar(db.select(RegistrationInvite).where(RegistrationInvite.token == token))
     if not invite or not invite.is_valid:
         flash("Pozvánka je neplatná nebo vypršela.", "danger")
         return redirect(url_for("auth.login"))
@@ -182,7 +193,7 @@ def register(token: str) -> str | Response:
             flash("Heslo musí mít alespoň 8 znaků.", "warning")
         elif password != password2:
             flash("Hesla se neshodují.", "warning")
-        elif UserAccount.query.filter_by(email=invite.email).first():
+        elif db.session.scalar(db.select(UserAccount).where(UserAccount.email == invite.email)):
             flash("Účet s tímto e-mailem již existuje.", "danger")
         else:
             user = UserAccount(email=invite.email, name=full_name, is_active=False)
