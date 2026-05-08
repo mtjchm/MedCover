@@ -1,8 +1,9 @@
 """Digest renderer — collects data from all enabled blocks and renders the HTML email."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import render_template
 
@@ -12,10 +13,17 @@ from app.digest.registry import BLOCK_REGISTRY
 def render_digest(db_session: Any) -> str:
     """Render the full admin digest as an HTML string."""
     from app.models.digest import get_digest_schedule
+    from app.models.settings import get_settings
 
     schedule = get_digest_schedule()
     block_sections: list[str] = []
-    now = datetime.now(timezone.utc)
+
+    settings = get_settings()
+    try:
+        tz = ZoneInfo(settings.timezone or "Europe/Prague")
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("Europe/Prague")
+    now = datetime.now(tz)
 
     for db_block in schedule.blocks:  # type: ignore[attr-defined]
         if not db_block.enabled:
