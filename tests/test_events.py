@@ -335,3 +335,117 @@ class TestAuditChangeTracking:
         with app.app_context():
             count = db.session.scalar(db.select(db.func.count()).select_from(Event))
             assert count == 0
+
+
+class TestBulkAction:
+    def _create_multiple_events(self, app, admin_client, count: int = 2) -> list[int]:
+        me_id = _make_master_event(app)
+        ids = []
+        for i in range(count):
+            admin_client.post("/events/create", data=_event_form_data(me_id, name=f"Bulk Event {i}"), follow_redirects=True)
+        with app.app_context():
+            events = db.session.scalars(db.select(Event).where(Event.name.like("Bulk Event%"))).all()
+            ids = [e.id for e in events]
+        return ids
+
+    def test_bulk_publish_changes_status(self, app, admin_client):
+        ids = self._create_multiple_events(app, admin_client)
+        admin_client.post(
+            "/events/bulk",
+            data={"action": "publish", "event_ids": [str(i) for i in ids]},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            for event_id in ids:
+                event = db.session.get(Event, event_id)
+                assert event.status == EventStatus.PUBLISHED
+
+    def test_bulk_cancel_archives_events(self, app, admin_client):
+        ids = self._create_multiple_events(app, admin_client)
+        admin_client.post(
+            "/events/bulk",
+            data={"action": "cancel", "event_ids": [str(i) for i in ids]},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            for event_id in ids:
+                event = db.session.get(Event, event_id)
+                assert event.status == EventStatus.CANCELLED
+                assert event.archived is True
+
+    def test_bulk_action_member_forbidden(self, app, member_client):
+        response = member_client.post(
+            "/events/bulk",
+            data={"action": "publish", "event_ids": ["1"]},
+            follow_redirects=False,
+        )
+        assert response.status_code == 403
+
+    def test_bulk_invalid_action_returns_400(self, admin_client):
+        response = admin_client.post(
+            "/events/bulk",
+            data={"action": "destroy_everything", "event_ids": ["1"]},
+        )
+        assert response.status_code == 400
+
+    def test_bulk_empty_selection_flashes_warning(self, admin_client):
+        response = admin_client.post(
+            "/events/bulk",
+            data={"action": "publish", "event_ids": []},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "Žádné akce".encode() in response.data
+
+
+class TestAddSpot:
+    def test_admin_can_add_spot(self, app, admin_client):
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            event_id = event.id
+
+        from app.models.event import EventSpot
+        response = admin_client.post(
+            f"/events/{event_id}/spots/add",
+            data={"description": "Zdravotník", "quantity": "1"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(EventSpot).where(EventSpot.event_id == event_id)
+            )
+            assert count >= 1
+
+    def test_member_cannot_add_spot(self, app, member_client):
+        with app.app_context():
+            from app.models.role import Role
+            from app.models.user import UserAccount
+            me = MasterEvent(name="Spot Test ME")
+            db.session.add(me)
+            db.session.flush()
+            creator_role = db.session.scalar(db.select(Role).where(Role.name == Role.ADMIN))
+            creator = UserAccount(email="creator_spot@test.com", name="Creator", is_active=True)
+            creator.set_password("testpass123")
+            creator.roles = [creator_role]
+            db.session.add(creator)
+            db.session.flush()
+            from datetime import datetime, timezone
+            event = Event(
+                name="Spot Test Event",
+                master_event_id=me.id,
+                start_datetime=datetime(2030, 6, 1, 10, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 6, 1, 18, 0, tzinfo=timezone.utc),
+                created_by_id=creator.id,
+            )
+            db.session.add(event)
+            db.session.commit()
+            event_id = event.id
+
+        response = member_client.post(
+            f"/events/{event_id}/spots/add",
+            data={"description": "Zdravotník", "quantity": "1"},
+        )
+        assert response.status_code == 403

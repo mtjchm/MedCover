@@ -221,3 +221,64 @@ class TestAssignmentReleaseOwnership:
         with app.app_context():
             remaining = db.session.get(Assignment, assignment_id)
             assert remaining is not None  # Assignment must still exist
+
+
+class TestAdminUnassign:
+    def test_admin_can_unassign_user(self, app, admin_client):
+        event_id, spot_id = _setup_open_event(app)
+        # Create a member and have them claim the spot via a fresh client
+        with app.app_context():
+            _make_user("claimer@test.com", "Claimer", Role.MEMBER)
+        from tests.conftest import _login
+        claimer = app.test_client()
+        _login(claimer, "claimer@test.com")
+        claimer.post(f"/assignments/claim/{spot_id}", follow_redirects=True)
+
+        with app.app_context():
+            assignment = db.session.scalar(
+                db.select(Assignment).where(Assignment.spot_id == spot_id)
+            )
+            assignment_id = assignment.id
+
+        response = admin_client.post(
+            f"/assignments/unassign/{assignment_id}", follow_redirects=False
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            remaining = db.session.get(Assignment, assignment_id)
+            assert remaining is None
+
+    def test_member_cannot_unassign_others(self, app, admin_client):
+        event_id, spot_id = _setup_open_event(app)
+        # Admin assigns target@test.com
+        with app.app_context():
+            _make_user("target@test.com", "Target", Role.MEMBER)
+            target = db.session.scalar(
+                db.select(UserAccount).where(UserAccount.email == "target@test.com")
+            )
+            target_id = str(target.id)
+
+        admin_client.post(
+            f"/assignments/assign/{spot_id}",
+            data={"user_id": target_id},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            assignment = db.session.scalar(
+                db.select(Assignment).where(Assignment.spot_id == spot_id)
+            )
+            assert assignment is not None
+            assignment_id = assignment.id
+
+        # A plain member (not target, not admin) tries to unassign via fresh client
+        with app.app_context():
+            _make_user("attacker@test.com", "Attacker", Role.MEMBER)
+        from tests.conftest import _login
+        attacker = app.test_client()
+        _login(attacker, "attacker@test.com")
+        response = attacker.post(f"/assignments/unassign/{assignment_id}")
+        assert response.status_code == 403
+
+    def test_unassign_nonexistent_returns_404(self, admin_client):
+        response = admin_client.post("/assignments/unassign/999999")
+        assert response.status_code == 404
