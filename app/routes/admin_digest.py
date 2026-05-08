@@ -150,6 +150,37 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
         config["content"] = form.get("content", "")
 
 
+# ── Block enable toggle ───────────────────────────────────────────────────────
+
+@bp.route("/blocks/<block_type>/toggle", methods=["POST"])
+@login_required
+def toggle_block(block_type: str) -> dict[str, object]:
+    _require_digest_perm()
+    from app.models.digest import get_digest_schedule, DigestBlock
+    from app.digest.registry import BLOCK_REGISTRY
+    import sqlalchemy as sa
+
+    if block_type not in BLOCK_REGISTRY:
+        abort(404)
+
+    schedule = get_digest_schedule()
+    block = db.session.scalar(
+        sa.select(DigestBlock)
+        .where(
+            DigestBlock.digest_schedule_id == schedule.id,
+            DigestBlock.block_type == block_type,
+        )
+        .with_for_update()
+    )
+    if block is None:
+        abort(404)
+
+    block.enabled = not block.enabled
+    block.version += 1
+    db.session.commit()
+    return {"ok": True, "enabled": block.enabled}
+
+
 # ── Block reorder ─────────────────────────────────────────────────────────────
 
 @bp.route("/blocks/reorder", methods=["POST"])

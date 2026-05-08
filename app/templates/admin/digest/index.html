@@ -89,11 +89,20 @@
             <strong>{{ cls.label }}</strong>
             <span class="badge bg-secondary ms-1 text-lowercase">{{ block.block_type }}</span>
             {% if block.enabled %}
-              <span class="badge bg-success">Aktivní</span>
+              <span class="badge bg-success" id="badge-{{ block.block_type }}">Aktivní</span>
             {% else %}
-              <span class="badge bg-secondary">Neaktivní</span>
+              <span class="badge bg-secondary" id="badge-{{ block.block_type }}">Neaktivní</span>
             {% endif %}
-            <button class="btn btn-outline-secondary btn-sm ms-auto"
+            <button type="button"
+                    class="btn btn-sm ms-auto {% if block.enabled %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                    id="toggle-{{ block.block_type }}"
+                    data-toggle-url="{{ url_for('admin_digest.toggle_block', block_type=block.block_type) }}"
+                    data-csrf="{{ csrf_token() }}"
+                    data-enabled="{{ 'true' if block.enabled else 'false' }}"
+                    title="Zapnout / vypnout blok">
+              {% if block.enabled %}Zapnuto{% else %}Vypnuto{% endif %}
+            </button>
+            <button class="btn btn-outline-secondary btn-sm"
                     data-bs-toggle="collapse"
                     data-bs-target="#block-cfg-{{ block.block_type }}">
               Nastavení
