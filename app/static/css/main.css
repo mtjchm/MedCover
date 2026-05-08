@@ -142,10 +142,15 @@
   color: var(--bs-body-color) !important;
 }
 
-/* Month/week view: day-number cells */
-[data-bs-theme="dark"] .fc .fc-daygrid-day,
-[data-bs-theme="dark"] .fc .fc-timegrid-col {
+/* Month/week view: day-number cells (exclude today — it has its own highlight) */
+[data-bs-theme="dark"] .fc .fc-daygrid-day:not(.fc-day-today),
+[data-bs-theme="dark"] .fc .fc-timegrid-col:not(.fc-day-today) {
   background-color: var(--bs-body-bg) !important;
+}
+
+/* Restore today highlight in dark mode */
+[data-bs-theme="dark"] .fc .fc-day-today {
+  background-color: rgba(255, 200, 40, 0.12) !important;
 }
 
 /* Month view: "other month" faded day cells */
