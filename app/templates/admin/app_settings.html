@@ -19,6 +19,26 @@
         <input type="text" class="form-control" id="org_name" name="org_name"
                value="{{ settings.org_name or '' }}">
       </div>
+      <div class="mb-3">
+        <label for="app_base_url" class="form-label">Veřejná adresa aplikace</label>
+        <input type="url" class="form-control" id="app_base_url" name="app_base_url"
+               value="{{ settings.app_base_url or '' }}"
+               placeholder="https://medcoverdev.example.com">
+        <div class="form-text">
+          Pokud aplikace běží za reverzní proxy, zadejte zde veřejnou adresu
+          (bez lomítka na konci). Tato adresa se použije v odkazech v e-mailech
+          (obnova hesla, pozvánky, aktivace účtu).
+          Ponechte prázdné pro automatické zjišťování z požadavku.
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="feedback_enabled" name="feedback_enabled"
+                 {% if settings.feedback_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="feedback_enabled">Povolit funkci zpětné vazby</label>
+        </div>
+        <div class="form-text">Když je vypnuto, tlačítko zmizí z navigace a formulář bude nedostupný.</div>
+      </div>
       <div class="mb-0">
         <label for="timezone" class="form-label">Časová zóna</label>
         <select class="form-select" id="timezone" name="timezone">
@@ -26,6 +46,42 @@
           <option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>
           {% endfor %}
         </select>
+      </div>
+    </div>
+  </div>
+
+  {# ── Vývojové nastavení ──────────────────────────────────────────── #}
+  <div class="card mb-4 border-warning">
+    <div class="card-header fw-semibold text-warning-emphasis bg-warning-subtle">
+      ⚠️ Vývojové / testovací prostředí
+    </div>
+    <div class="card-body">
+      <div class="alert alert-warning py-2 mb-3">
+        Tato nastavení slouží k ochraně importovaných uživatelů před nechtěným
+        zasíláním e-mailů v testovacím nebo vývojovém prostředí.
+        <strong>V produkci nechte vypnuto.</strong>
+      </div>
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="dev_email_block" name="dev_email_block"
+                 {% if settings.dev_email_block %}checked{% endif %}>
+          <label class="form-check-label fw-semibold" for="dev_email_block">
+            Blokovat odesílání e-mailů (vývojový režim)
+          </label>
+        </div>
+        <div class="form-text">
+          Když je zapnuto, všechny odchozí e-maily jsou potlačeny — nevyšlou se
+          žádným skutečným uživatelům. Výjimkou jsou adresy v povoleném seznamu níže.
+        </div>
+      </div>
+      <div class="mb-0">
+        <label for="dev_email_allowlist" class="form-label">Povolené adresy (výjimky z blokování)</label>
+        <textarea class="form-control font-monospace" id="dev_email_allowlist" name="dev_email_allowlist"
+                  rows="3" placeholder="admin@example.com, tester@example.com">{{ settings.dev_email_allowlist or '' }}</textarea>
+        <div class="form-text">
+          E-mailové adresy oddělené čárkou. E-maily na tyto adresy budou odeslány
+          i při aktivním blokování. Prázdné = blokovat vše.
+        </div>
       </div>
     </div>
   </div>

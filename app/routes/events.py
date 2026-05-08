@@ -32,6 +32,7 @@ from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
+from app.models.role import Role
 from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
@@ -421,13 +422,13 @@ def transition(event_id: int) -> Response:
             db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
         ).all()
         for u in active_users:
-            mailer.send_event_published(u.email, u.name, event)
+            mailer.send_event_published(u, event)
     elif target_status == EventStatus.ASSIGNMENTS_OPEN:
         active_users = db.session.scalars(
             db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
         ).all()
         for u in active_users:
-            mailer.send_assignments_opened(u.email, u.name, event)
+            mailer.send_assignments_opened(u, event)
 
     flash(f"Stav akce byl změněn na {target_status.value}.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
@@ -453,13 +454,13 @@ def cancel(event_id: int) -> Response:
 
     # Notify all assigned users before commit so we still have spot data
     assigned_users = [
-        (s.assignment.user.email, s.assignment.user.name)
+        s.assignment.user
         for s in event.spots if s.assignment
     ]
     db.session.commit()
 
-    for email, name in assigned_users:
-        mailer.send_event_cancelled(email, name, event)
+    for user in assigned_users:
+        mailer.send_event_cancelled(user, event)
 
     flash("Akce byla zrušena.", "warning")
     return redirect(url_for("events.index"))
@@ -661,7 +662,7 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
     db.session.commit()
 
     if unassign_needed:
-        mailer.send_assignment_released(unassigned_user.email, unassigned_user.name, event)
+        mailer.send_assignment_released(unassigned_user, event)
         flash(f"Pozice upravena. Uživatel {unassigned_user.name} byl automaticky odhlášen.", "warning")
     else:
         flash("Pozice upravena.", "success")
@@ -734,6 +735,17 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
 
     if end_dt <= start_dt:
         return None, "Konec akce musí být po začátku."
+
+    # Validate RP: Viewer-only users cannot be RP (AD17)
+    if responsible_person_id:
+        rp_user = db.session.get(UserAccount, int(responsible_person_id))
+        if rp_user:
+            rp_role_names = {r.name for r in rp_user.roles}
+            if rp_role_names <= {Role.VIEWER}:
+                return None, (
+                    f"Uživatel {rp_user.name} má pouze roli Pozorovatel a nemůže být "
+                    "odpovědnou osobou. Jako OP je potřeba mít roli Člen nebo vyšší."
+                )
 
     assignments_open_dt = None
     if assignments_open_str:

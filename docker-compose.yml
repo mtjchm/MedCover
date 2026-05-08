@@ -1,6 +1,9 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: flask run --host=0.0.0.0 --debug
     volumes:
       - .:/app
@@ -22,7 +25,10 @@ services:
       start_period: 15s
 
   scheduler:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: python scheduler/main.py
     volumes:
       - .:/app

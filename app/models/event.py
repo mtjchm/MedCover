@@ -119,6 +119,9 @@ class Event(db.Model):  # type: ignore[misc]
     created_by_id = db.Column(db.Uuid, db.ForeignKey("user_account.id"), nullable=True)
     # Reminder schedule inherited from template or set manually (hours before start, comma-separated)
     reminder_schedule = db.Column(db.String(255), nullable=True, default="24")
+    # Tracks sent reminders: JSON dict mapping hours-offset str → ISO sent_at timestamp.
+    # e.g. {"24": "2026-05-28T17:00:00+00:00"} means the 24h reminder was already sent.
+    reminder_sent_json = db.Column(db.JSON, nullable=True, default=dict)
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(

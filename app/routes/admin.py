@@ -11,6 +11,8 @@ from flask_mail import Message
 from app.extensions import db, mail
 from app.models.user import UserAccount
 from app.models.settings import get_settings
+from app.models.feedback import UserFeedback
+from app.utils import external_url_for
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -137,6 +139,8 @@ def index() -> str:
         .limit(8)
     ).all()
 
+    feedback_count = db.session.scalar(db.select(db.func.count()).select_from(UserFeedback))
+
     return render_template(
         "admin/index.html",
         db_status=db_status,
@@ -161,6 +165,7 @@ def index() -> str:
         outbox_last_status=outbox_last_status,
         outbox_last_sent=outbox_last_sent,
         recent_audit=recent_audit,
+        feedback_count=feedback_count,
         now=now,
     )
 
@@ -186,7 +191,7 @@ def activate_user(user_id: str) -> Response:
 
 
 def _send_activation_email(user: UserAccount) -> None:
-    login_url = url_for("auth.login", _external=True)
+    login_url = external_url_for("auth.login")
     body = render_template("email/account_activated.txt", user=user, login_url=login_url)
     msg = Message(
         subject="MedCover — váš účet byl aktivován",

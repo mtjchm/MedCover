@@ -26,8 +26,44 @@ from app.models.outbox import OutboxEmail
 
 if TYPE_CHECKING:
     from app.models.event import Event
+    from app.models.user import UserAccount
 
 log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Role-based notification gating (AD17)
+# ---------------------------------------------------------------------------
+
+# Roles whose members may receive each notification category.
+# "auth" (invite / password-reset / activation) is exempt — always allowed.
+_NOTIFICATION_ALLOWED_ROLES: dict[str, set[str]] = {
+    "admin_digest":      {"Admin"},
+    "event_lifecycle":   {"Coordinator", "Member"},  # published, assignments_opened
+    "assignment":        {"Member"},                 # confirmed, released
+    "unfilled_reminder": {"Coordinator", "Member"},  # reminder to coordinator / RP
+    "event_cancelled":   {"Member"},                 # cancelled → notify assigned users
+}
+
+
+def user_can_receive_notification(user: UserAccount, notification_type: str) -> bool:
+    """Return True if *user* is eligible for a notification of *notification_type*.
+
+    Rules (AD17):
+    - Viewer-only users receive no operational emails (only auth emails).
+    - Users with any non-Viewer role are subject to the per-category role map.
+    - "auth" category is always True for all users (invite, reset, activation).
+    """
+    if notification_type == "auth":
+        return True
+
+    user_role_names: set[str] = {r.name for r in user.roles}
+
+    # Viewer-only → no operational emails
+    if user_role_names <= {"Viewer"}:
+        return False
+
+    allowed: set[str] = _NOTIFICATION_ALLOWED_ROLES.get(notification_type, set())
+    return bool(user_role_names & allowed)
 
 
 def _enqueue(to: str, subject: str, body: str) -> None:
@@ -42,75 +78,86 @@ def _enqueue(to: str, subject: str, body: str) -> None:
 
 # ── Assignment notifications ──────────────────────────────────────────────────
 
-def send_assignment_confirmed(user_email: str, user_name: str, event: Event) -> None:
+def send_assignment_confirmed(user: UserAccount, event: Event) -> None:
     """Notify a user that their spot assignment was confirmed."""
+    if not user_can_receive_notification(user, "assignment"):
+        return
     body = render_template(
         "email/assignment_confirmed.txt",
-        user_name=user_name,
+        user_name=user.name,
         event=event,
     )
-    _enqueue(user_email, f"MedCover — Přihlášení na akci: {event.name}", body)
+    _enqueue(user.email, f"MedCover — Přihlášení na akci: {event.name}", body)
 
 
-def send_assignment_released(user_email: str, user_name: str, event: Event) -> None:
+def send_assignment_released(user: UserAccount, event: Event) -> None:
     """Notify a user that their assignment was released (by themselves or coordinator)."""
+    if not user_can_receive_notification(user, "assignment"):
+        return
     body = render_template(
         "email/assignment_released.txt",
-        user_name=user_name,
+        user_name=user.name,
         event=event,
     )
-    _enqueue(user_email, f"MedCover — Odhlášení z akce: {event.name}", body)
+    _enqueue(user.email, f"MedCover — Odhlášení z akce: {event.name}", body)
 
 
 # ── Event lifecycle notifications ─────────────────────────────────────────────
 
-def send_event_published(user_email: str, user_name: str, event: Event) -> None:
+def send_event_published(user: UserAccount, event: Event) -> None:
     """Notify a user that an event they might be interested in was published."""
+    if not user_can_receive_notification(user, "event_lifecycle"):
+        return
     body = render_template(
         "email/event_published.txt",
-        user_name=user_name,
+        user_name=user.name,
         event=event,
     )
-    _enqueue(user_email, f"MedCover — Nová akce: {event.name}", body)
+    _enqueue(user.email, f"MedCover — Nová akce: {event.name}", body)
 
 
-def send_assignments_opened(user_email: str, user_name: str, event: Event) -> None:
+def send_assignments_opened(user: UserAccount, event: Event) -> None:
     """Notify a user that assignments opened for an event."""
+    if not user_can_receive_notification(user, "event_lifecycle"):
+        return
     body = render_template(
         "email/assignments_opened.txt",
-        user_name=user_name,
+        user_name=user.name,
         event=event,
     )
-    _enqueue(user_email, f"MedCover — Otevřeny přihlášky: {event.name}", body)
+    _enqueue(user.email, f"MedCover — Otevřeny přihlášky: {event.name}", body)
 
 
-def send_event_cancelled(user_email: str, user_name: str, event: Event) -> None:
-    """Notify assigned users that an event was cancelled."""
+def send_event_cancelled(user: UserAccount, event: Event) -> None:
+    """Notify an assigned user that an event was cancelled."""
+    if not user_can_receive_notification(user, "event_cancelled"):
+        return
     body = render_template(
         "email/event_cancelled.txt",
-        user_name=user_name,
+        user_name=user.name,
         event=event,
     )
-    _enqueue(user_email, f"MedCover — Akce zrušena: {event.name}", body)
+    _enqueue(user.email, f"MedCover — Akce zrušena: {event.name}", body)
 
 
 # ── Reminder (scheduler) ──────────────────────────────────────────────────────
 
 def send_unfilled_spots_reminder(
-    coordinator_email: str,
-    coordinator_name: str,
+    user: UserAccount,
     event: Event,
     unfilled: int,
 ) -> None:
     """Remind coordinator/RP that an event still has unfilled spots."""
+    if not user_can_receive_notification(user, "unfilled_reminder"):
+        return
     body = render_template(
         "email/unfilled_spots_reminder.txt",
-        coordinator_name=coordinator_name,
+        coordinator_name=user.name,
         event=event,
         unfilled=unfilled,
     )
     _enqueue(
-        coordinator_email,
+        user.email,
         f"MedCover — Připomínka: volná místa na akci {event.name}",
         body,
     )
@@ -158,6 +205,19 @@ def drain_one_outbox_email() -> bool:
 
     if row is None:
         return False
+
+    # --- Dev email block check ---
+    from app.models.settings import get_settings as _get_settings
+    _settings = _get_settings()
+    if not _settings.is_email_allowed(row.to_email):
+        row.status = "skipped"
+        row.last_error = "dev_email_block: recipient not in allowlist"
+        db.session.commit()
+        log.warning(
+            "Mail suppressed (dev_email_block): id=%d to=%s subject=%r",
+            row.id, row.to_email, row.subject,
+        )
+        return True
 
     try:
         msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)

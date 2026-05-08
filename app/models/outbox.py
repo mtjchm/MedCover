@@ -18,6 +18,7 @@ class OutboxEmail(db.Model):  # type: ignore[misc]
     # 'pending' → being picked up by scheduler
     # 'sent'    → successfully delivered to SMTP relay
     # 'failed'  → retry_count reached MAX_RETRIES; given up
+    # 'skipped' → suppressed by dev_email_block; recipient not in allowlist
     status = db.Column(db.String(16), nullable=False, default="pending", server_default="pending", index=True)
 
     created_at = db.Column(

@@ -7,6 +7,11 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 COPY . .
 
+# Embed the git commit hash at build time:
+#   docker build --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) .
+ARG GIT_COMMIT=dev
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 

@@ -11,12 +11,16 @@ Strategy:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.outbox import OutboxEmail
+
+if TYPE_CHECKING:
+    from app.models.user import UserAccount
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -38,6 +42,19 @@ def _make_event(name: str = "Testovací akce") -> Event:
     return event
 
 
+def _make_member_user(email: str = "member@test.cz", name: str = "Test Member") -> UserAccount:
+    """Create an active Member user (minimum role for operational emails)."""
+    from app.models.user import UserAccount
+    from app.models.role import Role
+    role = db.session.scalar(db.select(Role).where(Role.name == "Member"))
+    user = UserAccount(email=email, name=name, is_active=True)
+    user.set_password("pass")
+    user.roles = [role]
+    db.session.add(user)
+    db.session.flush()
+    return user
+
+
 # ── Outbox enqueue tests ───────────────────────────────────────────────────────
 
 class TestOutboxEnqueue:
@@ -47,7 +64,8 @@ class TestOutboxEnqueue:
         from app.mail import send_assignment_confirmed
         with app.app_context():
             event = _make_event("Závody 2026")
-            send_assignment_confirmed("jan@test.cz", "Jan Novák", event)
+            user = _make_member_user("jan@test.cz", "Jan Novák")
+            send_assignment_confirmed(user, event)
             db.session.commit()
 
             rows = db.session.scalars(db.select(OutboxEmail)).all()
@@ -62,7 +80,8 @@ class TestOutboxEnqueue:
         from app.mail import send_assignment_released
         with app.app_context():
             event = _make_event("Závody 2026")
-            send_assignment_released("jan@test.cz", "Jan Novák", event)
+            user = _make_member_user("jan@test.cz", "Jan Novák")
+            send_assignment_released(user, event)
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
@@ -74,7 +93,8 @@ class TestOutboxEnqueue:
         from app.mail import send_event_published
         with app.app_context():
             event = _make_event("Letní festival")
-            send_event_published("petra@test.cz", "Petra Svobodová", event)
+            user = _make_member_user("petra@test.cz", "Petra Svobodová")
+            send_event_published(user, event)
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
@@ -86,7 +106,8 @@ class TestOutboxEnqueue:
         from app.mail import send_assignments_opened
         with app.app_context():
             event = _make_event("Maraton")
-            send_assignments_opened("user@test.cz", "User Name", event)
+            user = _make_member_user()
+            send_assignments_opened(user, event)
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
@@ -97,7 +118,8 @@ class TestOutboxEnqueue:
         from app.mail import send_event_cancelled
         with app.app_context():
             event = _make_event("Zrušená akce")
-            send_event_cancelled("user@test.cz", "User Name", event)
+            user = _make_member_user()
+            send_event_cancelled(user, event)
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
@@ -108,9 +130,8 @@ class TestOutboxEnqueue:
         from app.mail import send_unfilled_spots_reminder
         with app.app_context():
             event = _make_event("Akce s mezerami")
-            send_unfilled_spots_reminder(
-                "coord@test.cz", "Koordinátor", event, unfilled=3
-            )
+            user = _make_member_user("coord@test.cz", "Koordinátor")
+            send_unfilled_spots_reminder(user, event, unfilled=3)
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
@@ -123,13 +144,159 @@ class TestOutboxEnqueue:
         from app.mail import send_assignment_confirmed, send_event_cancelled
         with app.app_context():
             event = _make_event()
-            send_assignment_confirmed("a@test.cz", "A", event)
-            send_event_cancelled("b@test.cz", "B", event)
+            user_a = _make_member_user("a@test.cz", "A")
+            user_b = _make_member_user("b@test.cz", "B")
+            send_assignment_confirmed(user_a, event)
+            send_event_cancelled(user_b, event)
             db.session.commit()
 
             rows = db.session.scalars(db.select(OutboxEmail)).all()
             assert len(rows) == 2
             assert all(r.status == "pending" for r in rows)
+
+    def test_viewer_only_does_not_enqueue(self, app):
+        """Viewer-only users must not receive operational emails (AD17)."""
+        from app.mail import send_assignment_confirmed, send_event_published
+        from app.models.role import Role
+        from app.models.user import UserAccount
+        with app.app_context():
+            event = _make_event("Test akce")
+            viewer_role = db.session.scalar(db.select(Role).where(Role.name == "Viewer"))
+            viewer = UserAccount(email="viewer@test.cz", name="Viewer User", is_active=True)
+            viewer.set_password("pass")
+            viewer.roles = [viewer_role]
+            db.session.add(viewer)
+            db.session.flush()
+
+            send_assignment_confirmed(viewer, event)
+            send_event_published(viewer, event)
+            db.session.commit()
+
+            rows = db.session.scalars(db.select(OutboxEmail)).all()
+            assert len(rows) == 0, "Viewer-only user should not receive any operational emails"
+
+    def test_viewer_plus_member_receives_emails(self, app):
+        """User with Viewer + Member roles must still receive Member emails (AD17)."""
+        from app.mail import send_assignment_confirmed
+        from app.models.role import Role
+        from app.models.user import UserAccount
+        with app.app_context():
+            event = _make_event("Test akce")
+            viewer_role = db.session.scalar(db.select(Role).where(Role.name == "Viewer"))
+            member_role = db.session.scalar(db.select(Role).where(Role.name == "Member"))
+            user = UserAccount(email="mixed@test.cz", name="Mixed User", is_active=True)
+            user.set_password("pass")
+            user.roles = [viewer_role, member_role]
+            db.session.add(user)
+            db.session.flush()
+
+            send_assignment_confirmed(user, event)
+            db.session.commit()
+
+            row = db.session.scalars(db.select(OutboxEmail)).first()
+            assert row is not None
+            assert row.to_email == "mixed@test.cz"
+
+
+# ── Dev email block tests ─────────────────────────────────────────────────────
+
+class TestDevEmailBlock:
+    """Verify the dev_email_block + allowlist logic in drain_one_outbox_email."""
+
+    def _seed_pending(self, app, to: str = "user@example.com") -> int:
+        with app.app_context():
+            row = OutboxEmail(to_email=to, subject="Test", body="Tělo")
+            db.session.add(row)
+            db.session.commit()
+            return row.id
+
+    def _set_dev_block(self, app, block: bool, allowlist: str | None = None) -> None:
+        with app.app_context():
+            from app.models.settings import get_settings
+            s = get_settings()
+            s.dev_email_block = block
+            s.dev_email_allowlist = allowlist
+            db.session.commit()
+
+    def test_block_off_sends_normally(self, app):
+        """When dev_email_block is False, email sends normally."""
+        self._set_dev_block(app, False)
+        row_id = self._seed_pending(app)
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_block_on_no_allowlist_skips_email(self, app):
+        """When block is on and allowlist is empty, email is skipped."""
+        self._set_dev_block(app, True, None)
+        row_id = self._seed_pending(app)
+        with app.app_context():
+            with patch("flask_mail.Mail.send") as mock_send:
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        mock_send.assert_not_called()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "skipped"
+            assert "dev_email_block" in row.last_error
+
+    def test_block_on_recipient_not_in_allowlist_skips(self, app):
+        """Recipient not in allowlist is skipped even with other entries present."""
+        self._set_dev_block(app, True, "admin@example.com, tester@example.com")
+        row_id = self._seed_pending(app, to="outsider@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send") as mock_send:
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        mock_send.assert_not_called()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "skipped"
+
+    def test_block_on_recipient_in_allowlist_sends(self, app):
+        """Recipient in allowlist is sent even when block is on."""
+        self._set_dev_block(app, True, "admin@example.com, tester@example.com")
+        row_id = self._seed_pending(app, to="tester@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_allowlist_matching_is_case_insensitive(self, app):
+        """Allowlist matching ignores case differences."""
+        self._set_dev_block(app, True, "Admin@Example.COM")
+        row_id = self._seed_pending(app, to="admin@example.com")
+        with app.app_context():
+            with patch("flask_mail.Mail.send"):
+                from app.mail import drain_one_outbox_email
+                drain_one_outbox_email()
+        with app.app_context():
+            row = db.session.get(OutboxEmail, row_id)
+            assert row.status == "sent"
+
+    def test_is_email_allowed_helper(self, app):
+        """Unit test AppSettings.is_email_allowed() directly."""
+        with app.app_context():
+            from app.models.settings import get_settings
+            s = get_settings()
+            s.dev_email_block = False
+            assert s.is_email_allowed("anyone@example.com") is True
+
+            s.dev_email_block = True
+            s.dev_email_allowlist = None
+            assert s.is_email_allowed("anyone@example.com") is False
+
+            s.dev_email_allowlist = "a@b.com, c@d.com"
+            assert s.is_email_allowed("a@b.com") is True
+            assert s.is_email_allowed("A@B.COM") is True
+            assert s.is_email_allowed("x@y.com") is False
 
 
 # ── Scheduler queue processing tests ─────────────────────────────────────────

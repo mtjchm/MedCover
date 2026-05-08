@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from sqlalchemy.orm import Mapped
 from app.extensions import db
+
+if TYPE_CHECKING:
+    from app.models.user import UserAccount
 
 
 class Assignment(db.Model):  # type: ignore[misc]
@@ -19,8 +23,8 @@ class Assignment(db.Model):  # type: ignore[misc]
     )
 
     spot = db.relationship("EventSpot", back_populates="assignment")
-    user = db.relationship("UserAccount", foreign_keys=[user_id])
-    assigned_by = db.relationship("UserAccount", foreign_keys=[assigned_by_id])
+    user: Mapped[UserAccount] = db.relationship("UserAccount", foreign_keys=[user_id])
+    assigned_by: Mapped[UserAccount | None] = db.relationship("UserAccount", foreign_keys=[assigned_by_id])
     debriefing: Mapped[DebriefingRecord | None] = db.relationship(
         "DebriefingRecord", back_populates="assignment", uselist=False, cascade="all, delete-orphan"
     )

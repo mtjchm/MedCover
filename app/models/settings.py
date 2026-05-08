@@ -25,6 +25,9 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # --- Organisation ---
     org_name = db.Column(db.String(255), nullable=True)
     timezone = db.Column(db.String(64), default="Europe/Prague", nullable=False)
+    # External base URL used when building absolute links in e-mails.
+    # Example: "https://medcoverdev.spidermila.site"  (no trailing slash)
+    app_base_url = db.Column(db.String(512), nullable=True)
 
     # --- SMTP ---
     smtp_server = db.Column(db.String(255), nullable=True)
@@ -34,8 +37,18 @@ class AppSettings(db.Model):  # type: ignore[misc]
     smtp_password_enc = db.Column(db.Text, nullable=True)   # Fernet-encrypted
     smtp_default_sender = db.Column(db.String(255), nullable=True)
 
+    # --- Dev / testing ---
+    # When True, outgoing emails are silently suppressed unless the recipient is
+    # listed in dev_email_allowlist.  Useful on staging/dev instances where real
+    # user addresses were imported and must never receive notifications.
+    dev_email_block = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
+    # Comma-separated list of email addresses that bypass the dev_email_block.
+    # Example: "admin@example.com, tester@example.com"
+    dev_email_allowlist = db.Column(db.Text, nullable=True)
+
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
+    feedback_enabled = db.Column(db.Boolean, default=True, nullable=False)
     scheduler_last_seen = db.Column(db.DateTime(timezone=True), nullable=True)
     updated_at = db.Column(
         db.DateTime(timezone=True),
@@ -66,6 +79,19 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # ------------------------------------------------------------------ #
     # Convenience                                                          #
     # ------------------------------------------------------------------ #
+
+    def is_email_allowed(self, address: str) -> bool:
+        """Return True if *address* may receive email given current dev settings.
+
+        When dev_email_block is False (default/production), all addresses are
+        allowed.  When True, only addresses listed in dev_email_allowlist pass.
+        """
+        if not self.dev_email_block:
+            return True
+        if not self.dev_email_allowlist:
+            return False  # block is on but allowlist is empty → block all
+        allowed = {a.strip().lower() for a in self.dev_email_allowlist.split(",") if a.strip()}
+        return address.strip().lower() in allowed
 
     @property
     def smtp_configured(self) -> bool:

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Zpětná vazba — MedCover{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <h2 class="mb-1">Zpětná vazba</h2>
+    <p class="text-muted mb-4">
+      Napište nám, co by se dalo zlepšit, co nefunguje nebo co vám chybí.
+      Váš podnět uvidí administrátoři aplikace.
+    </p>
+
+    <form method="POST" action="{{ url_for('feedback.feedback_submit') }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {# Page URL — pre-filled from ?from= query param or set by JS #}
+      <input type="hidden" name="page_url" id="page_url_field" value="{{ page_url or '' }}">
+      {# Browser / OS info — filled by JS before submit #}
+      <input type="hidden" name="user_agent" id="user_agent_field">
+      <input type="hidden" name="screen_info" id="screen_info_field">
+
+      <div class="mb-3">
+        <label for="message" class="form-label fw-semibold">Vaše zpráva</label>
+        <textarea
+          id="message"
+          name="message"
+          class="form-control"
+          rows="7"
+          placeholder="Popište, co se stalo nebo co byste rádi zlepšili…"
+          required
+          autofocus></textarea>
+      </div>
+
+      {# Show which page will be reported #}
+      {% if page_url %}
+      <div class="mb-3 text-muted small">
+        <i class="bi bi-link-45deg"></i>
+        Stránka: <code>{{ page_url }}</code>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Odeslat zpětnou vazbu</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="history.back()">Zrušit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Collect browser/OS info and fill hidden fields before the form is submitted.
+  (function () {
+    document.querySelector("form").addEventListener("submit", function () {
+      document.getElementById("user_agent_field").value = navigator.userAgent || "";
+      var s = window.screen;
+      document.getElementById("screen_info_field").value =
+        s.width + "×" + s.height + " (" + s.colorDepth + "-bit)";
+      // If page_url was not supplied via query param, use referrer
+      var puField = document.getElementById("page_url_field");
+      if (!puField.value) {
+        puField.value = document.referrer || window.location.href;
+      }
+    });
+  })();
+</script>
+{% endblock %}

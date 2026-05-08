@@ -17,3 +17,59 @@ def test_unknown_route_returns_404(client):
 
 def test_app_is_in_testing_mode(app):
     assert app.config["TESTING"] is True
+
+
+# ── external_url_for ─────────────────────────────────────────────────────────
+
+
+class TestExternalUrlFor:
+    """Test the external_url_for utility honours app_base_url from AppSettings."""
+
+    def test_falls_back_to_flask_external_when_no_base_url(self, app):
+        """Without app_base_url configured, must return a valid absolute URL."""
+        from app.utils import external_url_for
+        from app.models.settings import get_settings
+
+        with app.test_request_context("/"):
+            settings = get_settings()
+            settings.app_base_url = None
+
+            url = external_url_for("auth.login")
+            assert url.startswith("http")
+            assert "/auth/login" in url
+
+    def test_uses_configured_base_url(self, app):
+        """When app_base_url is set, it must be used as the URL base."""
+        from app.utils import external_url_for
+        from app.models.settings import get_settings
+        from app.extensions import db
+
+        with app.test_request_context("/"):
+            settings = get_settings()
+            settings.app_base_url = "https://medcoverdev.example.com"
+            db.session.flush()
+
+            url = external_url_for("auth.login")
+            assert url == "https://medcoverdev.example.com/auth/login"
+
+            # Restore
+            settings.app_base_url = None
+            db.session.flush()
+
+    def test_base_url_trailing_slash_stripped(self, app):
+        """Trailing slash on base URL must not produce double slashes."""
+        from app.utils import external_url_for
+        from app.models.settings import get_settings
+        from app.extensions import db
+
+        with app.test_request_context("/"):
+            settings = get_settings()
+            settings.app_base_url = "https://medcoverdev.example.com/"
+            db.session.flush()
+
+            url = external_url_for("auth.login")
+            assert "//auth" not in url
+            assert url == "https://medcoverdev.example.com/auth/login"
+
+            settings.app_base_url = None
+            db.session.flush()

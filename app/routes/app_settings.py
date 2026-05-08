@@ -37,6 +37,10 @@ def index() -> str | Response:
         # --- Read posted values ---
         org_name = request.form.get("org_name", "").strip() or None
         timezone = request.form.get("timezone", "Europe/Prague")
+        app_base_url = request.form.get("app_base_url", "").strip().rstrip("/") or None
+        feedback_enabled = "feedback_enabled" in request.form
+        dev_email_block = "dev_email_block" in request.form
+        dev_email_allowlist = request.form.get("dev_email_allowlist", "").strip() or None
         smtp_server = request.form.get("smtp_server", "").strip() or None
         smtp_port = int(request.form.get("smtp_port") or 587)
         smtp_use_tls = "smtp_use_tls" in request.form
@@ -53,6 +57,10 @@ def index() -> str | Response:
         before = {
             "org_name": settings.org_name,
             "timezone": settings.timezone,
+            "app_base_url": settings.app_base_url,
+            "feedback_enabled": settings.feedback_enabled,
+            "dev_email_block": settings.dev_email_block,
+            "dev_email_allowlist": settings.dev_email_allowlist,
             "smtp_server": settings.smtp_server,
             "smtp_port": settings.smtp_port,
             "smtp_use_tls": settings.smtp_use_tls,
@@ -64,6 +72,10 @@ def index() -> str | Response:
         # --- Apply changes ---
         settings.org_name = org_name
         settings.timezone = timezone
+        settings.app_base_url = app_base_url
+        settings.feedback_enabled = feedback_enabled
+        settings.dev_email_block = dev_email_block
+        settings.dev_email_allowlist = dev_email_allowlist
         settings.smtp_server = smtp_server
         settings.smtp_port = smtp_port
         settings.smtp_use_tls = smtp_use_tls
@@ -76,6 +88,10 @@ def index() -> str | Response:
         after = {
             "org_name": settings.org_name,
             "timezone": settings.timezone,
+            "app_base_url": settings.app_base_url,
+            "feedback_enabled": settings.feedback_enabled,
+            "dev_email_block": settings.dev_email_block,
+            "dev_email_allowlist": settings.dev_email_allowlist,
             "smtp_server": settings.smtp_server,
             "smtp_port": settings.smtp_port,
             "smtp_use_tls": settings.smtp_use_tls,
