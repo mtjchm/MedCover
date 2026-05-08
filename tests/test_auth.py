@@ -34,7 +34,8 @@ class TestLoginPage:
             follow_redirects=True,
         )
         assert response.status_code == 200
-        assert b"/auth/login" in response.request.path.encode() or b"login" in response.data.lower()
+        assert response.request.path == "/auth/login"
+        assert "Nesprávný e-mail nebo heslo".encode() in response.data
 
     def test_login_unknown_email_stays_on_login(self, client):
         response = client.post(
@@ -57,8 +58,9 @@ class TestLoginPage:
             data={"email": "inactive@example.com", "password": "testpass123"},
             follow_redirects=True,
         )
-        # Should not reach dashboard
-        assert b"/dashboard" not in response.data
+        # Must stay on login page with activation warning
+        assert response.request.path == "/auth/login"
+        assert b"aktivaci" in response.data
 
 
 class TestLogout:
@@ -104,3 +106,182 @@ class TestForgotPassword:
             follow_redirects=True,
         )
         assert response.status_code == 200
+
+
+class TestOpenRedirectProtection:
+    """The ?next= parameter on login must not redirect to external URLs."""
+
+    def test_external_next_redirects_to_dashboard(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=https://evil.example.com/steal",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert "evil.example.com" not in location
+        assert "/dashboard" in location
+
+    def test_protocol_relative_next_redirects_to_dashboard(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=//evil.example.com/steal",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        location = response.headers["Location"]
+        assert "evil.example.com" not in location
+
+    def test_same_origin_next_is_honoured(self, app, client):
+        with app.app_context():
+            _make_user("test@example.com", "Test User", Role.MEMBER)
+        response = client.post(
+            "/auth/login?next=/events/",
+            data={"email": "test@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert "/events/" in response.headers["Location"]
+
+
+class TestRegisterFlow:
+    """Invite-based registration flow."""
+
+    def _make_invite(self, app, admin_email: str = "admin@test.com") -> str:
+        """Create a valid registration invite and return its token."""
+        from app.models.invite import RegistrationInvite
+        from app.models.role import Role
+        from tests.conftest import _make_user
+
+        with app.app_context():
+            _make_user(admin_email, "Test Admin", Role.ADMIN)
+            admin = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == admin_email))
+            invite = RegistrationInvite(email="newuser@example.com", created_by_id=admin.id)
+            _db.session.add(invite)
+            _db.session.commit()
+            return invite.token
+
+    def test_invalid_token_rejected(self, client):
+        response = client.get("/auth/register/invalidtoken", follow_redirects=True)
+        assert response.status_code == 200
+        assert "Pozvánka je neplatná".encode() in response.data
+
+    def test_valid_token_shows_form(self, app, client):
+        token = self._make_invite(app)
+        response = client.get(f"/auth/register/{token}")
+        assert response.status_code == 200
+        assert b"newuser@example.com" in response.data
+
+    def test_register_creates_inactive_user(self, app, client):
+        token = self._make_invite(app)
+        response = client.post(
+            f"/auth/register/{token}",
+            data={
+                "full_name": "Nový Uživatel",
+                "password": "securepass99",
+                "password2": "securepass99",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "Registrace dokončena".encode() in response.data
+        with app.app_context():
+            user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "newuser@example.com"))
+            assert user is not None
+            assert user.is_active is False
+
+    def test_register_short_password_rejected(self, app, client):
+        token = self._make_invite(app)
+        response = client.post(
+            f"/auth/register/{token}",
+            data={"full_name": "Test", "password": "short", "password2": "short"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "8 znaků".encode() in response.data
+        with app.app_context():
+            user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "newuser@example.com"))
+            assert user is None
+
+    def test_register_mismatched_passwords_rejected(self, app, client):
+        token = self._make_invite(app)
+        response = client.post(
+            f"/auth/register/{token}",
+            data={"full_name": "Test", "password": "securepass99", "password2": "different99"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "Hesla se neshodují".encode() in response.data
+
+    def test_register_missing_name_rejected(self, app, client):
+        token = self._make_invite(app)
+        response = client.post(
+            f"/auth/register/{token}",
+            data={"full_name": "", "password": "securepass99", "password2": "securepass99"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "celé jméno".encode() in response.data
+
+
+class TestResetPassword:
+    """Password reset via signed token."""
+
+    def _make_reset_token(self, app) -> str:
+        from app.models.role import Role
+        from tests.conftest import _make_user
+
+        with app.app_context():
+            _make_user("reset@example.com", "Reset User", Role.MEMBER)
+            user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "reset@example.com"))
+            # Import the internal helper
+            from app.routes.auth import _make_signed_token, _RESET_SALT
+            from app.config import RESET_TOKEN_HOURS
+            return _make_signed_token(str(user.id), _RESET_SALT, RESET_TOKEN_HOURS)
+
+    def test_invalid_token_redirects_to_forgot(self, client):
+        response = client.get("/auth/reset-password/badtoken", follow_redirects=True)
+        assert response.status_code == 200
+        assert "neplatný nebo vypršel".encode() in response.data
+
+    def test_valid_token_shows_form(self, app, client):
+        token = self._make_reset_token(app)
+        response = client.get(f"/auth/reset-password/{token}")
+        assert response.status_code == 200
+
+    def test_reset_changes_password(self, app, client):
+        token = self._make_reset_token(app)
+        response = client.post(
+            f"/auth/reset-password/{token}",
+            data={"password": "NewPassword99", "password2": "NewPassword99"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "Heslo bylo změněno".encode() in response.data
+        with app.app_context():
+            user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "reset@example.com"))
+            assert user.check_password("NewPassword99") is True
+
+    def test_reset_short_password_rejected(self, app, client):
+        token = self._make_reset_token(app)
+        response = client.post(
+            f"/auth/reset-password/{token}",
+            data={"password": "short", "password2": "short"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "8 znaků".encode() in response.data
+
+    def test_reset_mismatched_passwords_rejected(self, app, client):
+        token = self._make_reset_token(app)
+        response = client.post(
+            f"/auth/reset-password/{token}",
+            data={"password": "NewPassword99", "password2": "different99"},
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "neshodují".encode() in response.data

@@ -1,5 +1,6 @@
 """Tests for event model unit tests (no HTTP, pure model logic)."""
 from app.models.event import EventStatus
+from app.models.user import UserAccount
 
 
 class TestEventStatusValues:
@@ -67,3 +68,49 @@ class TestUserPermissions:
             _make_user("viewer@test.com", "Viewer", Role.VIEWER)
             loaded = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "viewer@test.com"))
             assert loaded.has_any_permission("event.create", "event.edit") is False
+
+
+class TestUserPassword:
+    """Tests for set_password / check_password model methods."""
+
+    def _make_unsaved_user(self) -> UserAccount:
+        user = UserAccount(email="pw@test.com", name="PW User", is_active=True)
+        return user
+
+    def test_set_and_check_password_correct(self):
+        user = self._make_unsaved_user()
+        user.set_password("supersecret99")
+        assert user.check_password("supersecret99") is True
+
+    def test_check_password_wrong_returns_false(self):
+        user = self._make_unsaved_user()
+        user.set_password("supersecret99")
+        assert user.check_password("wrongpassword") is False
+
+    def test_check_password_empty_returns_false(self):
+        user = self._make_unsaved_user()
+        user.set_password("supersecret99")
+        assert user.check_password("") is False
+
+    def test_password_is_hashed_not_stored_plaintext(self):
+        user = self._make_unsaved_user()
+        user.set_password("mysecretpassword")
+        assert user.password_hash != "mysecretpassword"
+        assert "mysecretpassword" not in (user.password_hash or "")
+
+
+class TestUserGetId:
+    def test_get_id_returns_string(self, app):
+        from app.extensions import db
+        from app.models.role import Role
+        from tests.conftest import _make_user
+
+        with app.app_context():
+            _make_user("getid@test.com", "GetId User", Role.MEMBER)
+            loaded = db.session.scalar(
+                db.select(UserAccount).where(UserAccount.email == "getid@test.com")
+            )
+            result = loaded.get_id()
+            assert isinstance(result, str)
+            # Must be UUID-like (non-empty string representation of the PK)
+            assert len(result) > 0
