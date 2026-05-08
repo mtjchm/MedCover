@@ -86,6 +86,11 @@ Race conditions are a first-class concern, especially for spot assignment:
 
 ---
 
+## Copilot Agent Behaviour
+- **Never use background agents / background tasks.** All work must be done synchronously in the current session so the user can follow along. Do not use `mode="background"` on the task tool.
+
+---
+
 ## Branch & PR Convention
 - One feature branch per logical unit: `feat/<short-name>`
 - CI must pass before merging (GitHub Actions: lint-free import, `flask db upgrade`, `pytest`)
