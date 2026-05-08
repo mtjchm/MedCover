@@ -154,7 +154,7 @@ def send_unfilled_spots_reminder(
         "email/unfilled_spots_reminder.txt",
         coordinator_name=user.name,
         event=event,
-        unfilled=unfilled,
+        unfilled=len(unfilled) if isinstance(unfilled, list) else unfilled,
     )
     _enqueue(
         user.email,
