@@ -292,6 +292,7 @@
   });
 
   // Expose globals used by inline HTML onclick attributes in the template
+  window.setView = setView;
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
   window.resetFilters = resetFilters;
