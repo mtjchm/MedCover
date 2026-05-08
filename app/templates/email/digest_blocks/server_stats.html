@@ -1,0 +1,36 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  <table class="data-table" role="presentation">
+    {% if user_count is defined %}
+    <tr><td>Uživatelé celkem</td><td><strong>{{ user_count }}</strong></td></tr>
+    {% endif %}
+    {% if event_count is defined %}
+    <tr><td>Akce celkem</td><td><strong>{{ event_count }}</strong></td></tr>
+    {% endif %}
+    {% if db_size is defined %}
+    <tr><td>Velikost databáze</td><td><strong>{{ db_size }}</strong></td></tr>
+    {% endif %}
+    {% if scheduler_age_seconds is defined %}
+    <tr>
+      <td>Scheduler</td>
+      <td>
+        {% if scheduler_ok %}
+          <span class="badge badge-ok">OK</span>
+          ({{ scheduler_age_seconds }}s ago)
+        {% elif scheduler_age_seconds is none %}
+          <span class="badge badge-err">Neznámý stav</span>
+        {% else %}
+          <span class="badge badge-err">Chyba</span>
+          ({{ scheduler_age_seconds }}s ago)
+        {% endif %}
+      </td>
+    </tr>
+    {% endif %}
+    {% if outbox_pending is defined %}
+    <tr><td>E-maily ve frontě (nyní)</td><td><strong>{{ outbox_pending }}</strong></td></tr>
+    {% endif %}
+    {% if outbox_peak is defined %}
+    <tr><td>Maximum fronty (posl. {{ peak_hours }}h)</td><td><strong>{{ outbox_peak }}</strong></td></tr>
+    {% endif %}
+  </table>
+</div>

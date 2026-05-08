@@ -1,0 +1,24 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  {% if items %}
+  <table class="data-table" role="presentation">
+    <tr>
+      <th>Čas</th>
+      <th>Uživatel</th>
+      <th>Zpráva</th>
+    </tr>
+    {% for item in items %}
+    <tr>
+      <td style="white-space:nowrap;">{{ item.submitted_at.strftime('%d.%m %H:%M') }}</td>
+      <td>{{ item.user.name if item.user else '—' }}</td>
+      <td>{{ item.message }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if truncated %}
+  <p class="truncation-note">Zobrazeno pouze {{ items | length }} nejnovějších zpráv za posledních {{ hours }} hodin.</p>
+  {% endif %}
+  {% else %}
+  <p style="color:#999;font-size:13px;">Za posledních {{ hours }} hodin nebyly odeslány žádné zprávy zpětné vazby.</p>
+  {% endif %}
+</div>

@@ -17,6 +17,7 @@ from .app_settings import app_settings_bp
 from .templates import templates_bp
 from .import_events import import_bp
 from .feedback import feedback_bp
+from .admin_digest import bp as admin_digest_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -36,6 +37,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(app_settings_bp)
     app.register_blueprint(import_bp)
     app.register_blueprint(feedback_bp)
+    app.register_blueprint(admin_digest_bp)
 
     if app.config.get("DEV_LOGIN_ENABLED"):
         from .dev import dev_bp

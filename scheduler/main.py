@@ -114,17 +114,28 @@ def send_reminders() -> None:
         run_send_reminders(db.session)
 
 
-def send_admin_digest() -> None:
-    """Send daily admin digest email."""
+def send_admin_digest_task() -> None:
+    """Send admin digest if it is due per DigestSchedule."""
     with app.app_context():
-        log.info("TODO: send_admin_digest task (Phase 3 email)")
+        from app.extensions import db
+        from app.scheduler_tasks import run_admin_digest
+        run_admin_digest(db.session)
+
+
+def record_metrics() -> None:
+    """Record outbox queue depth snapshot every 15 minutes."""
+    with app.app_context():
+        from app.extensions import db
+        from app.scheduler_tasks import run_record_metrics
+        run_record_metrics(db.session)
 
 
 schedule.every(MAIL_QUEUE_INTERVAL_SECONDS).seconds.do(process_email_queue)
 schedule.every(1).minutes.do(open_assignments)
 schedule.every(1).minutes.do(close_completed_events)
 schedule.every(5).minutes.do(send_reminders)
-schedule.every().day.at("07:00").do(send_admin_digest)
+schedule.every(1).minutes.do(send_admin_digest_task)
+schedule.every(15).minutes.do(record_metrics)
 
 log.info("Scheduler started (mail queue interval: %ds)", MAIL_QUEUE_INTERVAL_SECONDS)
 

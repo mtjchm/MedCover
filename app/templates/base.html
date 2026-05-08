@@ -62,6 +62,9 @@
               {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">Přehled oprávnění</a></li>
               {% endif %}
+              {% if current_user.has_permission('admin.manage_digest') %}
+              <li><a class="dropdown-item" href="{{ url_for('admin_digest.index') }}">Přehledový e-mail</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}

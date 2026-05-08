@@ -1,0 +1,32 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  {% if users %}
+  <table class="data-table" role="presentation">
+    <tr>
+      <th>Jméno</th>
+      <th>E-mail</th>
+      <th>Stav</th>
+      <th>Registrace</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.name }}</td>
+      <td>{{ u.email }}</td>
+      <td>
+        {% if u.is_active %}
+          <span class="badge badge-ok">Aktivní</span>
+        {% else %}
+          <span class="badge badge-warn">Čeká na aktivaci</span>
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap;">{{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if truncated %}
+  <p class="truncation-note">Zobrazeno pouze {{ users | length }} nejnovějších záznamů za posledních {{ hours }} hodin.</p>
+  {% endif %}
+  {% else %}
+  <p style="color:#999;font-size:13px;">Za posledních {{ hours }} hodin nebyli zaregistrováni žádní noví uživatelé.</p>
+  {% endif %}
+</div>
