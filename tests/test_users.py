@@ -688,3 +688,39 @@ class TestBatchAction:
         )
         assert resp.status_code == 200
         assert "Neznámá akce".encode() in resp.data
+
+
+class TestUserListFiltersAndSort:
+    """Tests for role filter and created_at sort on /users/."""
+
+    def test_role_filter_returns_only_matching_users(self, app, admin_client):
+        """GET /users/?role=Viewer returns only Viewer users."""
+        with app.app_context():
+            viewer_role = db.session.scalar(db.select(Role).where(Role.name == "Viewer"))
+            u = UserAccount(email="vieweronly@test.cz", name="Viewer Only", is_active=True)
+            u.set_password("pass")
+            u.roles = [viewer_role]
+            db.session.add(u)
+            db.session.commit()
+
+        resp = admin_client.get("/users/?role=Viewer")
+        assert resp.status_code == 200
+        assert b"vieweronly@test.cz" in resp.data
+        # member@test.com has Member not Viewer → must not appear
+        assert b"member@test.com" not in resp.data
+
+    def test_role_filter_all_shows_all(self, app, admin_client):
+        """GET /users/ (no role filter) returns all users."""
+        resp = admin_client.get("/users/")
+        assert resp.status_code == 200
+        assert b"admin@test.com" in resp.data
+
+    def test_sort_by_created_asc(self, admin_client):
+        """GET /users/?sort=created&dir=asc returns 200."""
+        resp = admin_client.get("/users/?sort=created&dir=asc")
+        assert resp.status_code == 200
+
+    def test_sort_by_created_desc(self, admin_client):
+        """GET /users/?sort=created&dir=desc returns 200."""
+        resp = admin_client.get("/users/?sort=created&dir=desc")
+        assert resp.status_code == 200

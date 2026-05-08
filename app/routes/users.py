@@ -170,18 +170,22 @@ def index() -> str:
     q = request.args.get("q", "").strip()
     sort = request.args.get("sort", "name")
     sort_dir = request.args.get("dir", "asc")
-    if sort not in ("name", "email", "status"):
+    role_filter = request.args.get("role", "").strip()  # role name or "" for all
+
+    if sort not in ("name", "email", "status", "created"):
         sort = "name"
     if sort_dir not in ("asc", "desc"):
         sort_dir = "asc"
 
     sort_col = {
-        "name": UserAccount.name,
-        "email": UserAccount.email,
-        "status": UserAccount.is_active,
+        "name":    UserAccount.name,
+        "email":   UserAccount.email,
+        "status":  UserAccount.is_active,
+        "created": UserAccount.created_at,
     }[sort]
     order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
 
+    from app.models.user import user_roles as user_roles_table
     query = db.select(UserAccount).order_by(order)
     if q:
         query = query.where(
@@ -190,6 +194,13 @@ def index() -> str:
                 UserAccount.email.ilike(f"%{q}%"),
             )
         )
+    if role_filter:
+        query = query.join(
+            user_roles_table, UserAccount.id == user_roles_table.c.user_id
+        ).join(
+            Role, user_roles_table.c.role_id == Role.id
+        ).where(Role.name == role_filter)
+
     total = db.session.scalar(db.select(db.func.count()).select_from(query.subquery()))
     users = db.session.scalars(
         query.offset((page - 1) * _PAGE_SIZE).limit(_PAGE_SIZE)
@@ -206,6 +217,7 @@ def index() -> str:
         roles=roles,
         sort=sort,
         sort_dir=sort_dir,
+        role_filter=role_filter,
     )
 
 
