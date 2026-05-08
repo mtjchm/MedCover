@@ -1,7 +1,6 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Přehledový e-mail — MedCover{% endblock %}
-
-{% macro tip(text) %}<span class="text-muted ms-1" style="cursor:default;" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ text }}">&#63;&#x20DD;</span>{% endmacro %}
 
 {% block content %}
 <div class="container-fluid py-3">
@@ -24,13 +23,13 @@
                      {{ 'checked' if schedule.enabled }}>
               <label class="form-check-label" for="digest_enabled">Přehledový e-mail aktivní</label>
             </div>
-            {{ tip("Globální vypínač. Když je vypnuto, scheduler žádné e-maily neodešle bez ohledu na ostatní nastavení.") }}
+            {{ help_icon("Globální vypínač. Když je vypnuto, scheduler žádné e-maily neodešle bez ohledu na ostatní nastavení.") }}
           </div>
         </div>
 
         <div class="row g-3 mb-3">
           <div class="col-sm-4">
-            <label class="form-label">Frekvence odesílání {{ tip("Minimální interval mezi dvěma odesláními. E-mail se odešle nejvýše jednou za toto období.") }}</label>
+            <label class="form-label">Frekvence odesílání {{ help_icon("Minimální interval mezi dvěma odesláními. E-mail se odešle nejvýše jednou za toto období.") }}</label>
             <select class="form-select" name="frequency_hours">
               {% for val, lbl in frequency_options %}
               <option value="{{ val }}" {{ 'selected' if schedule.frequency_hours == val }}>{{ lbl }}</option>
@@ -38,7 +37,7 @@
             </select>
           </div>
           <div class="col-sm-3">
-            <label class="form-label">Preferovaná hodina odeslání (UTC) {{ tip("Scheduler zkontroluje každou minutu, zda je aktuální hodina (UTC) rovna této hodině a zda uplynul požadovaný interval. Teprve pak odešle.") }}</label>
+            <label class="form-label">Preferovaná hodina odeslání (UTC) {{ help_icon("Scheduler zkontroluje každou minutu, zda je aktuální hodina (UTC) rovna této hodině a zda uplynul požadovaný interval. Teprve pak odešle.") }}</label>
             <select class="form-select" name="preferred_hour_utc">
               {% for h in hour_options %}
               <option value="{{ h }}" {{ 'selected' if schedule.preferred_hour_utc == h }}>{{ '%02d:00'|format(h) }}</option>
@@ -48,19 +47,19 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Předmět e-mailu {{ tip("Zobrazí se v předmětu každého odeslaného přehledového e-mailu.") }}</label>
+          <label class="form-label">Předmět e-mailu {{ help_icon("Zobrazí se v předmětu každého odeslaného přehledového e-mailu.") }}</label>
           <input type="text" class="form-control" name="email_subject"
                  value="{{ schedule.email_subject }}" maxlength="255" required>
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Úvodní text (HTML, volitelné) {{ tip("Volný HTML text zobrazený před prvním blokem. Vhodné pro uvítací zprávu nebo pokyny pro čtenáře.") }}</label>
+          <label class="form-label">Úvodní text (HTML, volitelné) {{ help_icon("Volný HTML text zobrazený před prvním blokem. Vhodné pro uvítací zprávu nebo pokyny pro čtenáře.") }}</label>
           <textarea class="form-control font-monospace" name="header_html" rows="3">{{ schedule.header_html or '' }}</textarea>
           <div class="form-text">Zobrazí se nad prvním blokem. Lze použít HTML tagy.</div>
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Závěrečný text (HTML, volitelné) {{ tip("Volný HTML text zobrazený za posledním blokem. Vhodné pro podpis nebo kontaktní informace.") }}</label>
+          <label class="form-label">Závěrečný text (HTML, volitelné) {{ help_icon("Volný HTML text zobrazený za posledním blokem. Vhodné pro podpis nebo kontaktní informace.") }}</label>
           <textarea class="form-control font-monospace" name="footer_html" rows="3">{{ schedule.footer_html or '' }}</textarea>
           <div class="form-text">Zobrazí se pod posledním blokem. Lze použít HTML tagy.</div>
         </div>
@@ -73,7 +72,7 @@
   {# ── Blocks ─────────────────────────────────────────────────────────── #}
   <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <span class="fw-semibold">Bloky přehledu {{ tip("Bloky jsou sekce obsahu e-mailu. Přetažením (☰) změníte jejich pořadí. Každý blok lze zapnout/vypnout nebo nakonfigurovat zvlášť. Stejný typ bloku lze přidat vícekrát s různým nastavením (max. 5×).") }}</span>
+      <span class="fw-semibold">Bloky přehledu {{ help_icon("Bloky jsou sekce obsahu e-mailu. Přetažením (☰) změníte jejich pořadí. Každý blok lze zapnout/vypnout nebo nakonfigurovat zvlášť. Stejný typ bloku lze přidat vícekrát s různým nastavením (max. 5×).") }}</span>
       <div class="d-flex align-items-center gap-2">
         <small class="text-muted">Přetažením změníte pořadí</small>
         <form method="POST" action="{{ url_for('admin_digest.add_block') }}" class="d-flex gap-1">
@@ -144,10 +143,9 @@
                   </div>
                 </div>
                 <div class="col-sm-5">
+                  {{ help_icon("Nadpis zobrazený v e-mailu nad tímto blokem. Pokud je prázdný, použije se výchozí název typu bloku.") }}
                   <input type="text" class="form-control form-control-sm" name="title"
                          placeholder="Nadpis bloku"
-                         data-bs-toggle="tooltip" data-bs-placement="top"
-                         title="Nadpis zobrazený v e-mailu nad tímto blokem. Pokud je prázdný, použije se výchozí název typu bloku."
                          value="{{ block.config_json.get('title', cls.default_config.get('title', '')) }}">
                 </div>
               </div>
@@ -168,7 +166,7 @@
                     <input class="form-check-input" type="checkbox" name="{{ key }}" value="1"
                            {{ 'checked' if cfg.get(key, True) }}>
                     <label class="form-check-label">{{ lbl }}
-                      <span class="text-muted" data-bs-toggle="tooltip" title="{{ tip_text }}">&#63;&#x20DD;</span>
+                      {{ help_icon(tip_text) }}
                     </label>
                   </div>
                   {% endfor %}
@@ -176,7 +174,7 @@
                 <div class="col-sm-3 mb-2">
                   <label class="form-label form-label-sm">
                     Okno pro maximum (hodiny)
-                    {{ tip("Počet hodin zpět, ve kterých se hledá maximální délka e-mailové fronty. Záznamy se ukládají každých 15 minut.") }}
+                    {{ help_icon("Počet hodin zpět, ve kterých se hledá maximální délka e-mailové fronty. Záznamy se ukládají každých 15 minut.") }}
                   </label>
                   <input type="number" class="form-control form-control-sm" name="peak_hours"
                          value="{{ cfg.get('peak_hours', 24) }}" min="1" max="720">
@@ -188,7 +186,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Posledních (hodin)
-                      {{ tip("Zobrazí záznamy z auditního logu za posledních N hodin. Doporučeno nastavit shodně s frekvencí odesílání.") }}
+                      {{ help_icon("Zobrazí záznamy z auditního logu za posledních N hodin. Doporučeno nastavit shodně s frekvencí odesílání.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="hours"
                            value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
@@ -196,7 +194,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Max. řádků
-                      {{ tip("Maximální počet záznamů zobrazených v e-mailu. Nejnovější záznamy mají přednost.") }}
+                      {{ help_icon("Maximální počet záznamů zobrazených v e-mailu. Nejnovější záznamy mají přednost.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="max_rows"
                            value="{{ cfg.get('max_rows', 50) }}" min="1" max="200">
@@ -206,7 +204,7 @@
                       <input class="form-check-input" type="checkbox" name="show_actor" value="1"
                              {{ 'checked' if cfg.get('show_actor', True) }}>
                       <label class="form-check-label">Zobrazit uživatele
-                        {{ tip("Zobrazí jméno uživatele, který akci provedl. Vypněte pro kompaktnější výstup.") }}
+                        {{ help_icon("Zobrazí jméno uživatele, který akci provedl. Vypněte pro kompaktnější výstup.") }}
                       </label>
                     </div>
                   </div>
@@ -215,7 +213,7 @@
                   <div class="col-sm-6">
                     <label class="form-label form-label-sm">
                       Filtr typů entit (prázdné = vše)
-                      {{ tip("Omezí výpis pouze na vybrané typy objektů. Podržte Ctrl (nebo Cmd) pro výběr více položek. Prázdný výběr zobrazí vše.") }}
+                      {{ help_icon("Omezí výpis pouze na vybrané typy objektů. Podržte Ctrl (nebo Cmd) pro výběr více položek. Prázdný výběr zobrazí vše.") }}
                     </label>
                     <select class="form-select form-select-sm" name="entity_types" multiple size="4">
                       {% for et in ['Event','EventSpot','Assignment','UserAccount','MasterEvent',
@@ -227,7 +225,7 @@
                   <div class="col-sm-4">
                     <label class="form-label form-label-sm">
                       Filtr typů akcí (prázdné = vše)
-                      {{ tip("Omezí výpis na vybrané typy operací. Podržte Ctrl (nebo Cmd) pro výběr více. Prázdný výběr zobrazí vše.") }}
+                      {{ help_icon("Omezí výpis na vybrané typy operací. Podržte Ctrl (nebo Cmd) pro výběr více. Prázdný výběr zobrazí vše.") }}
                     </label>
                     <select class="form-select form-select-sm" name="action_types" multiple size="4">
                       {% for at in ['create','edit','delete','status_change','email_failed'] %}
@@ -243,7 +241,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Počet dní dopředu
-                      {{ tip("Zobrazí akce, jejichž začátek je od teď do N dní v budoucnu.") }}
+                      {{ help_icon("Zobrazí akce, jejichž začátek je od teď do N dní v budoucnu.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="days_ahead"
                            value="{{ cfg.get('days_ahead', 7) }}" min="1" max="365">
@@ -251,7 +249,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Max. řádků
-                      {{ tip("Maximální počet akcí zobrazených v e-mailu.") }}
+                      {{ help_icon("Maximální počet akcí zobrazených v e-mailu.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="max_rows"
                            value="{{ cfg.get('max_rows', 15) }}" min="1" max="100">
@@ -261,7 +259,7 @@
                       <input class="form-check-input" type="checkbox" name="show_unfilled_only" value="1"
                              {{ 'checked' if cfg.get('show_unfilled_only', False) }}>
                       <label class="form-check-label">Jen akce s volnými místy
-                        {{ tip("Zobrazí pouze akce, které mají alespoň jedno neobsazené povinné místo.") }}
+                        {{ help_icon("Zobrazí pouze akce, které mají alespoň jedno neobsazené povinné místo.") }}
                       </label>
                     </div>
                   </div>
@@ -273,7 +271,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Posledních (hodin)
-                      {{ tip("Zobrazí účty vytvořené nebo aktivované za posledních N hodin.") }}
+                      {{ help_icon("Zobrazí účty vytvořené nebo aktivované za posledních N hodin.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="hours"
                            value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
@@ -281,7 +279,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Max. řádků
-                      {{ tip("Maximální počet uživatelů zobrazených v e-mailu.") }}
+                      {{ help_icon("Maximální počet uživatelů zobrazených v e-mailu.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="max_rows"
                            value="{{ cfg.get('max_rows', 20) }}" min="1" max="100">
@@ -291,7 +289,7 @@
                       <input class="form-check-input" type="checkbox" name="show_pending_only" value="1"
                              {{ 'checked' if cfg.get('show_pending_only', False) }}>
                       <label class="form-check-label">Jen neaktivované účty
-                        {{ tip("Zobrazí pouze účty čekající na aktivaci administrátorem.") }}
+                        {{ help_icon("Zobrazí pouze účty čekající na aktivaci administrátorem.") }}
                       </label>
                     </div>
                   </div>
@@ -303,7 +301,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Posledních (hodin)
-                      {{ tip("Zobrazí zpětnou vazbu od uživatelů odeslanou za posledních N hodin.") }}
+                      {{ help_icon("Zobrazí zpětnou vazbu od uživatelů odeslanou za posledních N hodin.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="hours"
                            value="{{ cfg.get('hours', 24) }}" min="1" max="8760">
@@ -311,7 +309,7 @@
                   <div class="col-sm-2">
                     <label class="form-label form-label-sm">
                       Max. řádků
-                      {{ tip("Maximální počet položek zpětné vazby zobrazených v e-mailu.") }}
+                      {{ help_icon("Maximální počet položek zpětné vazby zobrazených v e-mailu.") }}
                     </label>
                     <input type="number" class="form-control form-control-sm" name="max_rows"
                            value="{{ cfg.get('max_rows', 20) }}" min="1" max="100">
@@ -323,7 +321,7 @@
                 <div class="mb-2">
                   <label class="form-label form-label-sm">
                     Obsah (HTML)
-                    {{ tip("Libovolný HTML obsah. Zobrazí se přesně tak, jak je zadán — lze použít nadpisy, tučné písmo, tabulky atd. Obsah není filtrován, zadávejte pouze důvěryhodný text.") }}
+                    {{ help_icon("Libovolný HTML obsah. Zobrazí se přesně tak, jak je zadán — lze použít nadpisy, tučné písmo, tabulky atd. Obsah není filtrován, zadávejte pouze důvěryhodný text.") }}
                   </label>
                   <textarea class="form-control font-monospace form-control-sm" name="content" rows="5">{{ cfg.get('content', '') }}</textarea>
                   <div class="form-text">Obsah se zobrazí přesně tak, jak je zadán. Lze použít HTML tagy.</div>
@@ -357,7 +355,7 @@
   <div class="card mb-4">
     <div class="card-header fw-semibold">
       Testovací odeslání
-      {{ tip("Sestaví přehledový e-mail podle aktuální konfigurace a zařadí ho do e-mailové fronty pro zadanou adresu. Předmět bude mít předponu [TEST].") }}
+      {{ help_icon("Sestaví přehledový e-mail podle aktuální konfigurace a zařadí ho do e-mailové fronty pro zadanou adresu. Předmět bude mít předponu [TEST].") }}
     </div>
     <div class="card-body">
       <form method="POST" action="{{ url_for('admin_digest.send_test') }}" class="row g-2 align-items-end">
