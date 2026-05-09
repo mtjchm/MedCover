@@ -48,10 +48,22 @@
       var key = btn.dataset.status;
       var on = activeFilters.includes(key);
       btn.classList.toggle("active", on);
+
       if (key === "ASSIGNMENTS_CLOSED") {
-        btn.style.backgroundColor = on ? "#ffc107" : "";
-        btn.style.color = on ? "#000" : "";
-        btn.style.borderColor = "#ffc107";
+        // Special colour: amber border/bg when on, transparent when off
+        btn.style.setProperty("border-color", "#ffc107", "important");
+        btn.style.setProperty("background-color", on ? "#ffc107" : "transparent", "important");
+        btn.style.setProperty("color", "#000", "important");
+      } else if (on) {
+        // Active: remove inline overrides so Bootstrap .active class controls appearance
+        btn.style.removeProperty("background-color");
+        btn.style.removeProperty("color");
+      } else {
+        // Inactive: force transparent regardless of :hover/:focus/:active pseudo-classes.
+        // Read the outline colour Bootstrap stores in --bs-btn-color CSS variable.
+        var offColor = getComputedStyle(btn).getPropertyValue("--bs-btn-color").trim();
+        btn.style.setProperty("background-color", "transparent", "important");
+        if (offColor) btn.style.setProperty("color", offColor, "important");
       }
     });
   }
