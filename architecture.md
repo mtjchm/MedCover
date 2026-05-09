@@ -474,6 +474,20 @@
         - Imported users given only the Viewer role are safe from operational spam until they are properly onboarded and given a Member role.
         - Role-based logic must be applied at every `send_*` call site (not just the outbox drain) so that changes to a user's roles take effect before the email is even enqueued.
 
+- AD18 Multi-Version Python Testing with Tox
+    - **Context:** The application runs on Python 3.14. New CPython releases arrive roughly annually. Without a structured testing strategy, compatibility regressions with new Python versions are discovered late (at upgrade time, under pressure).
+    - **Decision:** Use **tox** to run the full `pytest` suite against multiple Python interpreter versions.
+    - **Configuration:**
+        - `pyproject.toml` `[tool.tox]` section defines the env list. Python 3.14 is the minimum and current baseline (`py314`).
+        - New envs (e.g. `py315`, `py316`) are added here as new CPython releases become available and are installed on the host.
+        - Each tox env installs exact pinned deps from `requirements-dev.txt` (`skip_install = true` because the app is not an installable package).
+        - `tox` is listed in `requirements-dev.in` so it is installed in the dev virtualenv.
+    - **Local usage:** `tox -e py314` (or just `tox` to run all configured envs).
+    - **CI:** the existing GitHub Actions workflow runs `pytest` directly against the default Python; a future step can invoke `tox` once additional Python versions are available on the CI runner.
+    - **Consequences:**
+        - Compatibility issues with new Python versions are surfaced immediately after adding a new env, rather than at deployment time.
+        - The `requirements-dev.txt` pinned file may need to be recompiled when a new Python version is added (some packages ship version-specific wheels).
+
 MedCover is a standard three-tier web application:
 
 - **Frontend** — a browser-based web client accessed over the public Internet. Optimised for both desktop and mobile screens.
