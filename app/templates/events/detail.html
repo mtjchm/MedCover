@@ -96,16 +96,14 @@
     <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime | localdt }}</p>
+        <p class="mb-1"><strong>Plánovaný začátek:</strong> {{ event.start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Plánovaný konec:</strong> {{ event.end_datetime | localdt }}</p>
         {% if event.assignments_open_datetime %}
           <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
         {% endif %}
         {% if event.actual_start_datetime %}
-        <hr class="my-2">
-        <h6 class="card-subtitle text-muted mb-2 mt-0">Skutečný termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
+        <p class="mb-1 mt-2"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
         <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</p>
         {% endif %}
       </div>
