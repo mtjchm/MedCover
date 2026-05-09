@@ -220,7 +220,7 @@ class TestUserReport:
         _login(client, "admin_deb@test.com")
         resp = client.get(f"/reports/user/{member_id}")
         assert resp.status_code == 200
-        assert b"5.5" in resp.data
+        assert b"5,5" in resp.data
         assert b"7" in resp.data
 
 
@@ -274,7 +274,7 @@ class TestMEReport:
         resp = client.get(f"/reports/master-event/{me_id}")
         assert resp.status_code == 200
         assert b"Event V1" in resp.data
-        assert b"3.0" in resp.data
+        assert b"3,0" in resp.data
 
 
 # ── Date-range report ─────────────────────────────────────────────────────────

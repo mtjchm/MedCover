@@ -64,6 +64,7 @@ Race conditions are a first-class concern, especially for spot assignment:
 - Permission checks via `current_user.has_permission("code")` or `has_any_permission(...)`.
 - Abort with `abort(403)` on permission failure, not redirect.
 - SQL boolean comparisons: write `col.is_(True)` / `col.is_(False)`, **not** `col == True` / `col == False`. Never silence E712 with `# noqa`.
+- **Decimal numbers in templates:** always use the `| cznum` Jinja2 filter (registered in `app/__init__.py`). It formats a number to 1 decimal place with a **comma** as the decimal separator (Czech locale). Use `| cznum(2)` for 2 decimal places. Never use `"%.1f"|format(x)` directly in templates — that produces a dot separator.
 
 ### Shared Helpers — use these, do not reinvent
 Two modules hold all reusable building blocks. **Always import the existing helper instead of writing the inline pattern.** If a duplication appears in 3+ places, lift it into one of these modules.

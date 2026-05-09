@@ -61,7 +61,7 @@
   <div class="col-6 col-md-2">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(results.total_worked_hours) }}</div>
+        <div class="fs-3 fw-bold text-danger">{{ results.total_worked_hours | cznum }}</div>
         <div class="text-muted small">Odprac. hodin</div>
       </div>
     </div>
@@ -126,7 +126,7 @@
           </td>
           <td class="text-end">{{ ev.filled_spots }} / {{ ev.total_spots }}</td>
           <td class="text-end">
-            {% if ev.actual_hours is not none %}{{ "%.1f"|format(ev.actual_hours) }}{% else %}<span class="text-muted">—</span>{% endif %}
+            {% if ev.actual_hours is not none %}{{ ev.actual_hours | cznum }}{% else %}<span class="text-muted">—</span>{% endif %}
           </td>
           <td class="text-end">{{ ev.patients_count or 0 }}</td>
         </tr>
@@ -167,10 +167,10 @@
         </td>
         <td class="text-end">{{ s.shifts_served }}</td>
         <td class="text-end">{{ s.shifts_planned }}</td>
-        <td class="text-end">{{ "%.1f"|format(s.hours_served) }}</td>
-        <td class="text-end">{{ "%.1f"|format(s.hours_planned) }}</td>
-        <td class="text-end fw-semibold">{{ "%.1f"|format(s.hours_total) }}</td>
-        <td class="text-end">{{ "%.1f"|format(s.hours_free) }}</td>
+        <td class="text-end">{{ s.hours_served | cznum }}</td>
+        <td class="text-end">{{ s.hours_planned | cznum }}</td>
+        <td class="text-end fw-semibold">{{ s.hours_total | cznum }}</td>
+        <td class="text-end">{{ s.hours_free | cznum }}</td>
         <td class="text-end text-nowrap">
           {% if s.last_shift %}{{ s.last_shift | localdt("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}
         </td>

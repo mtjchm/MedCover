@@ -68,7 +68,7 @@
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_served) }}</div>
+        <div class="fs-3 fw-bold text-danger">{{ stats.hours_served | cznum }}</div>
         <div class="text-muted small">Odsloužené</div>
       </div>
     </div>
@@ -76,7 +76,7 @@
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_planned) }}</div>
+        <div class="fs-3 fw-bold text-danger">{{ stats.hours_planned | cznum }}</div>
         <div class="text-muted small">Plánované</div>
       </div>
     </div>
@@ -84,7 +84,7 @@
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_total) }}</div>
+        <div class="fs-3 fw-bold text-danger">{{ stats.hours_total | cznum }}</div>
         <div class="text-muted small">Celkem</div>
       </div>
     </div>
@@ -92,7 +92,7 @@
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_free) }}</div>
+        <div class="fs-3 fw-bold text-danger">{{ stats.hours_free | cznum }}</div>
         <div class="text-muted small">Celkem zdarma</div>
       </div>
     </div>
@@ -161,9 +161,9 @@
             {{ row.event.status.value }}
           </span>
         </td>
-        <td class="text-end">{{ "%.1f"|format(row.planned_hours) }}</td>
+        <td class="text-end">{{ row.planned_hours | cznum }}</td>
         <td class="text-end">
-          {% if row.actual_hours is not none %}{{ "%.1f"|format(row.actual_hours) }}{% else %}<span class="text-muted">—</span>{% endif %}
+          {% if row.actual_hours is not none %}{{ row.actual_hours | cznum }}{% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td class="text-end">
           {% if row.patients is not none %}{{ row.patients }}{% else %}<span class="text-muted">—</span>{% endif %}
@@ -177,9 +177,9 @@
         <td class="text-end">
           {%- set ns = namespace(planned=0) -%}
           {%- for r in rows -%}{%- if r.event.status.value == 'Dokončena' -%}{%- set ns.planned = ns.planned + r.planned_hours -%}{%- endif -%}{%- endfor -%}
-          {{ "%.1f"|format(ns.planned) }}
+          {{ ns.planned | cznum }}
         </td>
-        <td class="text-end">{{ "%.1f"|format(stats.hours_served) }}</td>
+        <td class="text-end">{{ stats.hours_served | cznum }}</td>
         <td class="text-end">{{ total_patients }}</td>
       </tr>
     </tfoot>
