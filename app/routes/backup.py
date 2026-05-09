@@ -197,6 +197,37 @@ def _do_restore(zip_path: Path, actor_id: int | None) -> None:
         flash(f"Obnovení selhalo: {exc}", "danger")
 
 
+# ── Delete backup file ────────────────────────────────────────────────────────
+
+@backup_bp.route("/delete/<filename>", methods=["POST"])
+@login_required
+def delete(filename: str) -> Response:
+    _require_permission("backup.delete")
+
+    confirmation = request.form.get("confirmation", "").strip()
+    if confirmation != "SMAZAT":
+        flash("Smazání selhalo: pro potvrzení zadejte SMAZAT.", "danger")
+        return redirect(url_for("backup.index"))
+
+    path = _safe_backup_path(filename)
+    try:
+        path.unlink()
+        db.session.add(AuditLogEntry(
+            actor_id=current_user.id,
+            action_type="delete",
+            entity_type="Backup",
+            entity_id=filename,
+            summary=f"Záloha smazána: {filename}",
+            changes_json={"file": filename},
+        ))
+        db.session.commit()
+        flash(f"Záloha {filename} byla smazána.", "success")
+    except Exception as exc:
+        log.error("Delete backup %s failed: %s", filename, exc, exc_info=True)
+        flash(f"Smazání selhalo: {exc}", "danger")
+    return redirect(url_for("backup.index"))
+
+
 # ── Settings update ───────────────────────────────────────────────────────────
 
 @backup_bp.route("/settings", methods=["POST"])

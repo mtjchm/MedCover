@@ -130,6 +130,7 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "backup.run", "description": "Trigger an ad-hoc backup"},
     {"code": "backup.download", "description": "Download a backup file"},
     {"code": "backup.restore", "description": "Restore the application from a backup file"},
+    {"code": "backup.delete", "description": "Delete a stored backup file"},
 ]
 
 # Permissions per role (from RBAC table in architecture.md)

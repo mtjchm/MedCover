@@ -338,3 +338,50 @@ class TestBackupRoutes:
         _login(client, "member@test.com")
         resp = client.get("/admin/backup/")
         assert resp.status_code == 403
+
+    def test_delete_requires_confirmation_word(self, app, client, tmp_path):
+        with app.app_context():
+            _make_user("admin@test.com", "Admin", Role.ADMIN)
+            settings = get_settings()
+            settings.backup_dir = str(tmp_path)
+            _db.session.commit()
+        _login(client, "admin@test.com")
+        csrf = _get_csrf(client, "/admin/backup/")
+        client.post("/admin/backup/run", data={"csrf_token": csrf})
+        files = list(tmp_path.glob("medcover_backup_*.zip"))
+        resp = client.post(
+            f"/admin/backup/delete/{files[0].name}",
+            data={"csrf_token": csrf, "confirmation": "wrong"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert files[0].exists(), "File should NOT be deleted on wrong confirmation"
+
+    def test_delete_removes_file_with_correct_confirmation(self, app, client, tmp_path):
+        with app.app_context():
+            _make_user("admin@test.com", "Admin", Role.ADMIN)
+            settings = get_settings()
+            settings.backup_dir = str(tmp_path)
+            _db.session.commit()
+        _login(client, "admin@test.com")
+        csrf = _get_csrf(client, "/admin/backup/")
+        client.post("/admin/backup/run", data={"csrf_token": csrf})
+        files = list(tmp_path.glob("medcover_backup_*.zip"))
+        resp = client.post(
+            f"/admin/backup/delete/{files[0].name}",
+            data={"csrf_token": csrf, "confirmation": "SMAZAT"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert not files[0].exists(), "File should be deleted on correct confirmation"
+
+    def test_delete_rejects_path_traversal(self, app, client):
+        with app.app_context():
+            _make_user("admin@test.com", "Admin", Role.ADMIN)
+        _login(client, "admin@test.com")
+        csrf = _get_csrf(client, "/admin/backup/")
+        resp = client.post(
+            "/admin/backup/delete/../etc/passwd",
+            data={"csrf_token": csrf, "confirmation": "SMAZAT"},
+        )
+        assert resp.status_code == 404

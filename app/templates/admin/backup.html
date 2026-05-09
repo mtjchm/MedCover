@@ -48,6 +48,14 @@
               ↺ Obnovit
             </button>
             {% endif %}
+            {% if current_user.has_permission("backup.delete") %}
+            <button type="button" class="btn btn-danger btn-sm ms-1"
+                    data-bs-toggle="modal"
+                    data-bs-target="#deleteModal"
+                    data-filename="{{ b.name }}">
+              🗑 Smazat
+            </button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -193,6 +201,52 @@
     document.getElementById('restoreFilename').textContent = filename;
     document.getElementById('restoreForm').action = '/admin/backup/restore/' + encodeURIComponent(filename);
     document.getElementById('restore_confirmation').value = '';
+  });
+</script>
+{% endif %}
+
+{# ── Delete confirmation modal ────────────────────────────────────────────── #}
+{% if current_user.has_permission("backup.delete") %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="deleteForm" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-danger">
+          <h5 class="modal-title text-danger" id="deleteModalLabel">🗑 Smazat zálohu</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Chystáte se smazat záložní soubor
+            <strong id="deleteFilename" class="font-monospace"></strong>.
+          </p>
+          <p class="text-danger fw-semibold">Tato akce je nevratná.</p>
+          <div class="mb-3">
+            <label class="form-label" for="delete_confirmation">
+              Pro potvrzení napište <strong>SMAZAT</strong>
+            </label>
+            <input type="text" class="form-control" id="delete_confirmation"
+                   name="confirmation" placeholder="SMAZAT" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-danger">🗑 Smazat zálohu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const deleteModal = document.getElementById('deleteModal');
+  deleteModal.addEventListener('show.bs.modal', function (event) {
+    const btn = event.relatedTarget;
+    const filename = btn.getAttribute('data-filename');
+    document.getElementById('deleteFilename').textContent = filename;
+    document.getElementById('deleteForm').action = '/admin/backup/delete/' + encodeURIComponent(filename);
+    document.getElementById('delete_confirmation').value = '';
   });
 </script>
 {% endif %}
