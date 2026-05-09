@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Položky vybavení — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Položky vybavení</h2>
+  <h2 class="mb-0">Položky vybavení {{ help_icon("Konkrétní kusy vybavení (např. defibrilátor SN-001, lékárnička č. 3). Každá položka patří do některého Typu vybavení. Položky lze přiřadit k akci a sledovat jejich umístění a dostupnost.") }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('equipment.index') }}" class="btn btn-outline-secondary btn-sm">Typy vybavení</a>
     {% if current_user.has_permission('equipment_item.create') %}

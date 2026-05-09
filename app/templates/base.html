@@ -24,6 +24,23 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
     <div class="container-fluid">
       <a class="navbar-brand" href="/">MedCover</a>
+
+      {# ── Mobile-only quick links (outside collapse, always visible) ── #}
+      {% if current_user.is_authenticated %}
+      <div class="d-flex d-lg-none ms-auto me-2 gap-1 align-items-center">
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('events.index') }}">Akce</a>
+        {% if current_user.has_permission('equipment.view') %}
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('equipment.items') }}">Vybavení</a>
+        {% endif %}
+        {% if feedback_enabled %}
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('feedback.feedback_form', **{'from': request.full_path.rstrip('?')}) }}">💬</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
         <span class="navbar-toggler-icon"></span>
       </button>

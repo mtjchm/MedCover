@@ -6,7 +6,7 @@
   <h2 class="mb-0">Přehled oprávnění rolí</h2>
   <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
 </div>
-<p class="text-muted small">Přehled všech 4 rolí a jejich oprávnění. Oprávnění jsou pevně nastavená v kódu (AD01, AD02).</p>
+<p class="text-muted small">Přehled všech {{ role_names|length }} rolí a jejich oprávnění. Oprávnění jsou pevně nastavená v kódu (AD01, AD02).</p>
 
 {% set groups = namespace(current=None) %}
 {% set group_labels = {
@@ -22,6 +22,7 @@
   'debriefing': 'Výjezdové zprávy',
   'report': 'Přehledy',
   'audit': 'Audit log',
+  'backup': 'Zálohy',
   'admin': 'Administrace'
 } %}
 

@@ -578,6 +578,46 @@ The `.env.example` file is committed and documents every required variable with 
 
 ## Frontend Assets
 
+### Help Icons — Standard Pattern
+
+All user-facing labels, filters, buttons, and page section titles must include a help icon
+whenever the concept or behaviour might not be immediately obvious to a new user.
+
+**Macro:** `help_icon(text, title="Nápověda")` in `app/templates/macros/help.html`
+
+```jinja
+{% from 'macros/help.html' import help_icon %}
+
+{# On a form label #}
+<label class="form-label">Název {{ help_icon("Celý název akce, jak se zobrazí v přehledech.") }}</label>
+
+{# On a page title #}
+<h2 class="mb-0">Akce {{ help_icon("Vysvětlení konceptu...", "Nadpis nápovědy") }}</h2>
+
+{# On a section header inside a card #}
+<span class="fw-semibold">Moje akce {{ help_icon("Akce, na které jste přihlášeni...") }}</span>
+```
+
+The icon renders as a small `ⓘ` button that opens a Bootstrap popover on click/tap (works on
+both desktop and mobile). Popovers are auto-initialized in `app-init.js`.
+
+**When to add a help icon:**
+- Every form field label that describes a non-trivial concept
+- Page `<h2>` titles for main sections (Akce, Nadřazené akce, Vybavení, …)
+- Dashboard section headings
+- Filter controls that aren't self-explanatory
+- Buttons with non-obvious side effects (e.g. status transitions)
+
+**Text guidelines:**
+- Write in Czech (all UI text is Czech)
+- Be concise but complete — explain *why*, not just *what*
+- For multi-line content use `\n•` bullet points within the string
+- Keep under ~300 characters so the popover stays readable on mobile
+
+**Do not add a help icon to:**
+- Self-explanatory fields like "E-mail" or "Datum"
+- Action buttons where the label is already fully descriptive ("Uložit", "Zrušit")
+
 ### Bootstrap
 
 Bootstrap is loaded via CDN — no npm or build pipeline required.
