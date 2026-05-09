@@ -63,6 +63,35 @@ Race conditions are a first-class concern, especially for spot assignment:
 - Use `lazy="selectin"` for relationships loaded in list views to avoid N+1.
 - Permission checks via `current_user.has_permission("code")` or `has_any_permission(...)`.
 - Abort with `abort(403)` on permission failure, not redirect.
+- SQL boolean comparisons: write `col.is_(True)` / `col.is_(False)`, **not** `col == True` / `col == False`. Never silence E712 with `# noqa`.
+
+### Shared Helpers — use these, do not reinvent
+Two modules hold all reusable building blocks. **Always import the existing helper instead of writing the inline pattern.** If a duplication appears in 3+ places, lift it into one of these modules.
+
+**`app/utils.py` — request-handling helpers**
+- `audit(action, entity_type, entity_id, summary, changes=None)` — the only sanctioned way to write an `AuditLogEntry`. Hardcodes `actor_id=current_user.id`. Use raw `db.session.add(AuditLogEntry(...))` only when the actor is `None` (pre-login flows like password reset) or differs from `current_user` (e.g. backup restore writing as a saved actor_id after session wipe).
+- `require_permission(*codes)` — replaces `if not current_user.has_permission("X"): abort(403)`. Pass multiple codes for any-of semantics. Call at the top of every protected view.
+- `get_or_404(Model, pk)` — replaces `obj = db.session.get(Model, pk); if obj is None: abort(404)`.
+- `check_version_conflict(obj, form_value)` — optimistic-locking check for edit forms. Returns `True` on conflict; caller flashes `RECORD_MODIFIED_MSG` and re-renders the form.
+- `parse_enum(enum_class, value, default=None)` — safe coercion of form values to enum members.
+- `RECORD_MODIFIED_MSG` — the canonical Czech flash message for stale-data conflicts. Do not hand-write this string.
+- `external_url_for(endpoint, **values)` — absolute URLs that honour `AppSettings.app_base_url`. Use for any URL embedded in outbound email.
+- `diff_changes(before, after)` — produces the `changes_json` dict for `audit(..., changes=...)`.
+
+**`app/queries.py` — reusable SELECT builders**
+- `active_users_list()` / `active_users_query()` — active users ordered by name. Use everywhere a coordinator/spot-assignment dropdown is rendered.
+- `active_master_events_list()` — non-archived master events, general-first then by name.
+- Add new helpers here whenever a non-trivial query appears in 3+ routes; keep return types and ordering uniform.
+
+**Model-level helpers** — when a query/eligibility check is *about a single entity*, put it on the model (e.g. `Event.eligible_unfilled_spots_for(user, excluded_ids)`), not in the route. Routes should be thin glue between request parsing, model calls, helpers and templates.
+
+### Refactoring Patterns (apply continuously, not as a one-off)
+- **Early return over deep nesting.** Maximum 3 indent levels in view functions. If `request.method != "POST"` wraps the entire body, invert it: handle the GET path first, return, then write the POST path flat.
+- **Extract helpers when a function exceeds ~60 lines or 3 nesting levels.** Prefer module-private `_parse_*`, `_apply_*`, `_validate_*` helpers in the same file over class methods, unless the helper logically belongs on a model.
+- **No duplicated SELECT statements.** If you see the same `db.select(...)` shape in two routes, lift it to `app/queries.py` before adding the third copy.
+- **No duplicated `_audit` / `_require_permission` / `_get_or_404` defined inside route modules.** They already exist in `app/utils.py` — import them.
+- **One transaction per write.** Read-then-write sequences (eligibility check → insert) must be inside a single `db.session` transaction with proper locking (see Concurrency section).
+
 
 ---
 
@@ -108,6 +137,8 @@ Race conditions are a first-class concern, especially for spot assignment:
 | `app/routes/` | Flask blueprints; one file per feature area |
 | `app/templates/` | Jinja2 templates; extend `base.html`; Czech UI text |
 | `app/models/settings.py` | `AppSettings` + `get_settings()`; SMTP password encrypted here |
+| `app/utils.py` | Shared helpers: `audit`, `require_permission`, `get_or_404`, `check_version_conflict`, `parse_enum`, `external_url_for`, `diff_changes`, `RECORD_MODIFIED_MSG` |
+| `app/queries.py` | Reusable SELECT builders (`active_users_list`, `active_master_events_list`, …) |
 | `app/models/role.py` | `ALL_PERMISSIONS` list + `ROLE_PERMISSIONS` mapping — source of truth for seeding |
 | `migrations/versions/` | Alembic migrations; generated via `flask db migrate`, applied via `flask db upgrade` |
 | `scripts/seed_dev.py` | Idempotent dev seeder — permissions, roles, 5 dev accounts |
