@@ -176,25 +176,29 @@
   background-color: transparent !important;
 }
 
-/* Filter buttons: no hover highlight on any state — toggling is the only
-   feedback. Inline JS styles handle the on/off appearance; suppress all
-   Bootstrap :hover/:focus/:active pseudo-class overrides. */
+/* Filter buttons: fully custom — no Bootstrap .btn classes so no
+   hover/focus/active CSS interference. All visual state is set via
+   inline !important styles in renderFilterButtons() in JS. */
+.filter-btn {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background-color: transparent;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: none;
+  outline: none;
+}
 .filter-btn:hover,
 .filter-btn:focus,
 .filter-btn:focus-visible,
 .filter-btn:active {
-  background-color: revert !important;
-  color: revert !important;
-  border-color: revert !important;
-  box-shadow: none !important;
-  outline: none !important;
-}
-/* Restore active (.on) button appearance that revert would wipe */
-.filter-btn.active:hover,
-.filter-btn.active:focus,
-.filter-btn.active:focus-visible,
-.filter-btn.active:active {
-  background-color: var(--bs-btn-active-bg) !important;
-  color: var(--bs-btn-active-color) !important;
-  border-color: var(--bs-btn-active-border-color) !important;
+  outline: none;
+  box-shadow: none;
 }

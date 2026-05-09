@@ -43,27 +43,30 @@
 
   // ── Filter buttons ────────────────────────────────────────────────────────
 
+  // Colour config per status — controls both on and off appearance.
+  // Inline !important styles (set below) beat every CSS pseudo-class.
+  var FILTER_COLORS = {
+    "DRAFT":              { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" },
+    "PUBLISHED":          { border: "#0d6efd", text: "#0d6efd", activeBg: "#0d6efd", activeText: "#fff" },
+    "ASSIGNMENTS_OPEN":   { border: "#198754", text: "#198754", activeBg: "#198754", activeText: "#fff" },
+    "ASSIGNMENTS_CLOSED": { border: "#ffc107", text: "#000",    activeBg: "#ffc107", activeText: "#000" },
+    "COMPLETED":          { border: "#6c757d", text: "#6c757d", activeBg: "#212529", activeText: "#fff" },
+    "CANCELLED":          { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" }
+  };
+
   function renderFilterButtons(activeFilters) {
     document.querySelectorAll(".filter-btn").forEach(function (btn) {
       var key = btn.dataset.status;
       var on = activeFilters.includes(key);
+      var cfg = FILTER_COLORS[key] || { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" };
       btn.classList.toggle("active", on);
-
-      if (key === "ASSIGNMENTS_CLOSED") {
-        // Special colour: amber border/bg when on, transparent when off
-        btn.style.setProperty("border-color", "#ffc107", "important");
-        btn.style.setProperty("background-color", on ? "#ffc107" : "transparent", "important");
-        btn.style.setProperty("color", "#000", "important");
-      } else if (on) {
-        // Active: remove inline overrides so Bootstrap .active class controls appearance
-        btn.style.removeProperty("background-color");
-        btn.style.removeProperty("color");
+      btn.style.setProperty("border-color", cfg.border, "important");
+      if (on) {
+        btn.style.setProperty("background-color", cfg.activeBg, "important");
+        btn.style.setProperty("color", cfg.activeText, "important");
       } else {
-        // Inactive: force transparent regardless of :hover/:focus/:active pseudo-classes.
-        // Read the outline colour Bootstrap stores in --bs-btn-color CSS variable.
-        var offColor = getComputedStyle(btn).getPropertyValue("--bs-btn-color").trim();
         btn.style.setProperty("background-color", "transparent", "important");
-        if (offColor) btn.style.setProperty("color", offColor, "important");
+        btn.style.setProperty("color", cfg.text, "important");
       }
     });
   }
