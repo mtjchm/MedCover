@@ -56,7 +56,7 @@
   <button type="button" class="btn btn-sm btn-outline-dark filter-btn" data-status="COMPLETED">Dokončena</button>
   <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
   {% if current_user.has_permission('event.assign_own') %}
-  <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-elig-filter">Pro mě</button>
+  <button type="button" class="btn btn-sm btn-outline-info filter-btn ms-2" id="btn-elig-filter">Pro mě</button>
   {% endif %}
   <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
           onclick="resetFilters()">Výchozí</button>
