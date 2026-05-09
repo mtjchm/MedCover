@@ -115,12 +115,18 @@ def seed() -> None:
                 role = Role(name=role_name)
                 db.session.add(role)
                 db.session.flush()
+            target_codes = set(perm_codes)
             existing_codes = {p.code for p in role.permissions}
-            for code in perm_codes:
-                if code not in existing_codes:
-                    perm = db.session.scalar(db.select(Permission).where(Permission.code == code))
-                    if perm:
-                        role.permissions.append(perm)
+            # Add missing permissions
+            for code in target_codes - existing_codes:
+                perm = db.session.scalar(db.select(Permission).where(Permission.code == code))
+                if perm:
+                    role.permissions.append(perm)
+            # Remove stale permissions no longer in the role definition
+            for perm in list(role.permissions):
+                if perm.code not in target_codes:
+                    role.permissions.remove(perm)
+                    print(f"  Removed stale permission '{perm.code}' from role '{role_name}'")
         db.session.flush()
 
         # ── Dev user accounts ─────────────────────────────────────────────────

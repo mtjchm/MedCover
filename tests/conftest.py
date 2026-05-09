@@ -207,12 +207,15 @@ def _seed_reference_data() -> None:
             role = Role(name=role_name)
             _db.session.add(role)
             _db.session.flush()
+        target_codes = set(perm_codes)
         existing_codes = {p.code for p in role.permissions}
-        for code in perm_codes:
-            if code not in existing_codes:
-                perm = _db.session.scalar(_db.select(Permission).where(Permission.code == code))
-                if perm:
-                    role.permissions.append(perm)
+        for code in target_codes - existing_codes:
+            perm = _db.session.scalar(_db.select(Permission).where(Permission.code == code))
+            if perm:
+                role.permissions.append(perm)
+        for perm in list(role.permissions):
+            if perm.code not in target_codes:
+                role.permissions.remove(perm)
 
     _db.session.commit()
 
