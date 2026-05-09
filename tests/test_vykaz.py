@@ -96,6 +96,18 @@ class TestVykazIndex:
         assert "Leden" in resp.data.decode()
         assert "Prosinec" in resp.data.decode()
 
+    def test_viewer_gets_403(self, app, client):
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.VIEWER))
+            viewer = UserAccount(email="vykaz_viewer@test.com", name="Viewer", is_active=True)
+            viewer.set_password("testpass123")
+            viewer.roles = [role]
+            db.session.add(viewer)
+            db.session.commit()
+        _login(client, "vykaz_viewer@test.com")
+        resp = client.get("/vykaz/", follow_redirects=False)
+        assert resp.status_code == 403
+
 
 class TestVykazGenerate:
     def test_invalid_month_rejected(self, app, client):

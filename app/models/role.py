@@ -129,6 +129,7 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "debriefing.manage", "description": "Manage debriefing settings and pending requests (Debriefing Manager only)"},
     # Reports
     {"code": "report.view", "description": "View reports"},
+    {"code": "vykaz.generate", "description": "Generate own monthly work report (výkaz práce)"},
     # Audit
     {"code": "audit.view", "description": "View audit log"},
     # System / Admin
@@ -165,6 +166,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "event.equipment.plan", "event.equipment.assign",
         "debriefing.submit_own", "debriefing.view_own",
         "report.view",
+        "vykaz.generate",
     ],
     Role.MEMBER: [
         "user.view", "user.edit_own",
@@ -175,6 +177,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "equipment.view", "equipment_item.issue_personal", "equipment_item.report_own",
         "debriefing.submit_own", "debriefing.view_own",
         "report.view",
+        "vykaz.generate",
     ],
     Role.VIEWER: [
         "user.view",

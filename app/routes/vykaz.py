@@ -21,6 +21,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
+from app.utils import require_permission
 from app.vykaz_generator import generate_vykaz
 
 vykaz_bp = Blueprint("vykaz", __name__, url_prefix="/vykaz")
@@ -29,6 +30,7 @@ vykaz_bp = Blueprint("vykaz", __name__, url_prefix="/vykaz")
 @vykaz_bp.route("/", methods=["GET"])
 @login_required
 def index() -> str:
+    require_permission("vykaz.generate")
     now = datetime.now(tz=timezone.utc)
     return render_template(
         "vykaz/index.html",
@@ -40,6 +42,7 @@ def index() -> str:
 @vykaz_bp.route("/generate", methods=["POST"])
 @login_required
 def generate() -> object:
+    require_permission("vykaz.generate")
     from flask import request
 
     try:
@@ -75,6 +78,7 @@ def generate() -> object:
 @vykaz_bp.route("/download")
 @login_required
 def download() -> object:
+    require_permission("vykaz.generate")
     from flask import current_app, request
     from pathlib import Path
 
