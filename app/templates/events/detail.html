@@ -64,14 +64,17 @@
     {% if event.status == EventStatus.COMPLETED %}
       {% set my_assignment = event.spots | selectattr('assignment') | selectattr('assignment.user_id', 'equalto', current_user.id) | map(attribute='assignment') | first | default(none) %}
       {% if my_assignment %}
-        <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
-           class="btn btn-outline-primary btn-sm">
-          {{ 'Upravit hlášení' if my_assignment.debriefing else 'Odevzdat hlášení' }}
-        </a>
+        {% if my_assignment.debriefing %}
+          <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
+             class="btn btn-outline-secondary btn-sm">Zobrazit debriefing</a>
+        {% else %}
+          <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
+             class="btn btn-outline-primary btn-sm">Vyplnit debriefing</a>
+        {% endif %}
       {% endif %}
-      {% if current_user.has_any_permission('event.edit', 'event.assign_other') %}
+      {% if current_user.has_any_permission('debriefing.view_all', 'debriefing.manage') %}
         <a href="{{ url_for('debriefing.event_overview', event_id=event.id) }}"
-           class="btn btn-outline-secondary btn-sm">Přehled hlášení</a>
+           class="btn btn-outline-secondary btn-sm">Přehled debriefingů</a>
       {% endif %}
     {% endif %}
     {% if event.status == EventStatus.CANCELLED and current_user.has_permission('event.restore') %}
@@ -96,10 +99,15 @@
     <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime | localdt }}</p>
+        <p class="mb-1"><strong>Plánovaný začátek:</strong> {{ event.start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Plánovaný konec:</strong> {{ event.end_datetime | localdt }}</p>
         {% if event.assignments_open_datetime %}
           <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
+        {% endif %}
+        {% if event.actual_start_datetime %}
+        <p class="mb-1 mt-2"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</p>
         {% endif %}
       </div>
     </div>

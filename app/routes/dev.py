@@ -51,6 +51,13 @@ DEV_ACCOUNTS: list[dict] = [
         "description": "Read-only access",
     },
     {
+        "role": "debrief_manager",
+        "label": "Debriefing Manager",
+        "name": "Černý Martin",
+        "email": "dev.debrief@medcover.local",
+        "description": "View and manage confidential debriefing records",
+    },
+    {
         "role": "inactive",
         "label": "Inactive (pending activation)",
         "name": "Svoboda Tomáš",

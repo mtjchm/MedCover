@@ -104,7 +104,7 @@
           {% if row.actual_hours is not none %}{{ "%.1f"|format(row.actual_hours) }}{% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td class="text-end">
-          {% if row.patients_treated is not none %}{{ row.patients_treated }}{% else %}<span class="text-muted">—</span>{% endif %}
+          {% if row.patients is not none %}{{ row.patients }}{% else %}<span class="text-muted">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}

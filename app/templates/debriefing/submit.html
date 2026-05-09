@@ -1,58 +1,138 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
-{% block title %}Hlášení — {{ event.name }} — MedCover{% endblock %}
+{% block title %}Debriefing — {{ event.name }} — MedCover{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-12 col-lg-6">
-    <h2 class="mb-1">Hlášení z akce</h2>
+  <div class="col-12 col-lg-7">
+
+    <h2 class="mb-1">Debriefing
+      {{ help_icon("Povinné hodnocení po každé akci. Váš záznam je přísně důvěrný — přístup k němu mají pouze vedoucí organizace s rolí Debriefing Manager. Ani administrátoři systému ho neuvidí.") }}
+    </h2>
     <p class="text-muted mb-4">
       <strong>{{ event.name }}</strong> —
       {{ event.start_datetime | localdt }}
     </p>
 
-    {% if existing %}
-    <div class="alert alert-info py-2">Hlášení již bylo odevzdáno. Můžete ho upravit.</div>
-    {% endif %}
-
     <form method="POST" novalidate>
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="mb-3">
-        <label for="actual_hours" class="form-label">Odpracované hodiny <span class="text-danger">*</span>
-          {{ help_icon("Skutečný počet odpracovaných hodin na akci. Může se lišit od plánované délky.") }}
-        </label>
-        <input type="number" step="0.25" min="0" max="24" class="form-control"
-               id="actual_hours" name="actual_hours"
-               value="{{ request.form.get('actual_hours', existing.actual_hours if existing else '') }}"
-               required>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      {# ── Part 1: Confidential feedback ─────────────────────────────────── #}
+      <div class="card mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-lock-fill text-danger"></i>
+          <strong>Důvěrná část</strong>
+          {{ help_icon("Tato část je přísně důvěrná. Uvidí ji pouze vedení organizace (Debriefing Manager). Hodnoťte upřímně — váš záznam není přístupný koordinátorům ani ostatním účastníkům.") }}
+        </div>
+        <div class="card-body">
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              Celkové hodnocení akce <span class="text-danger">*</span>
+              {{ help_icon("Ohodnoťte akci jako celek: 1 = výborná, 5 = velmi špatná.") }}
+            </label>
+            <div class="d-flex gap-3">
+              {% for val, label in [(1, "1 — Výborná"), (2, "2 — Dobrá"), (3, "3 — Průměrná"), (4, "4 — Podprůměrná"), (5, "5 — Špatná")] %}
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="grade" id="grade_{{ val }}"
+                       value="{{ val }}"
+                       {{ 'checked' if request.form.get('grade') == val|string else '' }}
+                       required>
+                <label class="form-check-label" for="grade_{{ val }}">{{ label }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="feedback_event" class="form-label">
+              Hodnocení průběhu akce
+              {{ help_icon("Volitelné. Popište průběh akce — co proběhlo dobře, co by šlo zlepšit, nestandardní situace.") }}
+            </label>
+            <textarea class="form-control" id="feedback_event" name="feedback_event" rows="3"
+                      placeholder="Volitelné…">{{ request.form.get('feedback_event', '') }}</textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="feedback_customer" class="form-label">
+              Hodnocení objednatele / organizátora
+              {{ help_icon("Volitelné. Jak se choval objednatel akce (zákazník, organizátor)? Přístup, komunikace, podmínky.") }}
+            </label>
+            <textarea class="form-control" id="feedback_customer" name="feedback_customer" rows="3"
+                      placeholder="Volitelné…">{{ request.form.get('feedback_customer', '') }}</textarea>
+          </div>
+
+          <div class="mb-1">
+            <label for="feedback_colleagues" class="form-label">
+              Hodnocení kolegů
+              {{ help_icon("Volitelné. Jak fungoval tým? Spolupráce, komunikace, odbornost kolegů.") }}
+            </label>
+            <textarea class="form-control" id="feedback_colleagues" name="feedback_colleagues" rows="3"
+                      placeholder="Volitelné…">{{ request.form.get('feedback_colleagues', '') }}</textarea>
+          </div>
+
+        </div>
       </div>
-      <div class="mb-3">
-        <label for="patients_treated" class="form-label">Počet ošetřených pacientů
-          {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče.") }}
-        </label>
-        <input type="number" min="0" class="form-control"
-               id="patients_treated" name="patients_treated"
-               value="{{ request.form.get('patients_treated', existing.patients_treated if existing else '0') }}">
+
+      {# ── Part 2: RP section (actual times + patient count) ─────────────── #}
+      {% if is_rp %}
+      <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center gap-2">
+          <i class="bi bi-clipboard2-pulse-fill text-primary"></i>
+          <strong>Část vedoucího zdravotníka (ZZ)</strong>
+          {{ help_icon("Tuto část vyplňuje pouze zodpovědný zdravotník (ZZ). Skutečné časy a počet ošetřených pacientů jsou veřejné informace viditelné pro všechny uživatele na detailu akce a použijí se pro fakturaci.") }}
+        </div>
+        <div class="card-body">
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+              <label for="actual_start_datetime" class="form-label fw-semibold">
+                Skutečný začátek akce <span class="text-danger">*</span>
+                {{ help_icon("Skutečný čas zahájení akce — může se lišit od plánovaného.") }}
+              </label>
+              <input type="datetime-local" class="form-control"
+                     id="actual_start_datetime" name="actual_start_datetime"
+                     value="{{ request.form.get('actual_start_datetime', event.start_datetime.strftime('%Y-%m-%dT%H:%M')) }}"
+                     required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label for="actual_end_datetime" class="form-label fw-semibold">
+                Skutečný konec akce <span class="text-danger">*</span>
+                {{ help_icon("Skutečný čas ukončení akce — může se lišit od plánovaného.") }}
+              </label>
+              <input type="datetime-local" class="form-control"
+                     id="actual_end_datetime" name="actual_end_datetime"
+                     value="{{ request.form.get('actual_end_datetime', event.end_datetime.strftime('%Y-%m-%dT%H:%M')) }}"
+                     required>
+            </div>
+          </div>
+
+          <div class="mb-1">
+            <label for="patients_count" class="form-label fw-semibold">
+              Počet ošetřených <span class="text-danger">*</span>
+              {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče. Zadejte 0 pokud nebyl ošetřen žádný pacient.") }}
+            </label>
+            <input type="number" min="0" class="form-control" style="max-width: 160px"
+                   id="patients_count" name="patients_count"
+                   value="{{ request.form.get('patients_count', '0') }}"
+                   required>
+          </div>
+
+        </div>
       </div>
-      <div class="mb-3">
-        <label for="materials_used" class="form-label">Spotřebovaný materiál
-          {{ help_icon("Vypište spotřebovaný zdravotnický materiál — typ a přibližné množství. Slouží pro doplnění skladu.") }}
-        </label>
-        <textarea class="form-control" id="materials_used" name="materials_used" rows="3">{{ request.form.get('materials_used', existing.materials_used or '' if existing else '') }}</textarea>
+      {% endif %}
+
+      <div class="alert alert-warning py-2 small">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        Odevzdání je <strong>nevratné</strong>. Po odeslání již debriefing nelze upravit.
       </div>
-      <div class="mb-4">
-        <label for="feedback" class="form-label">Zpětná vazba
-          {{ help_icon("Volitelné poznámky pro koordinátora — průběh akce, nestandardní situace, doporučení na příště.") }}
-        </label>
-        <textarea class="form-control" id="feedback" name="feedback" rows="3">{{ request.form.get('feedback', existing.feedback or '' if existing else '') }}</textarea>
-      </div>
+
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-danger">
-          {{ 'Aktualizovat hlášení' if existing else 'Odevzdat hlášení' }}
-        </button>
+        <button type="submit" class="btn btn-danger">Odevzdat debriefing</button>
         <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-outline-secondary">Zpět na akci</a>
       </div>
     </form>
+
   </div>
 </div>
 {% endblock %}

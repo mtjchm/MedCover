@@ -19,6 +19,12 @@ class Role(db.Model):  # type: ignore[misc]
     COORDINATOR = "Coordinator"
     MEMBER = "Member"
     VIEWER = "Viewer"
+    DEBRIEFING_MANAGER = "Debriefing Manager"
+
+    # Permissions that are intentionally withheld from Admin.
+    # These are reserved for the Debriefing Manager role only — even
+    # system administrators must not access confidential debriefing data.
+    _ADMIN_EXCLUDED_PERMISSIONS: set[str] = {"debriefing.view_all", "debriefing.manage"}
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
@@ -116,8 +122,11 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "event.equipment.assign", "description": "Assign shared equipment items to an event"},
     # Debriefing
     {"code": "debriefing.submit_own", "description": "Submit own debriefing record"},
-    {"code": "debriefing.view_own", "description": "View own debriefing records"},
-    {"code": "debriefing.view_all", "description": "View all debriefing records"},
+    {"code": "debriefing.view_own", "description": "View own submitted debriefing record"},
+    # The two permissions below are reserved for the Debriefing Manager role only.
+    # They are intentionally excluded from Admin to protect participant confidentiality.
+    {"code": "debriefing.view_all", "description": "View all confidential debriefing records (Debriefing Manager only)"},
+    {"code": "debriefing.manage", "description": "Manage debriefing settings and pending requests (Debriefing Manager only)"},
     # Reports
     {"code": "report.view", "description": "View reports"},
     # Audit
@@ -135,7 +144,12 @@ ALL_PERMISSIONS: list[dict] = [
 
 # Permissions per role (from RBAC table in architecture.md)
 ROLE_PERMISSIONS: dict[str, list[str]] = {
-    Role.ADMIN: [p["code"] for p in ALL_PERMISSIONS],  # Admin has all permissions
+    # Admin gets all permissions except those intentionally reserved for Debriefing Manager.
+    # Even admins must not access confidential participant debriefing responses.
+    Role.ADMIN: [
+        p["code"] for p in ALL_PERMISSIONS
+        if p["code"] not in Role._ADMIN_EXCLUDED_PERMISSIONS
+    ],
     Role.COORDINATOR: [
         "user.view", "user.edit_own",
         "invite.create",
@@ -149,7 +163,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "event_template.view", "event_template.create", "event_template.edit", "event_template.delete",
         "equipment.view", "equipment_item.issue_personal", "equipment_item.report_own",
         "event.equipment.plan", "event.equipment.assign",
-        "debriefing.submit_own", "debriefing.view_own", "debriefing.view_all",
+        "debriefing.submit_own", "debriefing.view_own",
         "report.view",
     ],
     Role.MEMBER: [
@@ -170,5 +184,11 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "event_template.view",
         "equipment.view",
         "report.view",
+    ],
+    Role.DEBRIEFING_MANAGER: [
+        "debriefing.submit_own",
+        "debriefing.view_own",
+        "debriefing.view_all",
+        "debriefing.manage",
     ],
 }

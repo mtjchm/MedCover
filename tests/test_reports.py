@@ -71,11 +71,19 @@ def _make_assignment(spot: EventSpot, user: UserAccount, admin: UserAccount) -> 
 
 
 def _make_debriefing(asgn: Assignment, actual_hours: float = 2.0, patients: int = 3) -> DebriefingRecord:
+    """Create a DebriefingRecord and set actual times/patients on the event."""
+    # Set actual times on the event so actual_hours property works
+    spot = db.session.get(EventSpot, asgn.spot_id)
+    assert spot is not None
+    event = db.session.get(Event, spot.event_id)
+    assert event is not None
+    event.actual_start_datetime = event.start_datetime
+    event.actual_end_datetime = event.start_datetime + timedelta(hours=actual_hours)
+    event.patients_count = patients
     dr = DebriefingRecord(
         assignment_id=asgn.id,
         submitted_by_id=asgn.user_id,
-        actual_hours=actual_hours,
-        patients_treated=patients,
+        grade=3,
     )
     db.session.add(dr)
     db.session.commit()

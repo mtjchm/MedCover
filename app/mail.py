@@ -25,6 +25,7 @@ from app.extensions import db
 from app.models.outbox import OutboxEmail
 
 if TYPE_CHECKING:
+    from app.models.assignment import Assignment
     from app.models.event import Event
     from app.models.user import UserAccount
 
@@ -256,3 +257,25 @@ def drain_one_outbox_email() -> bool:
 
     db.session.commit()
     return True
+
+
+# ── Debriefing invitation ─────────────────────────────────────────────────────
+
+def send_debriefing_invitation(assignment: Assignment, event: Event) -> None:
+    """Send a debriefing invitation email to the assigned user."""
+    user = assignment.user
+    if not user_can_receive_notification(user, "assignment"):
+        return
+    from flask import url_for
+    debriefing_url = url_for(
+        "debriefing.submit",
+        assignment_id=assignment.id,
+        _external=True,
+    )
+    body = render_template(
+        "email/debriefing_invitation.txt",
+        user_name=user.name,
+        event=event,
+        debriefing_url=debriefing_url,
+    )
+    _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", body)

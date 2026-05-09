@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import Mapped
 from app.extensions import db
@@ -122,6 +123,10 @@ class Event(db.Model):  # type: ignore[misc]
     # Tracks sent reminders: JSON dict mapping hours-offset str → ISO sent_at timestamp.
     # e.g. {"24": "2026-05-28T17:00:00+00:00"} means the 24h reminder was already sent.
     reminder_sent_json = db.Column(db.JSON, nullable=True, default=dict)
+    # ── Post-event actuals (filled during debriefing by responsible person) ───
+    actual_start_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
+    actual_end_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
+    patients_count = db.Column(db.Integer, nullable=True)  # počet ošetřených (0–10+)
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
@@ -168,6 +173,14 @@ class Event(db.Model):  # type: ignore[misc]
     def unfilled_spots(self) -> list[EventSpot]:
         """Return mandatory spots that have no assignment."""
         return [s for s in self.spots if not s.is_optional and s.assignment is None]
+
+    @property
+    def actual_hours(self) -> Decimal | None:
+        """Actual duration in hours derived from RP-submitted actual start/end times."""
+        if self.actual_start_datetime and self.actual_end_datetime:
+            delta = self.actual_end_datetime - self.actual_start_datetime
+            return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+        return None
 
     @property
     def is_unfilled(self) -> bool:

@@ -142,6 +142,25 @@ def dashboard() -> str:
             .order_by(Event.start_datetime)
         ).all())
 
+    # ── Pending debriefings (user has completed event, not yet submitted) ────
+    pending_debriefings: list[Assignment] = []
+    if current_user.has_permission("debriefing.submit_own"):
+        from app.models.assignment import DebriefingRecord
+        submitted_assignment_ids = db.session.scalars(
+            db.select(DebriefingRecord.assignment_id)
+        ).all()
+        pending_debriefings = list(db.session.scalars(
+            db.select(Assignment)
+            .join(EventSpot, Assignment.spot_id == EventSpot.id)
+            .join(Event, EventSpot.event_id == Event.id)
+            .where(
+                Assignment.user_id == current_user.id,
+                Event.status == EventStatus.COMPLETED,
+                Assignment.id.notin_(submitted_assignment_ids),
+            )
+            .order_by(Event.start_datetime.desc())
+        ).all())
+
     return render_template(
         "main/dashboard.html",
         my_events=my_events,
@@ -150,6 +169,7 @@ def dashboard() -> str:
         attention_events=attention_events,
         pending_activations=pending_activations,
         missing_rp_events=missing_rp_events,
+        pending_debriefings=pending_debriefings,
         horizon_days=current_user.dashboard_horizon_days,
         EventStatus=EventStatus,
     )

@@ -58,6 +58,9 @@
           {% if current_user.has_permission('report.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Přehledy</a></li>
           {% endif %}
+          {% if current_user.has_permission('debriefing.manage') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('debriefing.manage') }}">Debriefing</a></li>
+          {% endif %}
           {% if current_user.has_permission('admin.view') %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Administrace</a>

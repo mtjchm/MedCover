@@ -67,13 +67,12 @@ def user_report(user_id: uuid.UUID) -> str | Response:
     if user is None:
         abort(404)
 
-    # Load all assignments for this user with eager-loaded spot → event and debriefing
+    # Load all assignments for this user with eager-loaded spot → event
     assignments = list(db.session.scalars(
         db.select(Assignment)
         .where(Assignment.user_id == user_id)
         .options(
             selectinload(Assignment.spot).selectinload(EventSpot.event),  # type: ignore[arg-type]
-            selectinload(Assignment.debriefing),
         )
         .order_by(Assignment.assigned_at)
     ).unique().all())
@@ -96,15 +95,14 @@ def user_report(user_id: uuid.UUID) -> str | Response:
         planned_seconds = int((event.end_datetime - event.start_datetime).total_seconds())
         planned_hours = planned_seconds / 3600
 
-        debrief = asgn.debriefing
-        actual_h = debrief.actual_hours if debrief else None
-        patients = debrief.patients_treated if debrief else None
+        actual_h = event.actual_hours
+        patients = event.patients_count if actual_h is not None else None
 
         rows.append({
             "event": event,
             "planned_hours": planned_hours,
             "actual_hours": actual_h,
-            "patients_treated": patients,
+            "patients": patients,
         })
 
         if event.status == EventStatus.COMPLETED:
@@ -128,7 +126,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
                 ev.status.value,
                 f"{r['planned_hours']:.2f}",
                 f"{r['actual_hours']:.2f}" if r["actual_hours"] is not None else "",
-                r["patients_treated"] if r["patients_treated"] is not None else "",
+                r["patients"] if r["patients"] is not None else "",
             ])
         safe_name = user.name.replace(" ", "_")
         return _csv_response(csv_rows, f"prehled_{safe_name}.csv")
@@ -161,7 +159,7 @@ def me_report(me_id: int) -> str | Response:
         db.select(Event)
         .where(Event.master_event_id == me_id)
         .options(
-            selectinload(Event.spots).selectinload(EventSpot.assignment).selectinload(Assignment.debriefing)  # type: ignore[arg-type]
+            selectinload(Event.spots).selectinload(EventSpot.assignment)  # type: ignore[arg-type]
         )
         .order_by(Event.start_datetime)
     ).all())
@@ -182,12 +180,8 @@ def me_report(me_id: int) -> str | Response:
     for ev in events:
         total_spots = len(ev.spots)
         filled_spots = sum(1 for s in ev.spots if s.assignment is not None)
-        worked_hours = Decimal("0")
-        patients = 0
-        for spot in ev.spots:
-            if spot.assignment and spot.assignment.debriefing:
-                worked_hours += spot.assignment.debriefing.actual_hours
-                patients += spot.assignment.debriefing.patients_treated
+        worked_hours = ev.actual_hours or Decimal("0")
+        patients = ev.patients_count or 0
 
         rows.append({
             "event": ev,
@@ -258,7 +252,7 @@ def date_range_report() -> str | Response:
         .where(Event.start_datetime < to_dt)
         .options(
             selectinload(Event.master_event),  # type: ignore[arg-type]
-            selectinload(Event.spots).selectinload(EventSpot.assignment).selectinload(Assignment.debriefing),  # type: ignore[arg-type]
+            selectinload(Event.spots).selectinload(EventSpot.assignment),  # type: ignore[arg-type]
         )
         .order_by(Event.start_datetime)
     ).unique().all())
@@ -286,10 +280,8 @@ def date_range_report() -> str | Response:
         status_counts[key] = status_counts.get(key, 0) + 1
         total_spots += len(ev.spots)
         filled_spots += sum(1 for s in ev.spots if s.assignment is not None)
-        for spot in ev.spots:
-            if spot.assignment and spot.assignment.debriefing:
-                total_worked_hours += spot.assignment.debriefing.actual_hours
-                total_patients += spot.assignment.debriefing.patients_treated
+        total_worked_hours += ev.actual_hours or Decimal("0")
+        total_patients += ev.patients_count or 0
 
     results = {
         "me_groups": list(me_map.values()),
@@ -307,12 +299,8 @@ def date_range_report() -> str | Response:
             me_name = ev.master_event.name if ev.master_event else ""
             total_s = len(ev.spots)
             filled_s = sum(1 for s in ev.spots if s.assignment is not None)
-            worked_h = Decimal("0")
-            patients = 0
-            for spot in ev.spots:
-                if spot.assignment and spot.assignment.debriefing:
-                    worked_h += spot.assignment.debriefing.actual_hours
-                    patients += spot.assignment.debriefing.patients_treated
+            worked_h = ev.actual_hours or Decimal("0")
+            patients = ev.patients_count or 0
             csv_rows.append([
                 me_name,
                 ev.name,
