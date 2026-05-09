@@ -92,8 +92,7 @@ def index() -> str:
                 continue
             eligible = [
                 (s.id, s.description)
-                for s in e.spots
-                if s.assignment is None and s.id not in user_assigned_spot_ids and s.is_eligible(current_user)
+                for s in e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids)
             ]
             if eligible:
                 eligible_spot_map[e.id] = eligible
@@ -153,12 +152,7 @@ def feed() -> Response:
         color = _STATUS_COLORS.get(e.status.value, "#6c757d")
         eligible = False
         if current_user.has_permission("event.assign_own"):
-            eligible = any(
-                s.assignment is None
-                and s.id not in user_assigned_spot_ids
-                and s.is_eligible(current_user)
-                for s in e.spots
-            )
+            eligible = bool(e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids))
         items.append({
             "id": e.id,
             "title": e.name,

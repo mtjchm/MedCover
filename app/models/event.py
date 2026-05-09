@@ -144,7 +144,9 @@ class Event(db.Model):  # type: ignore[misc]
     master_event = db.relationship("MasterEvent", back_populates="events")
     responsible_person = db.relationship("UserAccount", foreign_keys=[responsible_person_id])
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
-    spots: Mapped[list[EventSpot]] = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
+    spots: Mapped[list[EventSpot]] = db.relationship(
+        "EventSpot", back_populates="event", cascade="all, delete-orphan", lazy="selectin"
+    )
     equipment_plans = db.relationship("EventEquipmentPlan", back_populates="event", cascade="all, delete-orphan")
     equipment_assignments = db.relationship("EventEquipmentAssignment", back_populates="event", cascade="all, delete-orphan")
 
@@ -204,6 +206,21 @@ class Event(db.Model):  # type: ignore[misc]
             return [24]
         return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
 
+    def eligible_unfilled_spots_for(
+        self, user: UserAccount, excluded_spot_ids: set[int] | None = None,
+    ) -> list[EventSpot]:
+        """Return the spots that are still empty and that *user* may claim.
+
+        A spot is eligible when it has no assignment, the user does not already
+        hold one of *excluded_spot_ids* (typically: their existing assignments),
+        and the user satisfies the spot's qualification requirements.
+        """
+        excluded = excluded_spot_ids or set()
+        return [
+            s for s in self.spots
+            if s.assignment is None and s.id not in excluded and s.is_eligible(user)
+        ]
+
     def __repr__(self) -> str:
         return f"<Event {self.id}: {self.name} [{self.status}]>"
 
@@ -223,7 +240,8 @@ class EventSpot(db.Model):  # type: ignore[misc]
         "Qualification", secondary=spot_qualifications, lazy="selectin"
     )
     assignment: Mapped[Assignment | None] = db.relationship(
-        "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan"
+        "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     def is_eligible(self, user: UserAccount) -> bool:

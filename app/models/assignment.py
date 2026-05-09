@@ -25,7 +25,7 @@ class Assignment(db.Model):  # type: ignore[misc]
     debriefing_email_sent = db.Column(db.Boolean, default=False, nullable=False)
 
     spot = db.relationship("EventSpot", back_populates="assignment")
-    user: Mapped[UserAccount] = db.relationship("UserAccount", foreign_keys=[user_id])
+    user: Mapped[UserAccount] = db.relationship("UserAccount", foreign_keys=[user_id], lazy="selectin")
     assigned_by: Mapped[UserAccount | None] = db.relationship("UserAccount", foreign_keys=[assigned_by_id])
     debriefing: Mapped[DebriefingRecord | None] = db.relationship(
         "DebriefingRecord", back_populates="assignment", uselist=False, cascade="all, delete-orphan"
