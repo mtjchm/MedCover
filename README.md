@@ -65,10 +65,22 @@ Tests run automatically on every commit via the pre-commit `pytest` hook.
 To run manually:
 
 ```bash
+# Run against the current Python interpreter (fastest for day-to-day dev)
 pytest tests/
+
+# Run via tox (recommended — mirrors CI; uses pinned deps from requirements-dev.txt)
+tox -e py314
 ```
 
 Environment variables (`FLASK_ENV`, `SECRET_KEY`, `TEST_DATABASE_URL`) are
-injected automatically by `pytest-env` via `pyproject.toml`.
+injected automatically by `pytest-env` via `pyproject.toml` (plain `pytest`)
+or via the `setenv` block in `pyproject.toml [tool.tox]` (tox).
 
 Coverage report is written to `htmlcov/` after each run.
+
+### Adding support for a new Python version
+
+1. Install the new Python interpreter on the host.
+2. Add `py3XX` to `envlist` in `[tool.tox]` in `pyproject.toml`.
+3. Recompile deps if needed: `pip-compile requirements-dev.in --generate-hashes -o requirements-dev.txt`.
+4. Run `tox -e py3XX` to verify.

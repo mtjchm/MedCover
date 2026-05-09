@@ -130,14 +130,23 @@ docker compose exec web flask db upgrade
 ### Run tests
 
 ```bash
+# Plain pytest (fastest, day-to-day dev)
 docker compose exec web pytest
+
+# Via tox (recommended — mirrors CI exactly)
+docker compose exec web tox -e py314
 ```
 
-Or without Docker (requires a local Python env):
+Or without Docker (requires a local Python env with `requirements-dev.txt` installed):
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+
+# Run directly
 pytest
+
+# Run via tox
+tox -e py314
 ```
 
 ---
@@ -416,6 +425,8 @@ jobs:
 
       - name: Run tests
         run: pytest --cov=app --cov-report=term-missing
+        # Note: CI runs pytest directly. tox can be added here in future
+        # once multiple Python versions are available on the runner.
 ```
 
 ### .github/workflows/deploy.yml

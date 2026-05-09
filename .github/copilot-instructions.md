@@ -44,6 +44,7 @@ Race conditions are a first-class concern, especially for spot assignment:
 
 ### Testing
 - Run `pytest tests/` before every commit. All tests must pass.
+- For multi-Python testing use `tox -e py314` (or just `tox`).
 - Tests use the dev DB (`medcover_dev`) pointed to by `DATABASE_URL` env var.
 - The `conftest.py` fixture seeds `AppSettings(id=1, setup_complete=True)` so the setup guard doesn't block tests.
 - When adding new routes, add corresponding smoke/integration tests.
@@ -93,7 +94,7 @@ Race conditions are a first-class concern, especially for spot assignment:
 
 ## Branch & PR Convention
 - One feature branch per logical unit: `feat/<short-name>`
-- CI must pass before merging (GitHub Actions: lint-free import, `flask db upgrade`, `pytest`)
+- CI must pass before merging (GitHub Actions: lint-free import, `flask db upgrade`, `pytest`; locally use `tox` for multi-Python validation)
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
