@@ -32,7 +32,6 @@ addopts = "--cov=app --cov-report=term-missing --cov-report=html:htmlcov -v -n a
 env = [
     "FLASK_ENV=testing",
     "SECRET_KEY=test-secret-key-not-for-production",
-    "D:TEST_DATABASE_URL=postgresql://medcover:devpassword@localhost:5432/medcover_test",
 ]
 
 [tool.coverage.run]
@@ -75,15 +74,18 @@ requires = tox>=4
 # Install exact pinned deps from the pre-compiled dev requirements file.
 # This ensures reproducible environments without re-running pip-compile.
 deps = -r requirements-dev.txt
-# Pass through DB and app config so tests can reach the test PostgreSQL instance.
+# Pass through DB config — if TEST_DATABASE_URL is set (CI, local Postgres)
+# testcontainers will skip the auto-container and use the provided URL instead.
 passenv =
     TEST_DATABASE_URL
     DATABASE_URL
     SECRET_KEY
+    DOCKER_HOST
+    DOCKER_TLS_VERIFY
+    DOCKER_CERT_PATH
 setenv =
     FLASK_ENV = testing
     SECRET_KEY = test-secret-key-not-for-production
-    TEST_DATABASE_URL = postgresql://medcover:devpassword@localhost:5432/medcover_test
 # Skip package installation — this is a Flask app, not an installable package.
 skip_install = true
 commands =
