@@ -126,23 +126,9 @@
           </td>
           <td class="text-end">{{ ev.filled_spots }} / {{ ev.total_spots }}</td>
           <td class="text-end">
-            {% set worked = namespace(h=0) %}
-            {% for spot in ev.spots %}
-              {% if spot.assignment and spot.assignment.debriefing %}
-                {% set worked.h = worked.h + spot.assignment.debriefing.actual_hours %}
-              {% endif %}
-            {% endfor %}
-            {{ "%.1f"|format(worked.h) }}
+            {% if ev.actual_hours is not none %}{{ "%.1f"|format(ev.actual_hours) }}{% else %}<span class="text-muted">—</span>{% endif %}
           </td>
-          <td class="text-end">
-            {% set pts = namespace(n=0) %}
-            {% for spot in ev.spots %}
-              {% if spot.assignment and spot.assignment.debriefing %}
-                {% set pts.n = pts.n + spot.assignment.debriefing.patients_treated %}
-              {% endif %}
-            {% endfor %}
-            {{ pts.n }}
-          </td>
+          <td class="text-end">{{ ev.patients_count or 0 }}</td>
         </tr>
         {% endfor %}
       </tbody>

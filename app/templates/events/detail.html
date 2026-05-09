@@ -101,6 +101,13 @@
         {% if event.assignments_open_datetime %}
           <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
         {% endif %}
+        {% if event.actual_start_datetime %}
+        <hr class="my-2">
+        <h6 class="card-subtitle text-muted mb-2 mt-0">Skutečný termín</h6>
+        <p class="mb-1"><strong>Začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</p>
+        {% endif %}
       </div>
     </div>
   </div>

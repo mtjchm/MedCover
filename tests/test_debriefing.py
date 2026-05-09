@@ -1,4 +1,4 @@
-"""Tests for the debriefing blueprint: submit, edit, event overview."""
+"""Tests for the debriefing blueprint — redesigned two-part form, final submission."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -9,33 +9,25 @@ from app.models.audit import AuditLogEntry
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.role import Role
-from app.models.user import UserAccount
 from tests.conftest import _make_user, _login
 
-# Use a dedicated email so this doesn't clash with the member_client fixture
 _ASSIGNED_EMAIL = "assigned_member@test.com"
+_DEBRIEF_MGR_EMAIL = "debrief_manager@test.com"
 
 
-def _setup_completed_assignment(app) -> tuple[int, int, int]:
+def _setup_completed_assignment(app, *, is_rp: bool = False) -> tuple[int, int, int]:
     """Create a completed event with one spot assigned to _ASSIGNED_EMAIL.
 
+    If is_rp=True the assigned user is also set as the event's responsible_person.
     Returns (event_id, spot_id, assignment_id).
-    The assigned user's email is _ASSIGNED_EMAIL so callers can log in fresh.
     """
     with app.app_context():
         me = MasterEvent(name="Test ME")
         db.session.add(me)
         db.session.flush()
 
-        admin_role = db.session.scalar(db.select(Role).where(Role.name == Role.ADMIN))
-        creator = UserAccount(email="creator@test.com", name="Creator", is_active=True)
-        creator.set_password("testpass123")
-        creator.roles = [admin_role]
-        db.session.add(creator)
-        db.session.flush()
-
+        creator = _make_user("debrief_creator@test.com", "Creator", Role.ADMIN)
         assigned = _make_user(_ASSIGNED_EMAIL, "Assigned Member", Role.MEMBER)
-        assigned_id = assigned.id
 
         event = Event(
             name="Completed Event",
@@ -44,6 +36,7 @@ def _setup_completed_assignment(app) -> tuple[int, int, int]:
             end_datetime=datetime(2024, 1, 1, 18, 0, tzinfo=timezone.utc),
             status=EventStatus.COMPLETED,
             created_by_id=creator.id,
+            responsible_person_id=assigned.id if is_rp else None,
         )
         db.session.add(event)
         db.session.flush()
@@ -54,7 +47,7 @@ def _setup_completed_assignment(app) -> tuple[int, int, int]:
 
         assignment = Assignment(
             spot_id=spot.id,
-            user_id=assigned_id,
+            user_id=assigned.id,
             assigned_by_id=creator.id,
         )
         db.session.add(assignment)
@@ -63,41 +56,68 @@ def _setup_completed_assignment(app) -> tuple[int, int, int]:
         return event.id, spot.id, assignment.id
 
 
+def _debrief_manager_client(app):
+    """Return a test client logged in as a Debriefing Manager."""
+    with app.app_context():
+        _make_user(_DEBRIEF_MGR_EMAIL, "Debrief Manager", Role.DEBRIEFING_MANAGER)
+    c = app.test_client()
+    _login(c, _DEBRIEF_MGR_EMAIL)
+    return c
+
+
 def _assigned_client(app):
-    """Return a fresh test client logged in as the assigned member."""
+    """Return a test client logged in as the assigned member."""
     c = app.test_client()
     _login(c, _ASSIGNED_EMAIL)
     return c
 
 
-# ── Submit / View ─────────────────────────────────────────────────────────────
+_VALID_FORM = {
+    "grade": "2",
+    "feedback_event": "Vše proběhlo hladce.",
+    "feedback_customer": "Objednatel byl vstřícný.",
+    "feedback_colleagues": "Tým fungoval skvěle.",
+}
 
 
-class TestDebriefingSubmit:
+# ── Access control ────────────────────────────────────────────────────────────
+
+class TestDebriefingAccess:
     def test_submit_requires_login(self, app, client):
         _, _, assignment_id = _setup_completed_assignment(app)
-        response = client.get(f"/debriefing/{assignment_id}", follow_redirects=False)
-        assert response.status_code == 302
-        assert "login" in response.headers["Location"]
+        resp = client.get(f"/debriefing/{assignment_id}", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "login" in resp.headers["Location"]
 
-    def test_assigned_user_can_view_own_debrief_form(self, app):
+    def test_assigned_user_can_view_form(self, app):
         _, _, assignment_id = _setup_completed_assignment(app)
         c = _assigned_client(app)
-        response = c.get(f"/debriefing/{assignment_id}")
-        assert response.status_code == 200
+        resp = c.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 200
 
-    def test_debrief_not_accessible_for_non_completed_event(self, app, admin_client):
-        """Debriefing form must redirect when event is not Completed."""
+    def test_other_user_cannot_view_form(self, app, member_client):
+        """member_client is member@test.com — not the assigned user."""
+        _, _, assignment_id = _setup_completed_assignment(app)
+        resp = member_client.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 403
+
+    def test_admin_cannot_view_others_form(self, app, admin_client):
+        _, _, assignment_id = _setup_completed_assignment(app)
+        resp = admin_client.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 403
+
+    def test_404_for_missing_assignment(self, admin_client):
+        resp = admin_client.get("/debriefing/999999")
+        assert resp.status_code == 404
+
+    def test_form_redirects_when_event_not_completed(self, app):
+        """Form must redirect with a warning when event is not Completed."""
         with app.app_context():
             me = MasterEvent(name="Active ME")
             db.session.add(me)
             db.session.flush()
-            admin_role = db.session.scalar(db.select(Role).where(Role.name == Role.ADMIN))
-            creator = UserAccount(email="creator2@test.com", name="Creator2", is_active=True)
-            creator.set_password("testpass123")
-            creator.roles = [admin_role]
-            db.session.add(creator)
-            db.session.flush()
+            creator = _make_user("active_creator@test.com", "Creator", Role.ADMIN)
+            assigned = _make_user("active_assigned@test.com", "Assigned", Role.MEMBER)
             event = Event(
                 name="Open Event",
                 master_event_id=me.id,
@@ -111,59 +131,43 @@ class TestDebriefingSubmit:
             spot = EventSpot(event_id=event.id)
             db.session.add(spot)
             db.session.flush()
-            assignment = Assignment(
-                spot_id=spot.id,
-                user_id=creator.id,
-                assigned_by_id=creator.id,
-            )
+            assignment = Assignment(spot_id=spot.id, user_id=assigned.id, assigned_by_id=creator.id)
             db.session.add(assignment)
             db.session.commit()
             assignment_id = assignment.id
 
-        response = admin_client.get(f"/debriefing/{assignment_id}", follow_redirects=True)
-        assert response.status_code == 200
-        assert "Hlášení lze vyplnit".encode() in response.data
+        c = app.test_client()
+        _login(c, "active_assigned@test.com")
+        resp = c.get(f"/debriefing/{assignment_id}", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"lze vyplnit" in resp.data
 
-    def test_stranger_cannot_view_others_debrief(self, app, member_client):
-        """A member (member@test.com) must not access assigned_member@test.com's debrief."""
-        _, _, assignment_id = _setup_completed_assignment(app)
-        # member_client is member@test.com, assignment belongs to assigned_member@test.com
-        response = member_client.get(f"/debriefing/{assignment_id}")
-        assert response.status_code == 403
 
-    def test_assigned_user_can_submit_own_debrief(self, app):
+# ── Submit ────────────────────────────────────────────────────────────────────
+
+class TestDebriefingSubmit:
+    def test_valid_submission_creates_record(self, app):
         _, _, assignment_id = _setup_completed_assignment(app)
         c = _assigned_client(app)
-        response = c.post(
-            f"/debriefing/{assignment_id}",
-            data={
-                "actual_hours": "4.5",
-                "patients_treated": "3",
-                "materials_used": "Obvazy",
-                "feedback": "Vše proběhlo dobře.",
-            },
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
+        resp = c.post(f"/debriefing/{assignment_id}", data=_VALID_FORM, follow_redirects=True)
+        assert resp.status_code == 200
         with app.app_context():
             record = db.session.scalar(
                 db.select(DebriefingRecord).where(DebriefingRecord.assignment_id == assignment_id)
             )
             assert record is not None
-            assert float(record.actual_hours) == 4.5
-            assert record.patients_treated == 3
-            assert record.materials_used == "Obvazy"
+            assert record.grade == 2
+            assert record.feedback_event == "Vše proběhlo hladce."
+            assert record.feedback_customer == "Objednatel byl vstřícný."
+            assert record.feedback_colleagues == "Tým fungoval skvěle."
 
-    def test_invalid_hours_rejected(self, app):
+    def test_missing_grade_rejected(self, app):
         _, _, assignment_id = _setup_completed_assignment(app)
         c = _assigned_client(app)
-        response = c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "abc", "patients_treated": "0"},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert "platný počet hodin".encode() in response.data
+        data = {**_VALID_FORM, "grade": ""}
+        resp = c.post(f"/debriefing/{assignment_id}", data=data, follow_redirects=True)
+        assert resp.status_code == 200
+        assert "Hodnocení".encode() in resp.data
         with app.app_context():
             count = db.session.scalar(
                 db.select(db.func.count()).select_from(DebriefingRecord)
@@ -171,25 +175,65 @@ class TestDebriefingSubmit:
             )
             assert count == 0
 
-    def test_negative_hours_rejected(self, app):
+    def test_grade_out_of_range_rejected(self, app):
         _, _, assignment_id = _setup_completed_assignment(app)
         c = _assigned_client(app)
-        response = c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "-1", "patients_treated": "0"},
-            follow_redirects=True,
-        )
-        assert response.status_code == 200
-        assert "platný počet hodin".encode() in response.data
+        for bad in ["0", "6", "abc"]:
+            data = {**_VALID_FORM, "grade": bad}
+            resp = c.post(f"/debriefing/{assignment_id}", data=data, follow_redirects=True)
+            assert resp.status_code == 200
+            with app.app_context():
+                count = db.session.scalar(
+                    db.select(db.func.count()).select_from(DebriefingRecord)
+                    .where(DebriefingRecord.assignment_id == assignment_id)
+                )
+                assert count == 0
 
-    def test_submit_writes_audit_log(self, app):
+    def test_optional_fields_may_be_empty(self, app):
         _, _, assignment_id = _setup_completed_assignment(app)
         c = _assigned_client(app)
-        c.post(
+        resp = c.post(
             f"/debriefing/{assignment_id}",
-            data={"actual_hours": "2", "patients_treated": "0"},
+            data={"grade": "3"},
             follow_redirects=True,
         )
+        assert resp.status_code == 200
+        with app.app_context():
+            record = db.session.scalar(
+                db.select(DebriefingRecord).where(DebriefingRecord.assignment_id == assignment_id)
+            )
+            assert record is not None
+            assert record.grade == 3
+            assert record.feedback_event is None
+            assert record.feedback_customer is None
+            assert record.feedback_colleagues is None
+
+    def test_submission_is_final(self, app):
+        """Submitting a second time should not create a second record or update."""
+        _, _, assignment_id = _setup_completed_assignment(app)
+        c = _assigned_client(app)
+        c.post(f"/debriefing/{assignment_id}", data=_VALID_FORM, follow_redirects=True)
+        # Second attempt — should show read-only view (submitted.html), not update
+        resp = c.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 200
+        assert "Výjezdová zpráva byla odevzdána".encode() in resp.data
+        # POST again should be refused (or show submitted page)
+        resp2 = c.post(
+            f"/debriefing/{assignment_id}",
+            data={**_VALID_FORM, "grade": "5"},
+            follow_redirects=True,
+        )
+        assert resp2.status_code == 200
+        with app.app_context():
+            record = db.session.scalar(
+                db.select(DebriefingRecord).where(DebriefingRecord.assignment_id == assignment_id)
+            )
+            assert record.grade == 2  # still the original grade
+
+    def test_submit_creates_audit_entry(self, app):
+        _, _, assignment_id = _setup_completed_assignment(app)
+        c = _assigned_client(app)
+        c.post(f"/debriefing/{assignment_id}", data=_VALID_FORM, follow_redirects=True)
         with app.app_context():
             entry = db.session.scalar(
                 db.select(AuditLogEntry)
@@ -198,84 +242,115 @@ class TestDebriefingSubmit:
             )
             assert entry is not None
 
-    def test_debrief_404_for_missing_assignment(self, admin_client):
-        response = admin_client.get("/debriefing/999999")
-        assert response.status_code == 404
 
+# ── RP section ────────────────────────────────────────────────────────────────
 
-# ── Edit existing debrief ─────────────────────────────────────────────────────
-
-
-class TestDebriefingEdit:
-    def test_assigned_user_can_update_own_debrief(self, app):
-        _, _, assignment_id = _setup_completed_assignment(app)
+class TestDebriefingRPSection:
+    def test_rp_section_visible_for_responsible_person(self, app):
+        _, _, assignment_id = _setup_completed_assignment(app, is_rp=True)
         c = _assigned_client(app)
-        # Submit initial debrief
-        c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "2", "patients_treated": "1"},
-            follow_redirects=True,
-        )
-        # Update it
-        c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "5", "patients_treated": "10", "feedback": "Aktualizace"},
-            follow_redirects=True,
-        )
+        resp = c.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 200
+        assert "Skutečný začátek".encode() in resp.data
+
+    def test_rp_section_not_visible_for_non_rp(self, app):
+        _, _, assignment_id = _setup_completed_assignment(app, is_rp=False)
+        c = _assigned_client(app)
+        resp = c.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 200
+        assert "Skutečný začátek".encode() not in resp.data
+
+    def test_rp_submission_updates_event_actuals(self, app):
+        event_id, _, assignment_id = _setup_completed_assignment(app, is_rp=True)
+        c = _assigned_client(app)
+        form_data = {
+            **_VALID_FORM,
+            "actual_start_datetime": "2024-01-01T10:15",
+            "actual_end_datetime": "2024-01-01T17:45",
+            "patients_count": "3",
+        }
+        resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
+        assert resp.status_code == 200
         with app.app_context():
-            record = db.session.scalar(
-                db.select(DebriefingRecord).where(DebriefingRecord.assignment_id == assignment_id)
-            )
-            assert float(record.actual_hours) == 5
-            assert record.patients_treated == 10
-            assert record.feedback == "Aktualizace"
+            event = db.session.get(Event, event_id)
+            assert event.actual_start_datetime is not None
+            assert event.actual_end_datetime is not None
+            assert event.patients_count == 3
 
-    def test_edit_writes_audit_log(self, app):
-        _, _, assignment_id = _setup_completed_assignment(app)
+    def test_rp_invalid_times_rejected(self, app):
+        _, _, assignment_id = _setup_completed_assignment(app, is_rp=True)
         c = _assigned_client(app)
-        c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "2", "patients_treated": "0"},
-            follow_redirects=True,
-        )
-        c.post(
-            f"/debriefing/{assignment_id}",
-            data={"actual_hours": "3", "patients_treated": "0"},
-            follow_redirects=True,
-        )
+        form_data = {
+            **_VALID_FORM,
+            "actual_start_datetime": "not-a-date",
+            "actual_end_datetime": "also-not",
+            "patients_count": "0",
+        }
+        resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
+        assert resp.status_code == 200
         with app.app_context():
             count = db.session.scalar(
-                db.select(db.func.count()).select_from(AuditLogEntry)
-                .where(AuditLogEntry.entity_type == "DebriefingRecord")
+                db.select(db.func.count()).select_from(DebriefingRecord)
+                .where(DebriefingRecord.assignment_id == assignment_id)
             )
-            # create + edit = 2 entries
-            assert count >= 2
+            assert count == 0
+
+    def test_rp_end_before_start_rejected(self, app):
+        _, _, assignment_id = _setup_completed_assignment(app, is_rp=True)
+        c = _assigned_client(app)
+        form_data = {
+            **_VALID_FORM,
+            "actual_start_datetime": "2024-01-01T18:00",
+            "actual_end_datetime": "2024-01-01T10:00",
+            "patients_count": "0",
+        }
+        resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(DebriefingRecord)
+                .where(DebriefingRecord.assignment_id == assignment_id)
+            )
+            assert count == 0
 
 
-# ── Event overview ────────────────────────────────────────────────────────────
+# ── Manage page (Debriefing Manager only) ─────────────────────────────────────
 
+class TestDebriefingManage:
+    def test_manage_requires_login(self, client):
+        resp = client.get("/debriefing/manage", follow_redirects=False)
+        assert resp.status_code == 302
 
-class TestDebriefingEventOverview:
-    def test_coordinator_can_view_event_overview(self, app, coordinator_client):
-        event_id, _, assignment_id = _setup_completed_assignment(app)
-        response = coordinator_client.get(f"/debriefing/event/{event_id}")
-        assert response.status_code == 200
+    def test_debriefing_manager_can_access_manage(self, app):
+        _setup_completed_assignment(app)
+        c = _debrief_manager_client(app)
+        resp = c.get("/debriefing/manage")
+        assert resp.status_code == 200
 
-    def test_admin_can_view_event_overview(self, app, admin_client):
+    def test_admin_cannot_access_manage(self, app, admin_client):
+        resp = admin_client.get("/debriefing/manage")
+        assert resp.status_code == 403
+
+    def test_coordinator_cannot_access_manage(self, app, coordinator_client):
+        resp = coordinator_client.get("/debriefing/manage")
+        assert resp.status_code == 403
+
+    def test_member_cannot_access_manage(self, app, member_client):
+        resp = member_client.get("/debriefing/manage")
+        assert resp.status_code == 403
+
+    def test_event_overview_debriefing_manager(self, app):
         event_id, _, _ = _setup_completed_assignment(app)
-        response = admin_client.get(f"/debriefing/event/{event_id}")
-        assert response.status_code == 200
+        c = _debrief_manager_client(app)
+        resp = c.get(f"/debriefing/event/{event_id}")
+        assert resp.status_code == 200
 
-    def test_member_cannot_view_event_overview(self, app, member_client):
+    def test_admin_cannot_access_event_overview(self, app, admin_client):
         event_id, _, _ = _setup_completed_assignment(app)
-        response = member_client.get(f"/debriefing/event/{event_id}")
-        assert response.status_code == 403
+        resp = admin_client.get(f"/debriefing/event/{event_id}")
+        assert resp.status_code == 403
 
-    def test_event_overview_requires_login(self, app, client):
+    def test_coordinator_cannot_access_event_overview(self, app, coordinator_client):
         event_id, _, _ = _setup_completed_assignment(app)
-        response = client.get(f"/debriefing/event/{event_id}", follow_redirects=False)
-        assert response.status_code == 302
-
-    def test_event_overview_404_for_missing(self, admin_client):
-        response = admin_client.get("/debriefing/event/999999")
-        assert response.status_code == 404
+        resp = coordinator_client.get(f"/debriefing/event/{event_id}")
+        assert resp.status_code == 403

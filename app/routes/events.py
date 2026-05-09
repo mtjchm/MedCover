@@ -474,6 +474,13 @@ def transition(event_id: int) -> Response:
         ).all()
         for u in active_users:
             mailer.send_assignments_opened(u, event)
+    elif target_status == EventStatus.COMPLETED:
+        # Send debriefing invitations to everyone who held a spot on this event.
+        for spot in event.spots:
+            if spot.assignment is not None and not spot.assignment.debriefing_email_sent:
+                mailer.send_debriefing_invitation(spot.assignment, event)
+                spot.assignment.debriefing_email_sent = True
+        db.session.commit()
 
     flash(f"Stav akce byl změněn na {target_status.value}.", "success")
     return redirect(url_for("events.detail", event_id=event_id))

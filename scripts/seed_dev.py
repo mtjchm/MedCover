@@ -130,6 +130,7 @@ def seed() -> None:
             "coordinator": Role.COORDINATOR,
             "member": Role.MEMBER,
             "viewer": Role.VIEWER,
+            "debrief_manager": Role.DEBRIEFING_MANAGER,
             "inactive": Role.MEMBER,
         }
         for account_def in DEV_ACCOUNTS:
