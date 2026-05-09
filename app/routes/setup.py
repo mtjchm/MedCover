@@ -130,7 +130,7 @@ def step3() -> str | Response:
             error = "Heslo musí mít alespoň 8 znaků."
         elif password != password2:
             error = "Hesla se neshodují."
-        elif UserAccount.query.filter_by(email=email).first():
+        elif db.session.scalar(db.select(UserAccount).where(UserAccount.email == email)):
             error = "Účet s tímto e-mailem již existuje."
 
         if error:
@@ -141,7 +141,7 @@ def step3() -> str | Response:
         _ensure_roles()
         _ensure_general_me()
 
-        admin_role = Role.query.filter_by(name="Admin").first()
+        admin_role = db.session.scalar(db.select(Role).where(Role.name == "Admin"))
         user = UserAccount(email=email, name=full_name, is_active=True)
         user.set_password(password)
         if admin_role:
@@ -172,12 +172,12 @@ def _ensure_roles() -> None:
     from app.models.role import ALL_PERMISSIONS
 
     for perm_data in ALL_PERMISSIONS:
-        if not Permission.query.filter_by(code=perm_data["code"]).first():
+        if not db.session.scalar(db.select(Permission).where(Permission.code == perm_data["code"])):
             db.session.add(Permission(code=perm_data["code"], description=perm_data.get("description")))
     db.session.flush()
 
     for role_name, perm_codes in ROLE_PERMISSIONS.items():
-        role = Role.query.filter_by(name=role_name).first()
+        role = db.session.scalar(db.select(Role).where(Role.name == role_name))
         if not role:
             role = Role(name=role_name)
             db.session.add(role)
@@ -185,7 +185,7 @@ def _ensure_roles() -> None:
         existing_codes = {p.code for p in role.permissions}
         for code in perm_codes:
             if code not in existing_codes:
-                perm = Permission.query.filter_by(code=code).first()
+                perm = db.session.scalar(db.select(Permission).where(Permission.code == code))
                 if perm:
                     role.permissions.append(perm)
 
