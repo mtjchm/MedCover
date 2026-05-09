@@ -175,3 +175,14 @@
 [data-bs-theme="dark"] .fc .fc-toolbar {
   background-color: transparent !important;
 }
+
+/* Filter buttons: prevent :focus/:focus-visible from making inactive buttons
+   look active. Bootstrap's outline button :focus applies a filled background
+   (same as .active), so we override it when .active is absent. The
+   --bs-btn-color variable holds the correct outline color per variant. */
+.filter-btn:not(.active):focus,
+.filter-btn:not(.active):focus-visible {
+  background-color: transparent !important;
+  color: var(--bs-btn-color) !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1) !important;
+}
