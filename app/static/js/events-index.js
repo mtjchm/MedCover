@@ -44,7 +44,7 @@
   // ── Filter buttons ────────────────────────────────────────────────────────
 
   function renderFilterButtons(activeFilters) {
-    document.querySelectorAll(".filter-btn").forEach(function (btn) {
+    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
       btn.classList.toggle("active", activeFilters.includes(btn.dataset.status));
     });
   }
@@ -256,7 +256,7 @@
     document.querySelectorAll(".sortable").forEach(function (th) {
       th.addEventListener("click", function () { sortTable(th.dataset.col); });
     });
-    document.querySelectorAll(".filter-btn").forEach(function (btn) {
+    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
       var touchStartY = 0;
       var touchFired = false;
       btn.addEventListener("touchstart", function (e) {
