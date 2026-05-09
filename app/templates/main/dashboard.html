@@ -126,9 +126,29 @@
             {% endfor %}
           </div>
         </div>
-        <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} flex-shrink-0 ms-2">
-          {{ event.status.value }}
-        </span>
+        <div class="text-end flex-shrink-0 ms-2 d-flex flex-column align-items-end gap-1">
+          {% set fully_staffed = event.total_spots > 0 and event.filled_spots == event.total_spots %}
+          {% if not (event.status == EventStatus.ASSIGNMENTS_OPEN and fully_staffed) %}
+          <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
+            {{ event.status.value }}
+          </span>
+          {% endif %}
+          {% if event.paid %}
+          <span class="badge bg-success">Placená</span>
+          {% endif %}
+          {% if event.total_spots > 0 %}
+          <span class="badge bg-{{ 'success' if fully_staffed else 'warning' }}">
+            {{ event.staffing_status }}
+          </span>
+          {% endif %}
+          {% if event.status not in [EventStatus.DRAFT, EventStatus.CANCELLED] %}
+            {% if event.responsible_person %}
+            <span class="badge bg-success">ZZ: {{ event.responsible_person.name }}</span>
+            {% else %}
+            <span class="badge bg-danger">Chybí vedoucí</span>
+            {% endif %}
+          {% endif %}
+        </div>
       </div>
     </li>
     {% endfor %}

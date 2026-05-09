@@ -280,7 +280,9 @@ def detail(event_id: int) -> str | Response:
         ).all())
 
     all_equipment_types = db.session.scalars(
-        db.select(EquipmentType).order_by(EquipmentType.name)
+        db.select(EquipmentType)
+        .where(EquipmentType.category != EquipmentCategory.PERSONAL)
+        .order_by(EquipmentType.name)
     ).all()
     assigned_item_ids = {ea.equipment_item_id for ea in event.equipment_assignments}
     if assigned_item_ids:
