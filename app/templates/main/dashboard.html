@@ -189,8 +189,14 @@
             <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
           </div>
           <div class="text-muted small text-end flex-shrink-0">
-            volné pozice:<br>
-            {{ e.total_spots - e.filled_spots }}
+            {% set free_spots = e.spots | selectattr('assignment', 'none') | list %}
+            {% if free_spots %}
+              {% for desc, grp in free_spots | groupby('description') %}
+              <div>{{ desc or 'Pozice' }}&nbsp;({{ grp | list | length }}×)</div>
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">obsazeno</span>
+            {% endif %}
           </div>
         </div>
       </li>
@@ -217,7 +223,14 @@
           <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
         </div>
         <div class="text-muted small text-end flex-shrink-0 ms-2">
-          volné pozice:<br>{{ e.total_spots - e.filled_spots }}
+          {% set free_spots = e.spots | selectattr('assignment', 'none') | list %}
+          {% if free_spots %}
+            {% for desc, grp in free_spots | groupby('description') %}
+            <div>{{ desc or 'Pozice' }}&nbsp;({{ grp | list | length }}×)</div>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted">obsazeno</span>
+          {% endif %}
         </div>
       </div>
     </li>
@@ -229,5 +242,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

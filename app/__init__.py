@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time as _time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,8 @@ from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
 
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
+# Computed once at import/startup; used as a cache-busting version for static files.
+_STARTUP_TS: str = str(int(_time.time()))
 
 
 def create_app(
@@ -62,7 +65,11 @@ def create_app(
             feedback_enabled = _s.feedback_enabled
         except Exception:
             feedback_enabled = True
-        return {"config": app.config, "feedback_enabled": feedback_enabled}
+        # Cache-busting version for static files: git commit hash in production,
+        # process start time in dev (changes on every container/server restart).
+        _git = app.config.get("GIT_COMMIT", "dev")
+        static_ver: str = _git if (_git and _git != "dev") else _STARTUP_TS
+        return {"config": app.config, "feedback_enabled": feedback_enabled, "static_ver": static_ver}
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:

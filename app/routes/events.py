@@ -151,9 +151,28 @@ def feed() -> Response:
         query = query.where(Event.archived == False)  # noqa: E712
 
     events = db.session.scalars(query).all()
+
+    # Build eligible spot set for current user (same logic as index view)
+    user_assigned_spot_ids: set[int] = set()
+    if current_user.has_permission("event.assign_own"):
+        assigned = db.session.scalars(
+            db.select(Assignment).where(
+                Assignment.user_id == current_user.id
+            )
+        ).all()
+        user_assigned_spot_ids = {a.spot_id for a in assigned}
+
     items = []
     for e in events:
         color = _STATUS_COLORS.get(e.status.value, "#6c757d")
+        eligible = False
+        if current_user.has_permission("event.assign_own"):
+            eligible = any(
+                s.assignment is None
+                and s.id not in user_assigned_spot_ids
+                and s.is_eligible(current_user)
+                for s in e.spots
+            )
         items.append({
             "id": e.id,
             "title": e.name,
@@ -172,6 +191,7 @@ def feed() -> Response:
                 "start_local": e.start_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
                 "end_local": e.end_datetime.astimezone(_PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
                 "me_name": None if e.master_event.is_general else e.master_event.name,
+                "eligible": eligible,
             },
         })
     return jsonify(items)

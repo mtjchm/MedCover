@@ -175,3 +175,14 @@
 [data-bs-theme="dark"] .fc .fc-toolbar {
   background-color: transparent !important;
 }
+
+/* Filter buttons: Bootstrap .btn classes handle all base styling.
+   On touch-only devices (mobile), suppress the sticky simulated-hover
+   that persists after a tap on inactive buttons. */
+@media (hover: none) {
+  .filter-btn:not(.active):hover {
+    background-color: transparent !important;
+    color: var(--bs-btn-color) !important;
+    box-shadow: none !important;
+  }
+}
