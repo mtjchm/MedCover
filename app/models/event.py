@@ -13,6 +13,18 @@ if TYPE_CHECKING:
     from app.models.user import UserAccount
 
 
+class ReminderScheduleMixin:
+    """Shared ``reminder_hours()`` logic for models that carry a ``reminder_schedule`` column."""
+
+    reminder_schedule: str | None  # declared on concrete model
+
+    def reminder_hours(self) -> list[int]:
+        """Parse ``reminder_schedule`` (comma-separated ints) into a list of hour offsets."""
+        if not self.reminder_schedule:
+            return [24]
+        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
+
+
 class EventStatus(str, enum.Enum):
     DRAFT = "Koncept"
     PUBLISHED = "Zveřejněná"
@@ -37,7 +49,7 @@ spot_template_qualifications = db.Table(
 )
 
 
-class EventTemplate(db.Model):  # type: ignore[misc]
+class EventTemplate(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     __tablename__ = "event_template"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -70,11 +82,6 @@ class EventTemplate(db.Model):  # type: ignore[misc]
         lazy="selectin",
     )
 
-    def reminder_hours(self) -> list[int]:
-        if not self.reminder_schedule:
-            return [24]
-        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
-
     def __repr__(self) -> str:
         return f"<EventTemplate {self.name}>"
 
@@ -96,7 +103,7 @@ class EventSpotTemplate(db.Model):  # type: ignore[misc]
         return f"<EventSpotTemplate {self.id} for template {self.template_id}>"
 
 
-class Event(db.Model):  # type: ignore[misc]
+class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     __tablename__ = "event"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -187,7 +194,7 @@ class Event(db.Model):  # type: ignore[misc]
     @property
     def is_unfilled(self) -> bool:
         """True when at least one mandatory spot has no assignment."""
-        return any(s for s in self.spots if not s.is_optional and s.assignment is None)
+        return bool(self.unfilled_spots)
 
     @property
     def staffing_status(self) -> str:
@@ -200,11 +207,6 @@ class Event(db.Model):  # type: ignore[misc]
         if mandatory_filled < mandatory_total:
             return "Částečně obsazeno"
         return "Plně obsazeno"
-
-    def reminder_hours(self) -> list[int]:
-        if not self.reminder_schedule:
-            return [24]
-        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
 
     def eligible_unfilled_spots_for(
         self, user: UserAccount, excluded_spot_ids: set[int] | None = None,

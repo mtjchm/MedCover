@@ -131,7 +131,7 @@ class TestOutboxEnqueue:
         with app.app_context():
             event = _make_event("Akce s mezerami")
             user = _make_member_user("coord@test.cz", "Koordinátor")
-            send_unfilled_spots_reminder(user, event, unfilled=3)
+            send_unfilled_spots_reminder(user, event, unfilled=[1, 2, 3])
             db.session.commit()
 
             row = db.session.scalars(db.select(OutboxEmail)).first()
