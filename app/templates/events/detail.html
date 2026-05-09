@@ -72,7 +72,7 @@
              class="btn btn-outline-primary btn-sm">Vyplnit debriefing</a>
         {% endif %}
       {% endif %}
-      {% if current_user.has_any_permission('event.edit', 'event.assign_other') %}
+      {% if current_user.has_any_permission('debriefing.view_all', 'debriefing.manage') %}
         <a href="{{ url_for('debriefing.event_overview', event_id=event.id) }}"
            class="btn btn-outline-secondary btn-sm">Přehled debriefingů</a>
       {% endif %}
