@@ -33,29 +33,91 @@
   </div>
 </div>
 
-{# Summary cards #}
+{# Summary stats — shifts #}
+<h5 class="mb-2 text-muted fw-normal small text-uppercase">Směny</h5>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ stats.shifts_served }}</div>
+        <div class="text-muted small">Odsloužené</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ stats.shifts_planned }}</div>
+        <div class="text-muted small">Plánované</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ stats.shifts_total }}</div>
+        <div class="text-muted small">Celkem</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Summary stats — hours #}
+<h5 class="mb-2 text-muted fw-normal small text-uppercase">Hodiny</h5>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_served) }}</div>
+        <div class="text-muted small">Odsloužené</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_planned) }}</div>
+        <div class="text-muted small">Plánované</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_total) }}</div>
+        <div class="text-muted small">Celkem</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(stats.hours_free) }}</div>
+        <div class="text-muted small">Celkem zdarma</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Summary stats — dates + patients #}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ completed_count }}</div>
-        <div class="text-muted small">Dokončených akcí</div>
+        <div class="fs-5 fw-bold text-danger">
+          {% if stats.last_shift %}{{ stats.last_shift | localdt("%d.%m.%Y") }}{% else %}<span class="text-muted fs-6">—</span>{% endif %}
+        </div>
+        <div class="text-muted small">Poslední směna</div>
       </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="card text-center">
       <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(total_planned_hours) }}</div>
-        <div class="text-muted small">Naplánovaných hodin</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card text-center">
-      <div class="card-body py-3">
-        <div class="fs-3 fw-bold text-danger">{{ "%.1f"|format(total_actual_hours) }}</div>
-        <div class="text-muted small">Odpracovaných hodin</div>
+        <div class="fs-5 fw-bold text-danger">
+          {% if stats.next_shift %}{{ stats.next_shift | localdt("%d.%m.%Y") }}{% else %}<span class="text-muted fs-6">—</span>{% endif %}
+        </div>
+        <div class="text-muted small">Příští směna</div>
       </div>
     </div>
   </div>
@@ -112,8 +174,12 @@
     <tfoot class="table-light fw-bold">
       <tr>
         <td colspan="3">Celkem (dokončené akce)</td>
-        <td class="text-end">{{ "%.1f"|format(total_planned_hours) }}</td>
-        <td class="text-end">{{ "%.1f"|format(total_actual_hours) }}</td>
+        <td class="text-end">
+          {%- set ns = namespace(planned=0) -%}
+          {%- for r in rows -%}{%- if r.event.status.value == 'Dokončena' -%}{%- set ns.planned = ns.planned + r.planned_hours -%}{%- endif -%}{%- endfor -%}
+          {{ "%.1f"|format(ns.planned) }}
+        </td>
+        <td class="text-end">{{ "%.1f"|format(stats.hours_served) }}</td>
         <td class="text-end">{{ total_patients }}</td>
       </tr>
     </tfoot>

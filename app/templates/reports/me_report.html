@@ -120,4 +120,51 @@
 {% else %}
 <div class="alert alert-info">Tato nadřazená akce nemá žádné akce.</div>
 {% endif %}
+
+{# Per-user statistics #}
+<h4 class="mt-4 mb-3">Statistiky účastníků</h4>
+{% if user_stat_rows %}
+<div class="table-responsive">
+  <table class="table table-hover table-sm align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Účastník</th>
+        <th class="text-end">Směny odsloužené</th>
+        <th class="text-end">Směny plánované</th>
+        <th class="text-end">Hodiny odsloužené</th>
+        <th class="text-end">Hodiny plánované</th>
+        <th class="text-end">Hodiny celkem</th>
+        <th class="text-end">Hodiny zdarma</th>
+        <th class="text-end">Poslední směna</th>
+        <th class="text-end">Příští směna</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u, s in user_stat_rows %}
+      <tr>
+        <td>
+          {% if current_user.has_permission("report.view") %}
+            <a href="{{ url_for('reports.user_report', user_id=u.id) }}">{{ u.name }}</a>
+          {% else %}{{ u.name }}{% endif %}
+        </td>
+        <td class="text-end">{{ s.shifts_served }}</td>
+        <td class="text-end">{{ s.shifts_planned }}</td>
+        <td class="text-end">{{ "%.1f"|format(s.hours_served) }}</td>
+        <td class="text-end">{{ "%.1f"|format(s.hours_planned) }}</td>
+        <td class="text-end fw-semibold">{{ "%.1f"|format(s.hours_total) }}</td>
+        <td class="text-end">{{ "%.1f"|format(s.hours_free) }}</td>
+        <td class="text-end text-nowrap">
+          {% if s.last_shift %}{{ s.last_shift | localdt("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td class="text-end text-nowrap">
+          {% if s.next_shift %}{{ s.next_shift | localdt("%d.%m.%Y") }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-info">Žádní účastníci.</div>
+{% endif %}
 {% endblock %}
