@@ -30,14 +30,13 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate
-from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
 from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
-from app.queries import active_users_list
+from app.queries import active_master_events_list, active_users_list
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -185,9 +184,7 @@ def feed() -> Response:
 def create() -> str | Response:
     require_permission("event.create")
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
-    ).all()
+    master_events = active_master_events_list()
     users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
@@ -240,9 +237,7 @@ def create_from_template(template_id: int) -> str | Response:
     require_permission("event.create")
     tmpl = get_or_404(EventTemplate, template_id)
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
-    ).all()
+    master_events = active_master_events_list()
     users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
@@ -338,9 +333,7 @@ def edit(event_id: int) -> str | Response:
         flash("Dokončené nebo zrušené akce nelze upravovat.", "warning")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
-    ).all()
+    master_events = active_master_events_list()
     users = active_users_list()
 
     if request.method == "POST":
