@@ -135,7 +135,9 @@ def _csv_response(rows: list[list[str]], filename: str) -> Response:
 @login_required
 def index() -> str:
     require_permission("report.view")
-    return render_template("reports/index.html")
+    from app.queries import active_master_events_list
+    master_events = active_master_events_list()
+    return render_template("reports/index.html", master_events=master_events)
 
 
 # ── Per-user report ───────────────────────────────────────────────────────────
