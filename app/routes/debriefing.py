@@ -25,21 +25,9 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.assignment import Assignment, DebriefingRecord
-from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, require_permission
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
-
-
-def _audit(action: str, entity_type: str, entity_id: str, summary: str, changes: dict | None = None) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        summary=summary,
-        changes_json=changes,
-    ))
 
 
 # ── Submit a debriefing ───────────────────────────────────────────────────────
@@ -146,8 +134,8 @@ def submit(assignment_id: int) -> str | Response:
         )
         db.session.add(record)
         db.session.flush()
-        _audit("create", "DebriefingRecord", str(record.id),
-               f"Debriefing odevzdán pro akci '{event.name}'")
+        audit("create", "DebriefingRecord", str(record.id),
+              f"Debriefing odevzdán pro akci '{event.name}'")
 
         # ── Persist RP event actuals ──────────────────────────────────────────
         if is_rp and actual_start and actual_end and patients_count is not None:
@@ -160,13 +148,13 @@ def submit(assignment_id: int) -> str | Response:
             event.actual_end_datetime = actual_end
             event.patients_count = patients_count
             event.version += 1
-            _audit("edit", "Event", str(event.id),
-                   f"Aktuální časy a počet ošetřených aktualizovány pro akci '{event.name}'",
-                   diff_changes(before, {
+            audit("edit", "Event", str(event.id),
+                  f"Aktuální časy a počet ošetřených aktualizovány pro akci '{event.name}'",
+                  diff_changes(before, {
                        "actual_start_datetime": str(actual_start),
                        "actual_end_datetime": str(actual_end),
                        "patients_count": patients_count,
-                   }))
+                  }))
 
         db.session.commit()
         flash("Debriefing byl úspěšně odevzdán. Děkujeme.", "success")
@@ -185,8 +173,7 @@ def submit(assignment_id: int) -> str | Response:
 @debriefing_bp.get("/manage")
 @login_required
 def manage() -> str:
-    if not current_user.has_permission("debriefing.view_all"):
-        abort(403)
+    require_permission("debriefing.view_all")
 
     # Load all completed events that have at least one assignment
     events_with_debriefings = db.session.scalars(
@@ -206,8 +193,7 @@ def manage() -> str:
 @debriefing_bp.get("/event/<int:event_id>")
 @login_required
 def event_overview(event_id: int) -> str:
-    if not current_user.has_permission("debriefing.view_all"):
-        abort(403)
+    require_permission("debriefing.view_all")
 
     event = db.session.get(Event, event_id)
     if event is None:

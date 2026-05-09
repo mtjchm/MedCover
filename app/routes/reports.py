@@ -25,6 +25,7 @@ from flask_login import current_user, login_required
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
+from app.utils import require_permission
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
@@ -49,8 +50,7 @@ def _csv_response(rows: list[list[str]], filename: str) -> Response:
 @reports_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("report.view"):
-        abort(403)
+    require_permission("report.view")
     return render_template("reports/index.html")
 
 
@@ -148,8 +148,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
 @reports_bp.get("/master-event/<int:me_id>")
 @login_required
 def me_report(me_id: int) -> str | Response:
-    if not current_user.has_permission("report.view"):
-        abort(403)
+    require_permission("report.view")
 
     master_event: MasterEvent | None = db.session.get(MasterEvent, me_id)
     if master_event is None:
@@ -231,8 +230,7 @@ def me_report(me_id: int) -> str | Response:
 @reports_bp.get("/date-range")
 @login_required
 def date_range_report() -> str | Response:
-    if not current_user.has_permission("report.view"):
-        abort(403)
+    require_permission("report.view")
 
     from_date_str = request.args.get("from_date", "").strip()
     to_date_str = request.args.get("to_date", "").strip()

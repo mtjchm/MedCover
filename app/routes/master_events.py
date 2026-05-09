@@ -11,27 +11,14 @@ Permissions:
 from __future__ import annotations
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
-from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, require_permission
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
-
-
-def _audit(action: str, me: MasterEvent, summary: str, changes: dict | None = None) -> None:
-    entry = AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="MasterEvent",
-        entity_id=str(me.id),
-        summary=summary,
-        changes_json=changes,
-    )
-    db.session.add(entry)
 
 
 # ── List ─────────────────────────────────────────────────────────────────────
@@ -39,8 +26,7 @@ def _audit(action: str, me: MasterEvent, summary: str, changes: dict | None = No
 @master_events_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("master_event.view"):
-        abort(403)
+    require_permission("master_event.view")
 
     show_archived = request.args.get("archived") == "1"
     query = db.select(MasterEvent)
@@ -61,8 +47,7 @@ def index() -> str:
 @master_events_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
-    if not current_user.has_permission("master_event.create"):
-        abort(403)
+    require_permission("master_event.create")
 
     coordinators = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
@@ -88,7 +73,7 @@ def create() -> str | Response:
         )
         db.session.add(me)
         db.session.flush()
-        _audit("create", me, f"Vytvořena nadřazená akce '{me.name}'")
+        audit("create", "MasterEvent", me.id, f"Vytvořena nadřazená akce '{me.name}'")
         db.session.commit()
 
         flash(f'Nadřazená akce „{me.name}" byla vytvořena.',  'success')
@@ -102,8 +87,7 @@ def create() -> str | Response:
 @master_events_bp.get("/<int:me_id>")
 @login_required
 def detail(me_id: int) -> str:
-    if not current_user.has_permission("master_event.view"):
-        abort(403)
+    require_permission("master_event.view")
 
     me = db.session.get(MasterEvent, me_id)
     if me is None:
@@ -132,8 +116,7 @@ def detail(me_id: int) -> str:
 @master_events_bp.route("/<int:me_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(me_id: int) -> str | Response:
-    if not current_user.has_permission("master_event.edit"):
-        abort(403)
+    require_permission("master_event.edit")
 
     me = db.session.get(MasterEvent, me_id)
     if me is None:
@@ -170,7 +153,7 @@ def edit(me_id: int) -> str | Response:
         me.coordinator_id = coordinator_id
         me.version += 1
 
-        _audit("edit", me, f"Upraven záznam nadřazené akce '{me.name}'", diff_changes(
+        audit("edit", "MasterEvent", me.id, f"Upraven záznam nadřazené akce '{me.name}'", diff_changes(
             before,
             {"name": me.name, "description": me.description, "coordinator_id": str(me.coordinator_id)},
         ))
@@ -188,8 +171,7 @@ def edit(me_id: int) -> str | Response:
 @master_events_bp.post("/<int:me_id>/archive")
 @login_required
 def archive(me_id: int) -> Response:
-    if not current_user.has_permission("master_event.archive"):
-        abort(403)
+    require_permission("master_event.archive")
 
     me = db.session.get(MasterEvent, me_id)
     if me is None:
@@ -200,7 +182,7 @@ def archive(me_id: int) -> Response:
 
     me.archived = True
     me.version += 1
-    _audit("archive", me, f"Nadřazená akce '{me.name}' byla archivována")
+    audit("archive", "MasterEvent", me.id, f"Nadřazená akce '{me.name}' byla archivována")
     db.session.commit()
 
     flash(f'Nadřazená akce „{me.name}" byla archivována.',  'success')
@@ -210,8 +192,7 @@ def archive(me_id: int) -> Response:
 @master_events_bp.post("/<int:me_id>/unarchive")
 @login_required
 def unarchive(me_id: int) -> Response:
-    if not current_user.has_permission("master_event.unarchive"):
-        abort(403)
+    require_permission("master_event.unarchive")
 
     me = db.session.get(MasterEvent, me_id)
     if me is None:
@@ -219,7 +200,7 @@ def unarchive(me_id: int) -> Response:
 
     me.archived = False
     me.version += 1
-    _audit("unarchive", me, f"Nadřazená akce '{me.name}' byla obnovena z archivu")
+    audit("unarchive", "MasterEvent", me.id, f"Nadřazená akce '{me.name}' byla obnovena z archivu")
     db.session.commit()
 
     flash(f'Nadřazená akce „{me.name}" byla obnovena z archivu.',  'success')

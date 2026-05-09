@@ -23,6 +23,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.extensions import db
+from app.utils import require_permission
 from app.models.audit import AuditLogEntry
 from app.models.feedback import UserFeedback
 from app.models.settings import get_settings
@@ -88,8 +89,7 @@ def feedback_submit() -> Response:
 @login_required
 def feedback_list() -> str:
     """List all feedback entries (admin only)."""
-    if not current_user.has_permission("admin.view"):
-        abort(403)
+    require_permission("admin.view")
 
     entries = list(
         db.session.scalars(
@@ -103,8 +103,7 @@ def feedback_list() -> str:
 @login_required
 def feedback_delete(entry_id: object) -> Response:
     """Delete a feedback entry (admin only)."""
-    if not current_user.has_permission("admin.view"):
-        abort(403)
+    require_permission("admin.view")
 
     entry = db.session.get(UserFeedback, entry_id)
     if entry is None:

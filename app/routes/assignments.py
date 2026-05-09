@@ -20,23 +20,13 @@ from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
+from app.utils import audit, require_permission
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
-from app.models.audit import AuditLogEntry
 import app.mail as mailer
 
 assignments_bp = Blueprint("assignments", __name__, url_prefix="/assignments")
-
-
-def _audit(action: str, assignment: Assignment, summary: str) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="Assignment",
-        entity_id=str(assignment.id),
-        summary=summary,
-    ))
 
 
 def _auto_close_if_full(event: Event) -> None:
@@ -46,13 +36,7 @@ def _auto_close_if_full(event: Event) -> None:
             and event.mandatory_filled_spots >= event.mandatory_total_spots):
         event.status = EventStatus.ASSIGNMENTS_CLOSED
         event.version += 1
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="status_change",
-            entity_type="Event",
-            entity_id=str(event.id),
-            summary="Přihlašování automaticky uzavřeno — všechny pozice obsazeny",
-        ))
+        audit("status_change", "Event", event.id, "Přihlašování automaticky uzavřeno — všechny pozice obsazeny")
 
 
 def _auto_assign_rp(event: Event, user: UserAccount) -> None:
@@ -60,13 +44,7 @@ def _auto_assign_rp(event: Event, user: UserAccount) -> None:
     if event.responsible_person_id is None and user.is_rp_eligible():
         event.responsible_person_id = user.id
         event.version += 1
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="Event",
-            entity_id=str(event.id),
-            summary=f"Vedoucí automaticky nastaven na '{user.name}'",
-        ))
+        audit("edit", "Event", event.id, f"Vedoucí automaticky nastaven na '{user.name}'")
 
 
 def _auto_clear_rp(event: Event, user: UserAccount) -> None:
@@ -74,13 +52,7 @@ def _auto_clear_rp(event: Event, user: UserAccount) -> None:
     if event.responsible_person_id == user.id:
         event.responsible_person_id = None
         event.version += 1
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="Event",
-            entity_id=str(event.id),
-            summary=f"Vedoucí odstraněn — '{user.name}' opustil akci",
-        ))
+        audit("edit", "Event", event.id, f"Vedoucí odstraněn — '{user.name}' opustil akci")
 
 
 # ── Claim (own) ───────────────────────────────────────────────────────────────
@@ -88,8 +60,7 @@ def _auto_clear_rp(event: Event, user: UserAccount) -> None:
 @assignments_bp.post("/claim/<int:spot_id>")
 @login_required
 def claim(spot_id: int) -> Response:
-    if not current_user.has_permission("event.assign_own"):
-        abort(403)
+    require_permission("event.assign_own")
 
     # ── Pessimistic lock: SELECT FOR UPDATE ─────────────────────────────────
     spot = db.session.scalar(
@@ -134,7 +105,7 @@ def claim(spot_id: int) -> Response:
     )
     db.session.add(assignment)
     db.session.flush()
-    _audit("create", assignment, f"Uživatel '{current_user.name}' se přihlásil na akci '{event.name}'")
+    audit("create", "Assignment", assignment.id, f"Uživatel '{current_user.name}' se přihlásil na akci '{event.name}'")
     _auto_assign_rp(event, current_user)
     _auto_close_if_full(event)
 
@@ -174,7 +145,7 @@ def release(assignment_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event.id))
 
     event_id = event.id
-    _audit("delete", assignment, f"Uživatel '{assignment.user.name}' se odhlásil z akce '{event.name}'")
+    audit("delete", "Assignment", assignment.id, f"Uživatel '{assignment.user.name}' se odhlásil z akce '{event.name}'")
     _auto_clear_rp(event, assignment.user)
     db.session.delete(assignment)
 
@@ -182,13 +153,7 @@ def release(assignment_id: int) -> Response:
     if event.status == EventStatus.ASSIGNMENTS_CLOSED:
         event.status = EventStatus.ASSIGNMENTS_OPEN
         event.version += 1
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="status_change",
-            entity_type="Event",
-            entity_id=str(event.id),
-            summary="Přihlašování automaticky znovuotevřeno — uvolněna pozice",
-        ))
+        audit("status_change", "Event", event.id, "Přihlašování automaticky znovuotevřeno — uvolněna pozice")
 
     db.session.commit()
 
@@ -202,8 +167,7 @@ def release(assignment_id: int) -> Response:
 @assignments_bp.post("/assign/<int:spot_id>")
 @login_required
 def assign_other(spot_id: int) -> Response:
-    if not current_user.has_permission("event.assign_other"):
-        abort(403)
+    require_permission("event.assign_other")
 
     user_id = request.form.get("user_id", "").strip()
     if not user_id:
@@ -250,7 +214,7 @@ def assign_other(spot_id: int) -> Response:
     )
     db.session.add(assignment)
     db.session.flush()
-    _audit("create", assignment, f"Koordinátor přiřadil '{user.name}' na akci '{event.name}'")
+    audit("create", "Assignment", assignment.id, f"Koordinátor přiřadil '{user.name}' na akci '{event.name}'")
     _auto_assign_rp(event, user)
     _auto_close_if_full(event)
 
@@ -271,8 +235,7 @@ def assign_other(spot_id: int) -> Response:
 @assignments_bp.post("/unassign/<int:assignment_id>")
 @login_required
 def unassign_other(assignment_id: int) -> Response:
-    if not current_user.has_permission("event.assign_other"):
-        abort(403)
+    require_permission("event.assign_other")
 
     assignment = db.session.get(Assignment, assignment_id)
     if assignment is None:
@@ -286,7 +249,7 @@ def unassign_other(assignment_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event.id))
 
     event_id = event.id
-    _audit("delete", assignment, f"Koordinátor odhlásil '{assignment.user.name}' z akce '{event.name}'")
+    audit("delete", "Assignment", assignment.id, f"Koordinátor odhlásil '{assignment.user.name}' z akce '{event.name}'")
     _auto_clear_rp(event, assignment.user)
     db.session.delete(assignment)
 

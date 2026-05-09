@@ -16,23 +16,11 @@ from flask import Blueprint, Response, abort, flash, redirect, render_template, 
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
 from app.models.user import UserAccount
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, require_permission
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
-
-
-def _audit(action: str, entity_type: str, entity_id: str, summary: str, changes: dict | None = None) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        summary=summary,
-        changes_json=changes,
-    ))
 
 
 # ── Types: List / Index ───────────────────────────────────────────────────────
@@ -40,8 +28,7 @@ def _audit(action: str, entity_type: str, entity_id: str, summary: str, changes:
 @equipment_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("equipment.view"):
-        abort(403)
+    require_permission("equipment.view")
 
     types = db.session.scalars(
         db.select(EquipmentType).order_by(EquipmentType.category, EquipmentType.name)
@@ -54,8 +41,7 @@ def index() -> str:
 @equipment_bp.route("/types/create", methods=["GET", "POST"])
 @login_required
 def type_create() -> str | Response:
-    if not current_user.has_permission("equipment_type.create"):
-        abort(403)
+    require_permission("equipment_type.create")
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -79,7 +65,7 @@ def type_create() -> str | Response:
         et = EquipmentType(name=name, description=description, category=category)
         db.session.add(et)
         db.session.flush()
-        _audit("create", "EquipmentType", str(et.id), f"Vytvořen typ vybavení '{et.name}'")
+        audit("create", "EquipmentType", str(et.id), f"Vytvořen typ vybavení '{et.name}'")
         db.session.commit()
 
         flash(f'Typ vybavení „{et.name}" byl vytvořen.', "success")
@@ -93,8 +79,7 @@ def type_create() -> str | Response:
 @equipment_bp.route("/types/<int:type_id>/edit", methods=["GET", "POST"])
 @login_required
 def type_edit(type_id: int) -> str | Response:
-    if not current_user.has_permission("equipment_type.edit"):
-        abort(403)
+    require_permission("equipment_type.edit")
 
     et = db.session.get(EquipmentType, type_id)
     if et is None:
@@ -133,8 +118,8 @@ def type_edit(type_id: int) -> str | Response:
         et.category = category
         et.version += 1
 
-        _audit("edit", "EquipmentType", str(et.id), f"Upraven typ vybavení '{et.name}'",
-               diff_changes(before, {"name": et.name, "description": et.description, "category": et.category.value}))
+        audit("edit", "EquipmentType", str(et.id), f"Upraven typ vybavení '{et.name}'",
+              diff_changes(before, {"name": et.name, "description": et.description, "category": et.category.value}))
         db.session.commit()
 
         flash(f'Typ vybavení „{et.name}" byl uložen.', "success")
@@ -148,8 +133,7 @@ def type_edit(type_id: int) -> str | Response:
 @equipment_bp.post("/types/<int:type_id>/delete")
 @login_required
 def type_delete(type_id: int) -> Response:
-    if not current_user.has_permission("equipment_type.delete"):
-        abort(403)
+    require_permission("equipment_type.delete")
 
     et = db.session.get(EquipmentType, type_id)
     if et is None:
@@ -159,7 +143,7 @@ def type_delete(type_id: int) -> Response:
         flash("Nelze smazat typ vybavení, který má přiřazené položky.", "danger")
         return redirect(url_for("equipment.index"))
 
-    _audit("delete", "EquipmentType", str(et.id), f"Smazán typ vybavení '{et.name}'")
+    audit("delete", "EquipmentType", str(et.id), f"Smazán typ vybavení '{et.name}'")
     db.session.delete(et)
     db.session.commit()
 
@@ -172,8 +156,7 @@ def type_delete(type_id: int) -> Response:
 @equipment_bp.get("/items/")
 @login_required
 def items() -> str:
-    if not current_user.has_permission("equipment.view"):
-        abort(403)
+    require_permission("equipment.view")
 
     type_filter = request.args.get("type_id", type=int)
     issued_filter = request.args.get("issued")  # "yes" | "no" | None
@@ -210,8 +193,7 @@ def items() -> str:
 @equipment_bp.route("/items/create", methods=["GET", "POST"])
 @login_required
 def item_create() -> str | Response:
-    if not current_user.has_permission("equipment_item.create"):
-        abort(403)
+    require_permission("equipment_item.create")
 
     types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
 
@@ -243,7 +225,7 @@ def item_create() -> str | Response:
         )
         db.session.add(item)
         db.session.flush()
-        _audit("create", "EquipmentItem", str(item.id), f"Vytvořena položka vybavení '{item.name}'")
+        audit("create", "EquipmentItem", str(item.id), f"Vytvořena položka vybavení '{item.name}'")
         db.session.commit()
 
         flash(f'Položka vybavení „{item.name}" byla vytvořena.', "success")
@@ -257,8 +239,7 @@ def item_create() -> str | Response:
 @equipment_bp.route("/items/<int:item_id>/edit", methods=["GET", "POST"])
 @login_required
 def item_edit(item_id: int) -> str | Response:
-    if not current_user.has_permission("equipment_item.edit"):
-        abort(403)
+    require_permission("equipment_item.edit")
 
     item = db.session.get(EquipmentItem, item_id)
     if item is None:
@@ -294,12 +275,12 @@ def item_edit(item_id: int) -> str | Response:
         item.notes = notes
         item.version += 1
 
-        _audit("edit", "EquipmentItem", str(item.id), f"Upravena položka vybavení '{item.name}'",
-               diff_changes(before, {
+        audit("edit", "EquipmentItem", str(item.id), f"Upravena položka vybavení '{item.name}'",
+              diff_changes(before, {
                    "name": item.name, "type_id": item.type_id,
                    "serial_number": item.serial_number, "home_location": item.home_location,
                    "notes": item.notes,
-               }))
+              }))
         db.session.commit()
 
         flash(f'Položka vybavení „{item.name}" byla uložena.', "success")
@@ -313,8 +294,7 @@ def item_edit(item_id: int) -> str | Response:
 @equipment_bp.post("/items/<int:item_id>/delete")
 @login_required
 def item_delete(item_id: int) -> Response:
-    if not current_user.has_permission("equipment_item.delete"):
-        abort(403)
+    require_permission("equipment_item.delete")
 
     item = db.session.get(EquipmentItem, item_id)
     if item is None:
@@ -330,7 +310,7 @@ def item_delete(item_id: int) -> Response:
             flash("Nelze smazat položku, která je přiřazena k akci.", "danger")
             return redirect(url_for("equipment.items"))
 
-    _audit("delete", "EquipmentItem", str(item.id), f"Smazána položka vybavení '{item.name}'")
+    audit("delete", "EquipmentItem", str(item.id), f"Smazána položka vybavení '{item.name}'")
     db.session.delete(item)
     db.session.commit()
 
@@ -343,8 +323,7 @@ def item_delete(item_id: int) -> Response:
 @equipment_bp.post("/items/<int:item_id>/issue")
 @login_required
 def item_issue(item_id: int) -> Response:
-    if not current_user.has_permission("equipment_item.issue_personal"):
-        abort(403)
+    require_permission("equipment_item.issue_personal")
 
     item = db.session.get(EquipmentItem, item_id)
     if item is None:
@@ -367,9 +346,9 @@ def item_issue(item_id: int) -> Response:
     item.issued_to_id = user.id
     item.issued_at = datetime.now(timezone.utc)
     item.version += 1
-    _audit("edit", "EquipmentItem", str(item.id),
-           f"Vydána osobní položka '{item.name}' uživateli '{user.name}'",
-           {"issued_to": [None, str(user.id)]})
+    audit("edit", "EquipmentItem", str(item.id),
+          f"Vydána osobní položka '{item.name}' uživateli '{user.name}'",
+          {"issued_to": [None, str(user.id)]})
     db.session.commit()
 
     flash(f'Položka „{item.name}" byla vydána uživateli {user.name}.', "success")
@@ -379,8 +358,7 @@ def item_issue(item_id: int) -> Response:
 @equipment_bp.post("/items/<int:item_id>/return")
 @login_required
 def item_return(item_id: int) -> Response:
-    if not current_user.has_permission("equipment_item.issue_personal"):
-        abort(403)
+    require_permission("equipment_item.issue_personal")
 
     item = db.session.get(EquipmentItem, item_id)
     if item is None:
@@ -394,9 +372,9 @@ def item_return(item_id: int) -> Response:
     item.issued_to_id = None
     item.issued_at = None
     item.version += 1
-    _audit("edit", "EquipmentItem", str(item.id),
-           f"Vrácena osobní položka '{item.name}'",
-           {"issued_to": [old_user_id, None]})
+    audit("edit", "EquipmentItem", str(item.id),
+          f"Vrácena osobní položka '{item.name}'",
+          {"issued_to": [old_user_id, None]})
     db.session.commit()
 
     flash(f'Položka „{item.name}" byla vrácena.', "success")
@@ -407,8 +385,7 @@ def item_return(item_id: int) -> Response:
 @login_required
 def item_take(item_id: int) -> Response:
     """Issue item to the currently logged-in user in one click."""
-    if not current_user.has_permission("equipment_item.issue_personal"):
-        abort(403)
+    require_permission("equipment_item.issue_personal")
 
     item = db.session.get(EquipmentItem, item_id)
     if item is None:
@@ -421,9 +398,9 @@ def item_take(item_id: int) -> Response:
     item.issued_to_id = current_user.id
     item.issued_at = datetime.now(timezone.utc)
     item.version += 1
-    _audit("edit", "EquipmentItem", str(item.id),
-           f"Vydána osobní položka '{item.name}' uživateli '{current_user.name}' (vzít s sebou)",
-           {"issued_to": [None, str(current_user.id)]})
+    audit("edit", "EquipmentItem", str(item.id),
+          f"Vydána osobní položka '{item.name}' uživateli '{current_user.name}' (vzít s sebou)",
+          {"issued_to": [None, str(current_user.id)]})
     db.session.commit()
 
     flash(f'Položka „{item.name}" byla vydána vám.', "success")

@@ -5,14 +5,14 @@ import socket
 import time
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import login_required
 from flask_mail import Message
 
 from app.extensions import db, mail
 from app.models.user import UserAccount
 from app.models.settings import get_settings
 from app.models.feedback import UserFeedback
-from app.utils import external_url_for
+from app.utils import external_url_for, require_permission
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -23,17 +23,10 @@ _DB_WARN_MS = 200    # warn above 200 ms
 _SMTP_WARN_MS = 1000  # warn above 1 s
 
 
-def _require_permission(code: str) -> None:
-    """Return 403 response if current user lacks the permission."""
-    from flask import abort
-    if not current_user.has_permission(code):
-        abort(403)
-
-
 @admin_bp.route("/")
 @login_required
 def index() -> str:
-    _require_permission("admin.view")
+    require_permission("admin.view")
 
     from app.models.event import Event, EventStatus
     from app.models.outbox import OutboxEmail
@@ -173,7 +166,7 @@ def index() -> str:
 @admin_bp.route("/activate/<uuid:user_id>", methods=["POST"])
 @login_required
 def activate_user(user_id: str) -> Response:
-    _require_permission("user.activate")
+    require_permission("user.activate")
     user = db.session.get(UserAccount, user_id)
     if not user:
         flash("Uživatel nenalezen.", "danger")
@@ -209,7 +202,7 @@ def _send_activation_email(user: UserAccount) -> None:
 @admin_bp.route("/permissions")
 @login_required
 def permissions() -> str:
-    _require_permission("admin.view")
+    require_permission("admin.view")
 
     from app.models.role import ALL_PERMISSIONS, ROLE_PERMISSIONS
 
@@ -227,7 +220,7 @@ def permissions() -> str:
 @admin_bp.route("/audit-log/")
 @login_required
 def audit_log_list() -> str:
-    _require_permission("admin.view")
+    require_permission("admin.view")
 
     from app.models.audit import AuditLogEntry
 
@@ -307,7 +300,7 @@ def audit_log_list() -> str:
 @admin_bp.route("/audit-log/<int:entry_id>")
 @login_required
 def audit_log_detail(entry_id: int) -> str:
-    _require_permission("admin.view")
+    require_permission("admin.view")
 
     from app.models.audit import AuditLogEntry
     from flask import abort

@@ -11,25 +11,13 @@ Permissions:
 from __future__ import annotations
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
-from flask_login import login_required, current_user
+from flask_login import login_required
 
 from app.extensions import db
 from app.models.qualification import Qualification
-from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, require_permission
 
 qualifications_bp = Blueprint("qualifications", __name__, url_prefix="/qualifications")
-
-
-def _audit(action: str, cred: Qualification, summary: str, changes: dict | None = None) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="Qualification",
-        entity_id=str(cred.id),
-        summary=summary,
-        changes_json=changes,
-    ))
 
 
 # ── List ──────────────────────────────────────────────────────────────────────
@@ -37,8 +25,7 @@ def _audit(action: str, cred: Qualification, summary: str, changes: dict | None 
 @qualifications_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("qualification.view"):
-        abort(403)
+    require_permission("qualification.view")
     qualifications = db.session.scalars(
         db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
     ).all()
@@ -50,8 +37,7 @@ def index() -> str:
 @qualifications_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
-    if not current_user.has_permission("qualification.create"):
-        abort(403)
+    require_permission("qualification.create")
 
     all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)).all()  # noqa: E712
 
@@ -76,7 +62,7 @@ def create() -> str | Response:
 
         db.session.add(cred)
         db.session.flush()
-        _audit("create", cred, f"Vytvořena kvalifikace '{cred.name}'")
+        audit("create", "Qualification", cred.id, f"Vytvořena kvalifikace '{cred.name}'")
         db.session.commit()
 
         flash(f"Kvalifikace '{cred.name}' byla vytvořena.", "success")
@@ -90,8 +76,7 @@ def create() -> str | Response:
 @qualifications_bp.route("/<int:cred_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(cred_id: int) -> str | Response:
-    if not current_user.has_permission("qualification.edit"):
-        abort(403)
+    require_permission("qualification.edit")
 
     cred = db.session.get(Qualification, cred_id)
     if cred is None:
@@ -124,7 +109,7 @@ def edit(cred_id: int) -> str | Response:
         # Sync parents
         cred.parents = [c for pid in parent_ids if (c := db.session.get(Qualification, pid)) is not None]
 
-        _audit("edit", cred, f"Upravena kvalifikace '{cred.name}'", diff_changes(
+        audit("edit", "Qualification", cred.id, f"Upravena kvalifikace '{cred.name}'", diff_changes(
             before,
             {"name": cred.name, "description": cred.description, "can_be_rp": cred.can_be_rp, "parents": str([p.id for p in cred.parents])},
         ))
@@ -141,8 +126,7 @@ def edit(cred_id: int) -> str | Response:
 @qualifications_bp.get("/<int:cred_id>/delete")
 @login_required
 def delete_confirm(cred_id: int) -> str | Response:
-    if not current_user.has_permission("qualification.delete"):
-        abort(403)
+    require_permission("qualification.delete")
 
     cred = db.session.get(Qualification, cred_id)
     if cred is None:
@@ -199,8 +183,7 @@ def delete_confirm(cred_id: int) -> str | Response:
 @qualifications_bp.post("/<int:cred_id>/delete")
 @login_required
 def delete(cred_id: int) -> Response:
-    if not current_user.has_permission("qualification.delete"):
-        abort(403)
+    require_permission("qualification.delete")
 
     cred = db.session.get(Qualification, cred_id)
     if cred is None:
@@ -234,8 +217,8 @@ def delete(cred_id: int) -> Response:
                 spot_qualifications.c.spot_id.in_(active_spot_ids),
             )
         )
-        _audit("qualification_unlinked", cred,
-               f"Kvalifikace '{qual_name}' odebrána z {len(active_spot_ids)} aktivní(ch) pozice/pozic akcí")
+        audit("qualification_unlinked", "Qualification", cred.id,
+              f"Kvalifikace '{qual_name}' odebrána z {len(active_spot_ids)} aktivní(ch) pozice/pozic akcí")
 
     # ── Remove from event templates ────────────────────────────────────────────
     tmpl_count = db.session.scalar(
@@ -249,8 +232,8 @@ def delete(cred_id: int) -> Response:
                 spot_template_qualifications.c.qualification_id == cred_id
             )
         )
-        _audit("qualification_unlinked", cred,
-               f"Kvalifikace '{qual_name}' odebrána z {tmpl_count} šablony/šablon")
+        audit("qualification_unlinked", "Qualification", cred.id,
+              f"Kvalifikace '{qual_name}' odebrána z {tmpl_count} šablony/šablon")
 
     # ── Remove from user qualifications ───────────────────────────────────────
     user_count = db.session.scalar(
@@ -264,12 +247,12 @@ def delete(cred_id: int) -> Response:
                 user_qualifications.c.qualification_id == cred_id
             )
         )
-        _audit("qualification_unlinked", cred,
-               f"Kvalifikace '{qual_name}' odebrána od {user_count} uživatele/uživatelů")
+        audit("qualification_unlinked", "Qualification", cred.id,
+              f"Kvalifikace '{qual_name}' odebrána od {user_count} uživatele/uživatelů")
 
     # ── Soft-delete (fixed spots keep the FK as tombstone) ────────────────────
     cred.soft_delete()
-    _audit("delete", cred, f"Kvalifikace '{qual_name}' označena jako smazaná (tombstone zachován v dokončených/zrušených akcích)")
+    audit("delete", "Qualification", cred.id, f"Kvalifikace '{qual_name}' označena jako smazaná (tombstone zachován v dokončených/zrušených akcích)")
     db.session.commit()
 
     flash(f"Kvalifikace '{qual_name}' byla smazána.", "success")
