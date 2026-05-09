@@ -176,14 +176,25 @@
   background-color: transparent !important;
 }
 
-/* Filter buttons: prevent :hover/:focus from making inactive buttons look
-   active. Bootstrap's outline button :hover/:focus applies a filled
-   background (same as .active), so we reset it when .active is absent.
-   --bs-btn-color holds the correct outline color per variant. */
-.filter-btn:not(.active):hover,
-.filter-btn:not(.active):focus,
-.filter-btn:not(.active):focus-visible {
-  background-color: transparent !important;
-  color: var(--bs-btn-color) !important;
+/* Filter buttons: no hover highlight on any state — toggling is the only
+   feedback. Inline JS styles handle the on/off appearance; suppress all
+   Bootstrap :hover/:focus/:active pseudo-class overrides. */
+.filter-btn:hover,
+.filter-btn:focus,
+.filter-btn:focus-visible,
+.filter-btn:active {
+  background-color: revert !important;
+  color: revert !important;
+  border-color: revert !important;
   box-shadow: none !important;
+  outline: none !important;
+}
+/* Restore active (.on) button appearance that revert would wipe */
+.filter-btn.active:hover,
+.filter-btn.active:focus,
+.filter-btn.active:focus-visible,
+.filter-btn.active:active {
+  background-color: var(--bs-btn-active-bg) !important;
+  color: var(--bs-btn-active-color) !important;
+  border-color: var(--bs-btn-active-border-color) !important;
 }
