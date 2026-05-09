@@ -157,6 +157,7 @@
     calendar = new FullCalendar.Calendar(el, {
       initialView: "dayGridMonth",
       locale: "cs",
+      firstDay: 1,
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,listMonth" },
       buttonText: { today: "Dnes", month: "Měsíc", week: "Týden", list: "Seznam" },
       events: async function (fetchInfo, successCallback, failureCallback) {
