@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from flask import (
-    Blueprint, Response, abort, current_app, flash,
+    Blueprint, Response, current_app, flash,
     redirect, render_template, request, url_for,
 )
 from flask_login import current_user, login_required
@@ -19,7 +19,7 @@ from app.models.role import Role
 from app.models.invite import RegistrationInvite
 from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
-from app.utils import audit, diff_changes, external_url_for, require_permission
+from app.utils import audit, diff_changes, external_url_for, get_or_404, require_permission
 from app.config import INVITE_TOKEN_HOURS
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
@@ -220,9 +220,7 @@ def index() -> str:
 @login_required
 def detail(user_id: uuid.UUID) -> str:
     require_permission("user.view")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
     roles = db.session.scalars(db.select(Role).order_by(Role.name)).all()
     from app.models.qualification import Qualification
     qualifications = db.session.scalars(
@@ -236,9 +234,7 @@ def detail(user_id: uuid.UUID) -> str:
 def save_user(user_id: uuid.UUID) -> Response:
     """Unified save: info + roles + qualifications + optional admin password set."""
     require_permission("user.edit_any")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
 
     # ── Basic info ──────────────────────────────────────────────────────────
     name = request.form.get("name", "").strip()
@@ -311,9 +307,7 @@ def save_user(user_id: uuid.UUID) -> Response:
 @login_required
 def activate(user_id: uuid.UUID) -> Response:
     require_permission("user.activate")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
     user.is_active = True
     user.version += 1
     audit("edit", "UserAccount", user.id, f"Účet {user.name} ({user.email}) byl aktivován", {"is_active": [False, True]})
@@ -327,9 +321,7 @@ def activate(user_id: uuid.UUID) -> Response:
 @login_required
 def deactivate(user_id: uuid.UUID) -> Response:
     require_permission("user.deactivate")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
     if str(user.id) == str(current_user.id):
         flash("Nelze deaktivovat vlastní účet.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
@@ -345,9 +337,7 @@ def deactivate(user_id: uuid.UUID) -> Response:
 @login_required
 def update_roles(user_id: uuid.UUID) -> Response:
     require_permission("user.assign_role")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
     role_ids = [int(r) for r in request.form.getlist("role_ids")]
     before_roles = sorted(r.name for r in user.roles)
     new_roles = db.session.scalars(
@@ -366,9 +356,7 @@ def update_roles(user_id: uuid.UUID) -> Response:
 @login_required
 def update_qualifications(user_id: uuid.UUID) -> Response:
     require_permission("user.assign_qualification")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    user = get_or_404(UserAccount, user_id)
     from app.models.qualification import Qualification
     cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
     before_quals = sorted(c.name for c in user.qualifications)
@@ -567,9 +555,7 @@ def _queue_invite_email(invite: RegistrationInvite) -> None:
 @login_required
 def resend_invite(invite_id: int) -> Response:
     require_permission("invite.create")
-    invite = db.session.get(RegistrationInvite, invite_id)
-    if not invite:
-        abort(404)
+    invite = get_or_404(RegistrationInvite, invite_id)
     if invite.is_used:
         flash("Tato pozvánka již byla použita.", "warning")
         return redirect(url_for("users.invites"))
@@ -586,9 +572,7 @@ def resend_invite(invite_id: int) -> Response:
 @login_required
 def cancel_invite(invite_id: int) -> Response:
     require_permission("invite.create")
-    invite = db.session.get(RegistrationInvite, invite_id)
-    if not invite:
-        abort(404)
+    invite = get_or_404(RegistrationInvite, invite_id)
     if invite.is_used:
         flash("Tato pozvánka již byla použita — nelze zrušit.", "warning")
         return redirect(url_for("users.invites"))

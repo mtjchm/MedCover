@@ -36,7 +36,7 @@ from app.models.role import Role
 from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
-from app.utils import audit, diff_changes, require_permission
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -245,9 +245,7 @@ def create() -> str | Response:
 @login_required
 def create_from_template(template_id: int) -> str | Response:
     require_permission("event.create")
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    tmpl = get_or_404(EventTemplate, template_id)
 
     master_events = db.session.scalars(
         db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
@@ -271,9 +269,7 @@ def create_from_template(template_id: int) -> str | Response:
 @events_bp.get("/<int:event_id>")
 @login_required
 def detail(event_id: int) -> str | Response:
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if not _can_view(event):
         abort(403)
 
@@ -347,9 +343,7 @@ def detail(event_id: int) -> str | Response:
 def edit(event_id: int) -> str | Response:
     require_permission("event.edit")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     if event.status in (EventStatus.COMPLETED, EventStatus.CANCELLED):
         flash("Dokončené nebo zrušené akce nelze upravovat.", "warning")
@@ -363,9 +357,8 @@ def edit(event_id: int) -> str | Response:
     ).all()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != event.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(event, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("events/edit.html", event=event, master_events=master_events, users=users)
 
         # Snapshot before mutation
@@ -415,9 +408,7 @@ def edit(event_id: int) -> str | Response:
 @events_bp.post("/<int:event_id>/transition")
 @login_required
 def transition(event_id: int) -> Response:
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     target = request.form.get("target_status")
     try:
@@ -474,9 +465,7 @@ def transition(event_id: int) -> Response:
 def cancel(event_id: int) -> Response:
     require_permission("event.cancel")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.COMPLETED:
         flash("Dokončené akce nelze zrušit.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -505,9 +494,7 @@ def cancel(event_id: int) -> Response:
 def restore(event_id: int) -> Response:
     require_permission("event.restore")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status != EventStatus.CANCELLED:
         flash("Pouze zrušené akce lze obnovit.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -597,9 +584,7 @@ def bulk_action() -> Response:
 @login_required
 def add_spot(event_id: int) -> Response:
     require_permission("event.edit")
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     description = request.form.get("description", "").strip() or None
     is_optional = request.form.get("is_optional") == "1"
@@ -634,9 +619,7 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
     spot = db.session.get(EventSpot, spot_id)
     if spot is None or spot.event_id != event_id:
         abort(404)
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     description = request.form.get("description", "").strip() or None
     qual_ids = [int(c) for c in request.form.getlist("qualification_ids") if c.isdigit()]
@@ -703,9 +686,7 @@ def delete_spot(event_id: int, spot_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event_id))
 
     db.session.delete(spot)
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     event.version += 1
     audit("edit", "Event", event.id, f"Odstraněna pozice z akce '{event.name}'")
     db.session.commit()
@@ -848,9 +829,7 @@ def _build_spots_from_template(event: Event, template: object) -> None:
 def equipment_plan_add(event_id: int) -> Response:
     require_permission("event.equipment.plan")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.CANCELLED:
         flash("Zrušeným akcím nelze plánovat vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -861,9 +840,7 @@ def equipment_plan_add(event_id: int) -> Response:
         flash("Zadejte platný typ a množství.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    et = db.session.get(EquipmentType, type_id)
-    if et is None:
-        abort(404)
+    et = get_or_404(EquipmentType, type_id)
 
     existing = db.session.get(EventEquipmentPlan, (event_id, type_id))
     if existing:
@@ -887,9 +864,7 @@ def equipment_plan_add(event_id: int) -> Response:
 def equipment_plan_remove(event_id: int) -> Response:
     require_permission("event.equipment.plan")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     type_id = request.form.get("type_id", type=int)
     if not type_id:
@@ -913,9 +888,7 @@ def equipment_plan_remove(event_id: int) -> Response:
 def equipment_assign(event_id: int) -> Response:
     require_permission("event.equipment.assign")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.CANCELLED:
         flash("Zrušeným akcím nelze přiřazovat vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -925,9 +898,7 @@ def equipment_assign(event_id: int) -> Response:
         flash("Vyberte položku vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     existing = db.session.scalar(
         db.select(EventEquipmentAssignment).where(
@@ -953,9 +924,7 @@ def equipment_assign(event_id: int) -> Response:
 def equipment_unassign(event_id: int) -> Response:
     require_permission("event.equipment.assign")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     item_id = request.form.get("item_id", type=int)
     if not item_id:
@@ -989,9 +958,7 @@ def set_rp(event_id: int) -> Response:
     """Manually assign a responsible person from RP-eligible attendees."""
     require_permission("event.set_responsible_person")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     user_id_str = request.form.get("user_id", "").strip()
     if not user_id_str:

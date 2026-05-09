@@ -10,14 +10,14 @@ Permissions:
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 
 from app.extensions import db
 from app.models.event import EventTemplate, EventSpotTemplate
 from app.models.qualification import Qualification
 from app.models.equipment import EquipmentType, EventTemplateEquipmentPlan
-from app.utils import audit, diff_changes, require_permission
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 templates_bp = Blueprint("templates", __name__, url_prefix="/templates")
 
@@ -150,9 +150,7 @@ def create() -> str | Response:
 def edit(template_id: int) -> str | Response:
     require_permission("event_template.edit")
 
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    tmpl = get_or_404(EventTemplate, template_id)
 
     qualifications = db.session.scalars(
         db.select(Qualification).order_by(Qualification.name)
@@ -162,9 +160,8 @@ def edit(template_id: int) -> str | Response:
     ).all()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != tmpl.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(tmpl, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
 
         name = request.form.get("name", "").strip()
@@ -233,9 +230,7 @@ def edit(template_id: int) -> str | Response:
 def delete(template_id: int) -> Response:
     require_permission("event_template.delete")
 
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    tmpl = get_or_404(EventTemplate, template_id)
 
     name = tmpl.name
     audit("delete", "EventTemplate", tmpl.id, f"Smazána šablona akce '{name}'")

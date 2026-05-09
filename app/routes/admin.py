@@ -12,7 +12,7 @@ from app.extensions import db, mail
 from app.models.user import UserAccount
 from app.models.settings import get_settings
 from app.models.feedback import UserFeedback
-from app.utils import external_url_for, require_permission
+from app.utils import external_url_for, get_or_404, require_permission
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -303,10 +303,6 @@ def audit_log_detail(entry_id: int) -> str:
     require_permission("admin.view")
 
     from app.models.audit import AuditLogEntry
-    from flask import abort
-
-    entry = db.session.get(AuditLogEntry, entry_id)
-    if entry is None:
-        abort(404)
+    entry = get_or_404(AuditLogEntry, entry_id)
 
     return render_template("admin/audit_log_detail.html", entry=entry)

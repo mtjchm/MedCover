@@ -10,12 +10,12 @@ Permissions:
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 
 from app.extensions import db
 from app.models.qualification import Qualification
-from app.utils import audit, diff_changes, require_permission
+from app.utils import audit, diff_changes, get_or_404, require_permission
 
 qualifications_bp = Blueprint("qualifications", __name__, url_prefix="/qualifications")
 
@@ -78,9 +78,7 @@ def create() -> str | Response:
 def edit(cred_id: int) -> str | Response:
     require_permission("qualification.edit")
 
-    cred = db.session.get(Qualification, cred_id)
-    if cred is None:
-        abort(404)
+    cred = get_or_404(Qualification, cred_id)
 
     all_qualifications = db.session.scalars(
         db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
@@ -128,9 +126,7 @@ def edit(cred_id: int) -> str | Response:
 def delete_confirm(cred_id: int) -> str | Response:
     require_permission("qualification.delete")
 
-    cred = db.session.get(Qualification, cred_id)
-    if cred is None:
-        abort(404)
+    cred = get_or_404(Qualification, cred_id)
     if cred.is_deleted:
         flash("Tato kvalifikace již byla smazána.", "warning")
         return redirect(url_for("qualifications.index"))
@@ -185,9 +181,7 @@ def delete_confirm(cred_id: int) -> str | Response:
 def delete(cred_id: int) -> Response:
     require_permission("qualification.delete")
 
-    cred = db.session.get(Qualification, cred_id)
-    if cred is None:
-        abort(404)
+    cred = get_or_404(Qualification, cred_id)
     if cred.is_deleted:
         flash("Tato kvalifikace již byla smazána.", "warning")
         return redirect(url_for("qualifications.index"))

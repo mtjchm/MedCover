@@ -25,7 +25,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.assignment import Assignment, DebriefingRecord
-from app.utils import audit, diff_changes, require_permission
+from app.utils import audit, diff_changes, get_or_404, require_permission
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 
@@ -35,9 +35,7 @@ debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 @debriefing_bp.route("/<int:assignment_id>", methods=["GET", "POST"])
 @login_required
 def submit(assignment_id: int) -> str | Response:
-    assignment = db.session.get(Assignment, assignment_id)
-    if assignment is None:
-        abort(404)
+    assignment = get_or_404(Assignment, assignment_id)
 
     event: Event = assignment.spot.event
 
@@ -195,9 +193,7 @@ def manage() -> str:
 def event_overview(event_id: int) -> str:
     require_permission("debriefing.view_all")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     assignments = [s.assignment for s in event.spots if s.assignment is not None]
     return render_template("debriefing/event_overview.html", event=event, assignments=assignments)

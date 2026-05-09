@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.extensions import db
 from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
 from app.models.user import UserAccount
-from app.utils import audit, diff_changes, require_permission
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
 
@@ -81,14 +81,11 @@ def type_create() -> str | Response:
 def type_edit(type_id: int) -> str | Response:
     require_permission("equipment_type.edit")
 
-    et = db.session.get(EquipmentType, type_id)
-    if et is None:
-        abort(404)
+    et = get_or_404(EquipmentType, type_id)
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != et.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(et, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("equipment/type_form.html", et=et, categories=EquipmentCategory, edit=True)
 
         name = request.form.get("name", "").strip()
@@ -135,9 +132,7 @@ def type_edit(type_id: int) -> str | Response:
 def type_delete(type_id: int) -> Response:
     require_permission("equipment_type.delete")
 
-    et = db.session.get(EquipmentType, type_id)
-    if et is None:
-        abort(404)
+    et = get_or_404(EquipmentType, type_id)
 
     if et.items:
         flash("Nelze smazat typ vybavení, který má přiřazené položky.", "danger")
@@ -241,16 +236,13 @@ def item_create() -> str | Response:
 def item_edit(item_id: int) -> str | Response:
     require_permission("equipment_item.edit")
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != item.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(item, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("equipment/item_form.html", item=item, types=types, edit=True)
 
         name = request.form.get("name", "").strip()
@@ -296,9 +288,7 @@ def item_edit(item_id: int) -> str | Response:
 def item_delete(item_id: int) -> Response:
     require_permission("equipment_item.delete")
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     if item.issued_to_id is not None:
         flash("Nelze smazat položku, která je aktuálně vydána.", "danger")
@@ -325,9 +315,7 @@ def item_delete(item_id: int) -> Response:
 def item_issue(item_id: int) -> Response:
     require_permission("equipment_item.issue_personal")
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     if item.issued_to_id is not None:
         flash("Položka je již vydána.", "danger")
@@ -360,9 +348,7 @@ def item_issue(item_id: int) -> Response:
 def item_return(item_id: int) -> Response:
     require_permission("equipment_item.issue_personal")
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     if item.issued_to_id is None:
         flash("Položka není vydána.", "danger")
@@ -387,9 +373,7 @@ def item_take(item_id: int) -> Response:
     """Issue item to the currently logged-in user in one click."""
     require_permission("equipment_item.issue_personal")
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     if item.issued_to_id is not None:
         flash("Položka je již vydána.", "danger")

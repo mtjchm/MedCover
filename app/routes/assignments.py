@@ -20,7 +20,7 @@ from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
-from app.utils import audit, require_permission
+from app.utils import audit, get_or_404, require_permission
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
@@ -69,9 +69,7 @@ def claim(spot_id: int) -> Response:
     if spot is None:
         abort(404)
 
-    event = db.session.get(Event, spot.event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, spot.event_id)
 
     # Validate event state
     if event.status != EventStatus.ASSIGNMENTS_OPEN:
@@ -126,18 +124,14 @@ def claim(spot_id: int) -> Response:
 @assignments_bp.post("/release/<int:assignment_id>")
 @login_required
 def release(assignment_id: int) -> Response:
-    assignment = db.session.get(Assignment, assignment_id)
-    if assignment is None:
-        abort(404)
+    assignment = get_or_404(Assignment, assignment_id)
 
     # Only own assignment unless assigning-other permission
     if assignment.user_id != current_user.id:
         if not current_user.has_permission("event.assign_other"):
             abort(403)
 
-    event = db.session.get(Event, assignment.spot.event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, assignment.spot.event_id)
 
     # Cannot release after event is completed
     if event.status == EventStatus.COMPLETED:
@@ -186,9 +180,7 @@ def assign_other(spot_id: int) -> Response:
     if spot is None:
         abort(404)
 
-    event = db.session.get(Event, spot.event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, spot.event_id)
 
     if event.status not in (EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED):
         flash("Přiřazení není možné v aktuálním stavu akce.", "warning")
@@ -237,13 +229,9 @@ def assign_other(spot_id: int) -> Response:
 def unassign_other(assignment_id: int) -> Response:
     require_permission("event.assign_other")
 
-    assignment = db.session.get(Assignment, assignment_id)
-    if assignment is None:
-        abort(404)
+    assignment = get_or_404(Assignment, assignment_id)
 
-    event = db.session.get(Event, assignment.spot.event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, assignment.spot.event_id)
     if event.status == EventStatus.COMPLETED:
         flash("Nelze odhlásit uživatele z dokončené akce.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))

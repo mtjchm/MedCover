@@ -10,13 +10,13 @@ Permissions:
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 
 from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
-from app.utils import audit, diff_changes, require_permission
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
 
@@ -89,9 +89,7 @@ def create() -> str | Response:
 def detail(me_id: int) -> str:
     require_permission("master_event.view")
 
-    me = db.session.get(MasterEvent, me_id)
-    if me is None:
-        abort(404)
+    me = get_or_404(MasterEvent, me_id)
 
     from app.models.event import Event, EventStatus
     events = db.session.scalars(
@@ -118,18 +116,15 @@ def detail(me_id: int) -> str:
 def edit(me_id: int) -> str | Response:
     require_permission("master_event.edit")
 
-    me = db.session.get(MasterEvent, me_id)
-    if me is None:
-        abort(404)
+    me = get_or_404(MasterEvent, me_id)
 
     coordinators = db.session.scalars(
         db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
     ).all()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != me.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(me, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("master_events/edit.html", me=me, coordinators=coordinators)
 
         name = request.form.get("name", "").strip()
@@ -173,9 +168,7 @@ def edit(me_id: int) -> str | Response:
 def archive(me_id: int) -> Response:
     require_permission("master_event.archive")
 
-    me = db.session.get(MasterEvent, me_id)
-    if me is None:
-        abort(404)
+    me = get_or_404(MasterEvent, me_id)
     if me.is_general:
         flash("Výchozí nadřazenou akci nelze archivovat.", "danger")
         return redirect(url_for("master_events.detail", me_id=me_id))
@@ -194,9 +187,7 @@ def archive(me_id: int) -> Response:
 def unarchive(me_id: int) -> Response:
     require_permission("master_event.unarchive")
 
-    me = db.session.get(MasterEvent, me_id)
-    if me is None:
-        abort(404)
+    me = get_or_404(MasterEvent, me_id)
 
     me.archived = False
     me.version += 1
