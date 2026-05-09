@@ -216,7 +216,7 @@ class TestDebriefingSubmit:
         # Second attempt — should show read-only view (submitted.html), not update
         resp = c.get(f"/debriefing/{assignment_id}")
         assert resp.status_code == 200
-        assert "Výjezdová zpráva byla odevzdána".encode() in resp.data
+        assert "Debriefing byl odevzdán".encode() in resp.data
         # POST again should be refused (or show submitted page)
         resp2 = c.post(
             f"/debriefing/{assignment_id}",
