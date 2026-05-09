@@ -166,7 +166,11 @@
             allCalendarEvents = await r.json();
           }
           var active = loadFilters();
-          successCallback(allCalendarEvents.filter(function (e) { return active.includes(e.extendedProps.status_key); }));
+          successCallback(allCalendarEvents.filter(function (e) {
+            var statusOk = active.includes(e.extendedProps.status_key);
+            var eligOk = !eligFilter || e.extendedProps.eligible;
+            return statusOk && eligOk;
+          }));
         } catch (err) { failureCallback(err); }
       },
       eventClick: function (info) {
