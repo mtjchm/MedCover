@@ -43,31 +43,9 @@
 
   // ── Filter buttons ────────────────────────────────────────────────────────
 
-  // Colour config per status — controls both on and off appearance.
-  // Inline !important styles (set below) beat every CSS pseudo-class.
-  var FILTER_COLORS = {
-    "DRAFT":              { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" },
-    "PUBLISHED":          { border: "#0d6efd", text: "#0d6efd", activeBg: "#0d6efd", activeText: "#fff" },
-    "ASSIGNMENTS_OPEN":   { border: "#198754", text: "#198754", activeBg: "#198754", activeText: "#fff" },
-    "ASSIGNMENTS_CLOSED": { border: "#ffc107", text: "#000",    activeBg: "#ffc107", activeText: "#000" },
-    "COMPLETED":          { border: "#6c757d", text: "#6c757d", activeBg: "#212529", activeText: "#fff" },
-    "CANCELLED":          { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" }
-  };
-
   function renderFilterButtons(activeFilters) {
     document.querySelectorAll(".filter-btn").forEach(function (btn) {
-      var key = btn.dataset.status;
-      var on = activeFilters.includes(key);
-      var cfg = FILTER_COLORS[key] || { border: "#6c757d", text: "#6c757d", activeBg: "#6c757d", activeText: "#fff" };
-      btn.classList.toggle("active", on);
-      btn.style.setProperty("border-color", cfg.border, "important");
-      if (on) {
-        btn.style.setProperty("background-color", cfg.activeBg, "important");
-        btn.style.setProperty("color", cfg.activeText, "important");
-      } else {
-        btn.style.setProperty("background-color", "transparent", "important");
-        btn.style.setProperty("color", cfg.text, "important");
-      }
+      btn.classList.toggle("active", activeFilters.includes(btn.dataset.status));
     });
   }
 
@@ -279,7 +257,23 @@
       th.addEventListener("click", function () { sortTable(th.dataset.col); });
     });
     document.querySelectorAll(".filter-btn").forEach(function (btn) {
-      btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); });
+      var touchStartY = 0;
+      var touchFired = false;
+      btn.addEventListener("touchstart", function (e) {
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+      btn.addEventListener("touchend", function (e) {
+        var dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+        if (dy > 10) return; // scroll — ignore
+        touchFired = true;
+        e.preventDefault(); // prevents simulated hover state + synthetic click
+        toggleFilter(btn.dataset.status);
+        setTimeout(function () { touchFired = false; }, 500);
+      }, { passive: false });
+      btn.addEventListener("click", function () {
+        if (touchFired) return; // already handled by touchend
+        toggleFilter(btn.dataset.status);
+      });
     });
 
     eligFilter = loadEligFilter();

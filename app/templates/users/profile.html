@@ -166,6 +166,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/user-profile.js') }}"></script>
-<script src="{{ url_for('static', filename='js/user-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/user-profile.js') }}?v={{ static_ver }}\">\2
+<script src="{{ url_for('static', filename='js/user-form.js') }}?v={{ static_ver }}\">\2
 {% endblock %}

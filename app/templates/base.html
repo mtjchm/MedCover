@@ -12,7 +12,7 @@
         crossorigin="anonymous">
 
   <!-- Custom styles -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v={{ static_ver }}">
 
   <!-- Flatpickr (24h datetime picker) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -111,10 +111,10 @@
   <!-- Flatpickr JS + global init for all .flatpickr-dt inputs -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/cs.js"></script>
-  <script src="{{ url_for('static', filename='js/app-init.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app-init.js') }}?v={{ static_ver }}"></script>
 
   <!-- Client-side validation -->
-  <script src="{{ url_for('static', filename='js/validate.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/validate.js') }}?v={{ static_ver }}"></script>
 
   {% block extra_scripts %}{% endblock %}
 </body>

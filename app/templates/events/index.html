@@ -49,12 +49,12 @@
 {# ── Status filter bar ──────────────────────────────────────────────────── #}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
-  <button type="button" class="filter-btn" data-status="DRAFT">Koncept</button>
-  <button type="button" class="filter-btn" data-status="PUBLISHED">Zveřejněná</button>
-  <button type="button" class="filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
-  <button type="button" class="filter-btn" data-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
-  <button type="button" class="filter-btn" data-status="COMPLETED">Dokončena</button>
-  <button type="button" class="filter-btn" data-status="CANCELLED">Zrušena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT">Koncept</button>
+  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED">Zveřejněná</button>
+  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-warning filter-btn" data-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-dark filter-btn" data-status="COMPLETED">Dokončena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
   {% if current_user.has_permission('event.assign_own') %}
   <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-elig-filter"
           onclick="toggleEligFilter()">Pro mě</button>
@@ -249,5 +249,5 @@
 </style>
 
 <script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}"}</script>
-<script src="{{ url_for('static', filename='js/events-index.js') }}"></script>
+<script src="{{ url_for('static', filename='js/events-index.js') }}?v={{ static_ver }}\">\2
 {% endblock %}
