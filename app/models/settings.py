@@ -49,6 +49,16 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # Example: "admin@example.com, tester@example.com"
     dev_email_allowlist = db.Column(db.Text, nullable=True)
 
+    # --- Backup ---
+    # Directory (relative to project root or absolute) where backup .zip files are stored.
+    backup_dir = db.Column(db.String(512), default="backups", nullable=False, server_default="backups")
+    # Maximum number of backup files to keep; oldest are pruned automatically.
+    backup_keep_count = db.Column(db.Integer, default=7, nullable=False, server_default="7")
+    # When True, the scheduler will create an automatic daily backup.
+    backup_schedule_enabled = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
+    # Hour of day (0–23, server local time) at which the scheduled backup runs.
+    backup_schedule_hour = db.Column(db.Integer, default=2, nullable=False, server_default="2")
+
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
     feedback_enabled = db.Column(db.Boolean, default=True, nullable=False)

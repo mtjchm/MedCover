@@ -1,0 +1,40 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  <table class="data-table" role="presentation">
+    <tr>
+      <td>Počet záložních souborů</td>
+      <td><strong>{{ backup_count }}</strong> / max {{ backup_keep_count }}</td>
+    </tr>
+    <tr>
+      <td>Celková velikost záloh</td>
+      <td><strong>{{ "%.1f"|format(total_size_bytes / 1024 / 1024) }} MB</strong></td>
+    </tr>
+    <tr>
+      <td>Poslední záloha</td>
+      <td>
+        {% if last_backup_at %}
+          <strong>{{ last_backup_at.strftime("%d.%m.%Y %H:%M") }} UTC</strong>
+          (před {{ last_backup_age_hours }}h)
+          {% if backup_overdue %}
+            <span class="badge badge-err">Zpožděna</span>
+          {% else %}
+            <span class="badge badge-ok">OK</span>
+          {% endif %}
+        {% else %}
+          <span class="badge badge-err">Žádná záloha</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>Plánované zálohování</td>
+      <td>
+        {% if backup_schedule_enabled %}
+          <span class="badge badge-ok">Povoleno</span>
+          — denně ve {{ "%02d:00"|format(backup_schedule_hour) }} UTC
+        {% else %}
+          <span class="badge badge-warn">Vypnuto</span>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+</div>

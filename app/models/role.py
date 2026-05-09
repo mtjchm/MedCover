@@ -126,6 +126,10 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "admin.view", "description": "Access the admin section"},
     {"code": "admin.manage_settings", "description": "View and edit system settings (SMTP, org name, timezone)"},
     {"code": "admin.manage_digest", "description": "View and configure the admin digest email"},
+    # Backup / Restore
+    {"code": "backup.run", "description": "Trigger an ad-hoc backup"},
+    {"code": "backup.download", "description": "Download a backup file"},
+    {"code": "backup.restore", "description": "Restore the application from a backup file"},
 ]
 
 # Permissions per role (from RBAC table in architecture.md)

@@ -156,3 +156,69 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     schedule.last_sent_at = now
     db_session.commit()
     return True
+
+
+def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
+    """Run an automatic backup if scheduled backups are enabled and it is the right hour.
+
+    The task is designed to be called every hour by the scheduler.  It only
+    creates a backup if:
+      1. backup_schedule_enabled is True in AppSettings.
+      2. The current UTC hour matches backup_schedule_hour.
+      3. No backup file already exists for today (prevents double-runs on
+         scheduler restarts).
+
+    Args:
+        db_session: An active SQLAlchemy session bound to the current app context.
+        now:        Reference timestamp (default: utcnow). Override in tests.
+
+    Returns:
+        True if a backup was created, False otherwise.
+    """
+    from app.models.settings import get_settings
+    from app.models.audit import AuditLogEntry
+    from app.backup import export_to_zip, prune_old_backups, list_backups
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    settings = get_settings()
+    if not settings.backup_schedule_enabled:
+        return False
+
+    if now.hour != settings.backup_schedule_hour:
+        return False
+
+    # Skip if a backup was already created today (UTC date) to avoid duplicates.
+    today_prefix = f"medcover_backup_{now.strftime('%Y%m%d')}_"
+    existing = list_backups(settings.backup_dir)
+    if any(b["name"].startswith(today_prefix) for b in existing):
+        log.debug("Scheduled backup: already have a backup for today, skipping.")
+        return False
+
+    try:
+        zip_path = export_to_zip(settings.backup_dir, now=now)
+        pruned = prune_old_backups(settings.backup_dir, settings.backup_keep_count)
+        log.info("Scheduled backup created: %s (pruned %d old files)", zip_path.name, len(pruned))
+
+        db_session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="create",
+            entity_type="Backup",
+            entity_id=zip_path.name,
+            summary=f"Automatická záloha vytvořena: {zip_path.name}",
+            changes_json={"file": zip_path.name, "pruned": [p.name for p in pruned]},
+        ))
+        db_session.commit()
+        return True
+    except Exception as exc:
+        log.error("Scheduled backup failed: %s", exc, exc_info=True)
+        db_session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="error",
+            entity_type="Backup",
+            entity_id="error",
+            changes_json={"error": str(exc)},
+        ))
+        db_session.commit()
+        return False
