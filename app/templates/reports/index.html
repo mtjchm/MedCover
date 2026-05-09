@@ -27,9 +27,34 @@
         <p class="card-text text-muted flex-grow-1">
           Všechny akce v rámci nadřazené akce: obsazenost, odpracované hodiny, ošetřené pacienty.
         </p>
-        <a href="{{ url_for('master_events.index') }}" class="btn btn-outline-danger mt-2">
-          Vybrat nadřazenou akci
-        </a>
+        {% if master_events %}
+        <form method="GET" action="#" id="me-select-form" class="mt-2">
+          <select class="form-select form-select-sm mb-2" id="me-select" name="me_id">
+            <option value="" disabled selected>— Vyberte nadřazenou akci —</option>
+            {% for me in master_events %}
+            <option value="{{ me.id }}" data-url="{{ url_for('reports.me_report', me_id=me.id) }}">{{ me.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline-danger btn-sm w-100" id="me-go-btn" disabled>
+            Zobrazit přehled
+          </button>
+        </form>
+        <script>
+          (function () {
+            var sel = document.getElementById('me-select');
+            var btn = document.getElementById('me-go-btn');
+            var form = document.getElementById('me-select-form');
+            sel.addEventListener('change', function () { btn.disabled = !sel.value; });
+            form.addEventListener('submit', function (e) {
+              e.preventDefault();
+              var opt = sel.options[sel.selectedIndex];
+              if (opt && opt.dataset.url) window.location.href = opt.dataset.url;
+            });
+          })();
+        </script>
+        {% else %}
+        <p class="text-muted small mt-2">Žádné aktivní nadřazené akce.</p>
+        {% endif %}
       </div>
     </div>
   </div>

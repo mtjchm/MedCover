@@ -38,4 +38,6 @@ zerver_scp.sh
 
 # Import script artefacts (may contain personal data)
 Dozory*.xlsx
+vykaz.xlsx
+*.xlsx
 import_events.json

@@ -7,7 +7,7 @@
     </tr>
     <tr>
       <td>Celková velikost záloh</td>
-      <td><strong>{{ "%.1f"|format(total_size_bytes / 1024 / 1024) }} MB</strong></td>
+      <td><strong>{{ (total_size_bytes / 1024 / 1024) | cznum }} MB</strong></td>
     </tr>
     <tr>
       <td>Poslední záloha</td>

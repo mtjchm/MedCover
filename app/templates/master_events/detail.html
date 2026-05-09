@@ -18,6 +18,11 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap justify-content-end">
+    {% if current_user.has_permission('report.view') %}
+      <a href="{{ url_for('reports.me_report', me_id=me.id) }}" class="btn btn-outline-info btn-sm">
+        Přehled akce
+      </a>
+    {% endif %}
     {% if current_user.has_permission('master_event.edit') %}
       <a href="{{ url_for('master_events.edit', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">
         Upravit

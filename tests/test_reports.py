@@ -220,7 +220,7 @@ class TestUserReport:
         _login(client, "admin_deb@test.com")
         resp = client.get(f"/reports/user/{member_id}")
         assert resp.status_code == 200
-        assert b"5.5" in resp.data
+        assert b"5,5" in resp.data
         assert b"7" in resp.data
 
 
@@ -274,7 +274,7 @@ class TestMEReport:
         resp = client.get(f"/reports/master-event/{me_id}")
         assert resp.status_code == 200
         assert b"Event V1" in resp.data
-        assert b"3.0" in resp.data
+        assert b"3,0" in resp.data
 
 
 # ── Date-range report ─────────────────────────────────────────────────────────
@@ -337,3 +337,229 @@ class TestDateRangeReport:
     def test_unauthenticated_cannot_access_date_range(self, client):
         resp = client.get("/reports/date-range", follow_redirects=False)
         assert resp.status_code == 302
+
+
+# ── UserStats / _compute_user_stats unit tests ────────────────────────────────
+
+class TestComputeUserStats:
+    """Unit tests for the _compute_user_stats helper."""
+
+    def _make_fake_event(
+        self,
+        status: EventStatus,
+        start: datetime,
+        end: datetime,
+        paid: bool = True,
+        actual_start: datetime | None = None,
+        actual_end: datetime | None = None,
+    ):
+        """Return a simple namespace that mimics the Event properties used by _compute_user_stats."""
+        from decimal import Decimal
+        from types import SimpleNamespace
+
+        actual_hours: Decimal | None = None
+        if actual_start and actual_end:
+            delta = actual_end - actual_start
+            actual_hours = Decimal(str(delta.total_seconds() / 3600))
+
+        return SimpleNamespace(
+            status=status,
+            start_datetime=start,
+            end_datetime=end,
+            paid=paid,
+            actual_hours=actual_hours,
+        )
+
+    def test_completed_shift_counts_served(self):
+        from app.routes.reports import _compute_user_stats
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.shifts_served == 1
+        assert stats.shifts_planned == 0
+
+    def test_future_event_counts_planned(self):
+        from app.routes.reports import _compute_user_stats
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.ASSIGNMENTS_OPEN,
+            now + timedelta(days=1),
+            now + timedelta(days=1, hours=3),
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.shifts_planned == 1
+        assert stats.shifts_served == 0
+
+    def test_cancelled_event_excluded(self):
+        from app.routes.reports import _compute_user_stats
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.CANCELLED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.shifts_served == 0
+        assert stats.shifts_planned == 0
+        assert stats.hours_total == 0
+
+    def test_actual_hours_used_when_available(self):
+        from app.routes.reports import _compute_user_stats
+        from decimal import Decimal
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=8),
+            now - timedelta(hours=4),
+            actual_start=now - timedelta(hours=7),
+            actual_end=now - timedelta(hours=5),  # 2 actual hours
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.hours_served == Decimal("2")
+
+    def test_planned_hours_fallback_for_completed_without_actuals(self):
+        from app.routes.reports import _compute_user_stats
+        from decimal import Decimal
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),  # 2 planned hours, no actuals
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.hours_served == Decimal("2")
+
+    def test_unpaid_event_counts_hours_free(self):
+        from app.routes.reports import _compute_user_stats
+        from decimal import Decimal
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),
+            paid=False,
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.hours_free == Decimal("2")
+
+    def test_paid_event_does_not_count_hours_free(self):
+        from app.routes.reports import _compute_user_stats
+
+        now = datetime.now(timezone.utc)
+        ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),
+            paid=True,
+        )
+        stats = _compute_user_stats([(None, ev)], now)  # type: ignore[arg-type]
+        assert stats.hours_free == 0
+
+    def test_last_and_next_shift_dates(self):
+        from app.routes.reports import _compute_user_stats
+
+        now = datetime.now(timezone.utc)
+        past_ev = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(days=5),
+            now - timedelta(days=5) + timedelta(hours=2),
+        )
+        future_ev = self._make_fake_event(
+            EventStatus.PUBLISHED,
+            now + timedelta(days=3),
+            now + timedelta(days=3, hours=2),
+        )
+        stats = _compute_user_stats([(None, past_ev), (None, future_ev)], now)  # type: ignore[arg-type]
+        assert stats.last_shift is not None
+        assert stats.next_shift is not None
+        assert stats.last_shift < now
+        assert stats.next_shift > now
+
+    def test_shifts_and_hours_totals(self):
+        from app.routes.reports import _compute_user_stats
+        from decimal import Decimal
+
+        now = datetime.now(timezone.utc)
+        ev1 = self._make_fake_event(
+            EventStatus.COMPLETED,
+            now - timedelta(hours=4),
+            now - timedelta(hours=2),
+        )
+        ev2 = self._make_fake_event(
+            EventStatus.PUBLISHED,
+            now + timedelta(hours=2),
+            now + timedelta(hours=4),
+        )
+        stats = _compute_user_stats([(None, ev1), (None, ev2)], now)  # type: ignore[arg-type]
+        assert stats.shifts_total == 2
+        assert stats.hours_total == Decimal("4")
+
+
+# ── Own report shortcut ────────────────────────────────────────────────────────
+
+class TestOwnReportShortcut:
+    def test_own_report_redirects_to_user_report(self, app, client):
+        with app.app_context():
+            user = _make_user("member_own@test.com", "Member Own", Role.MEMBER)
+            user_id = user.id
+        _login(client, "member_own@test.com")
+        resp = client.get("/reports/user", follow_redirects=False)
+        assert resp.status_code == 302
+        assert str(user_id) in resp.headers["Location"]
+
+    def test_own_report_unauthenticated_redirects_to_login(self, client):
+        resp = client.get("/reports/user", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "login" in resp.headers["Location"].lower()
+
+
+# ── Per-user stats in ME report ───────────────────────────────────────────────
+
+class TestMEReportUserStats:
+    def test_me_report_shows_participant_stats(self, app, client):
+        with app.app_context():
+            admin = _make_user("admin_mestat@test.com", "Admin MEStat", Role.ADMIN)
+            member = _make_user("member_mestat@test.com", "Member MEStat", Role.MEMBER)
+            me = _make_me("ME Stats Test")
+            me_id = me.id
+            ev = _make_event(me, "Stat Akce", EventStatus.COMPLETED)
+            spot = _make_spot(ev)
+            _make_assignment(spot, member, admin)
+        _login(client, "admin_mestat@test.com")
+        resp = client.get(f"/reports/master-event/{me_id}")
+        assert resp.status_code == 200
+        assert "Statistiky účastníků".encode() in resp.data
+        assert b"Member MEStat" in resp.data
+
+
+# ── Per-user stats in date-range report ──────────────────────────────────────
+
+class TestDateRangeUserStats:
+    def test_date_range_shows_participant_stats(self, app, client):
+        with app.app_context():
+            admin = _make_user("admin_drstat@test.com", "Admin DRStat", Role.ADMIN)
+            member = _make_user("member_drstat@test.com", "Member DRStat", Role.MEMBER)
+            me = _make_me("ME DR Stats")
+            now = datetime.now(timezone.utc)
+            ev = _make_event(me, "DR Stat Akce", EventStatus.COMPLETED,
+                             start=now - timedelta(days=2),
+                             end=now - timedelta(days=2) + timedelta(hours=3))
+            spot = _make_spot(ev)
+            _make_assignment(spot, member, admin)
+        _login(client, "admin_drstat@test.com")
+        from_d = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+        to_d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        resp = client.get(f"/reports/date-range?from_date={from_d}&to_date={to_d}")
+        assert resp.status_code == 200
+        assert "Statistiky účastníků".encode() in resp.data
+        assert b"Member DRStat" in resp.data

@@ -33,7 +33,7 @@
         {% for b in backups %}
         <tr>
           <td class="font-monospace small">{{ b.name }}</td>
-          <td class="text-muted small">{{ "%.1f"|format(b.size_bytes / 1024) }} KB</td>
+          <td class="text-muted small">{{ (b.size_bytes / 1024) | cznum }} KB</td>
           <td class="text-muted small">{{ b.created_at.strftime("%d.%m.%Y %H:%M") }} UTC</td>
           <td class="text-end">
             {% if current_user.has_permission("backup.download") %}

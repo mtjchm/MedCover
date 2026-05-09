@@ -80,6 +80,15 @@ def create_app(
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
+    @app.template_filter("cznum")
+    def cznum_filter(value: object, decimals: int = 1) -> str:
+        """Format a number using Czech locale: comma as decimal separator."""
+        try:
+            formatted = f"{float(value):.{decimals}f}"  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return "—"
+        return formatted.replace(".", ",")
+
     @app.template_global()
     def audit_entity_url(entity_type: str, entity_id: str) -> str | None:
         """Return a URL to view the given entity, or None if no page exists."""

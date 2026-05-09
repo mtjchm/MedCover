@@ -643,3 +643,25 @@ curl -s "https://cdn.jsdelivr.net/npm/bootstrap@VERSION/dist/js/bootstrap.bundle
   | openssl dgst -sha384 -binary | openssl base64 -A
 ```
 Then update the `integrity` attributes in `base.html`.
+
+### Jinja2 Custom Filters
+
+#### `localdt` — datetime formatting
+Converts a UTC `datetime` to Europe/Prague local time.
+```jinja
+{{ event.start_datetime | localdt }}          {# default: "23.04.2025 14:00" #}
+{{ event.start_datetime | localdt("%d.%m.%Y") }}   {# date only #}
+```
+
+#### `cznum` — Czech decimal formatting
+Czech locale uses a **comma** as the decimal separator, not a dot.
+All decimal numbers displayed in templates **must** use this filter.
+
+```jinja
+{{ value | cznum }}        {# 1 decimal place → "3,5" #}
+{{ value | cznum(2) }}     {# 2 decimal places → "3,50" #}
+```
+
+- Registered in `app/__init__.py` alongside `localdt`.
+- **Never** use `"%.1f"|format(x)` — that produces an English dot separator.
+- Handles `None` gracefully (returns `—`).
