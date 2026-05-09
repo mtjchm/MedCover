@@ -1,7 +1,158 @@
 # MedCover Planner app
 
 
-## Business Context and Goals
+# MedCover Planner app
+
+
+## Czech ↔ English Glossary
+
+This table is the authoritative reference for domain terminology across the entire project.
+All UI text is in **Czech**; all code identifiers (model names, field names, route names, permission codes) are in **English**.
+When in doubt about the correct Czech UI label or English code name for a concept, consult this table first.
+
+### Domain Objects
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Akce | Event / `Event` model | An individual medical cover event |
+| Nadřazená akce | Master Event / `MasterEvent` model | Groups related events for reporting; has a self-referential hierarchy |
+| Šablona akce | Event Template / `EventTemplate` model | Reusable blueprint for creating events |
+| Pozice | Spot / `EventSpot` model | A staffing position to be filled at an event |
+| Šablona pozice | Spot Template / `EventSpotTemplate` model | Spot definition inside an `EventTemplate` |
+| Přihlášení / Přihláška | Assignment / `Assignment` model | A member assigned to a specific spot |
+| Kvalifikace | Qualification / `Qualification` model | Professional credential/certification that governs spot eligibility |
+| Vybavení | Equipment | Collective term for items managed in the equipment module |
+| Typ vybavení | Equipment Type / `EquipmentType` model | Category of equipment (e.g. AED, uniform) |
+| Položka vybavení | Equipment Item / `EquipmentItem` model | A specific physical item of an equipment type |
+| Debriefing | Debriefing Record / `DebriefingRecord` model | Post-event confidential per-participant feedback; "Debriefing" is used unchanged in Czech |
+| Přehledový e-mail | Admin Digest / `AdminDigest` | Scheduled summary email sent to admins |
+| Pozvánka | Invite / `RegistrationInvite` model | One-time invite link for a new user to register |
+| Audit log | Audit Log / `AuditLogEntry` model | Immutable record of every create/edit/delete/status-change action |
+| Záloha | Backup | Database backup file; route module `backup` |
+| Nastavení | App Settings / `AppSettings` model | Global application configuration (SMTP, base URL, etc.) |
+
+### People & Roles
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Uživatel | User / `UserAccount` model | Any person with an account |
+| Admin | Admin | System administrator role; can do everything except confidential debriefing |
+| Koordinátor | Coordinator | Can create/manage events and assign staff |
+| Člen | Member | Regular member; can join events and submit debriefings |
+| Divák | Viewer | Read-only access |
+| Vedoucí debriefingu | Debriefing Manager | Exclusive access to confidential debriefing records |
+| Zodpovědný zdravotník (ZZ) | Responsible Person (RP) / `responsible_person` | The qualified medic leading an event on site; field: `Event.responsible_person_id` |
+| Zelenáč | Trainee | Informal Czech term for a junior/trainee-level qualification used in the event import logic |
+
+### Event Status (`EventStatus` enum)
+
+| Czech (UI) | English code value | Meaning |
+|---|---|---|
+| Koncept | `DRAFT` | Visible to coordinators only; not accepting assignments |
+| Zveřejněná | `PUBLISHED` | Public, assignments not yet open |
+| Přihlášky otevřeny | `ASSIGNMENTS_OPEN` | Members can claim spots |
+| Přihlášky uzavřeny | `ASSIGNMENTS_CLOSED` | Registration closed; event in progress |
+| Dokončena | `COMPLETED` | Event finished; debriefing period begins |
+| Zrušena | `CANCELLED` | Event cancelled; can be restored by coordinator |
+
+### Staffing Status (computed, `Event.staffing_status`)
+
+| Czech (UI) | Meaning |
+|---|---|
+| Žádné pozice | Event has no mandatory spots defined |
+| Neobsazeno | No mandatory spots filled |
+| Částečně obsazeno | Some but not all mandatory spots filled |
+| Plně obsazeno | All mandatory spots filled |
+
+### Spot & Qualification Attributes
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Povinná pozice | Mandatory spot — `is_optional = False` | Affects staffing status calculations |
+| Volitelná pozice | Optional spot — `is_optional = True` | Does not affect staffing status |
+| Požadovaná kvalifikace | Required qualification — `EventSpot.required_qualifications` | M2M: qualifications a spot holder must have |
+| Může být vedoucí akce | Can be RP — `Qualification.can_be_rp` | Holder is eligible to be set as `responsible_person` |
+| Nadřazená kvalifikace | Parent qualification — `Qualification.parents` | Higher-tier qualification that can substitute for lower ones |
+| Může zastoupit | Can substitute / `can_be_filled_by()` | A parent qualification holder can fill spots requiring a child |
+| Smazáno (soft) | Soft-deleted — `is_deleted = True` | Qualifications are never hard-deleted; is_deleted hides them |
+
+### Dates & Scheduling
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Plánovaný začátek | Planned start — `start_datetime` | Scheduled event start |
+| Plánovaný konec | Planned end — `end_datetime` | Scheduled event end |
+| Skutečný začátek | Actual start — `actual_start_datetime` | RP-submitted actual start; used for billing |
+| Skutečný konec | Actual end — `actual_end_datetime` | RP-submitted actual end; used for billing |
+| Otevření přihlášek | Assignments open datetime — `assignments_open_datetime` | Auto-opens registration at this time; `NULL` = opens immediately on publish |
+| Připomínky | Reminder schedule — `reminder_schedule` | Comma-separated list of hours-before-start to send reminders (e.g. `"24,48"`) |
+| Počet ošetřených | Patients count — `patients_count` | RP-submitted; number of patients treated at event |
+
+### Debriefing Concepts
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Celkové hodnocení akce | Grade — `DebriefingRecord.grade` | 1 (Výborná) to 5 (Špatná) |
+| Výborná / Velmi dobrá / Dobrá / Dostačující / Špatná | 1 / 2 / 3 / 4 / 5 | Grade labels |
+| Hodnocení průběhu akce | Event feedback — `feedback_event` | Confidential evaluation of event execution |
+| Hodnocení objednatele / organizátora | Customer feedback — `feedback_customer` | Confidential evaluation of the customer/organizer |
+| Hodnocení kolegů | Colleagues feedback — `feedback_colleagues` | Confidential evaluation of teamwork |
+| Nevyplněný debriefing | Pending debriefing | Assignment where `DebriefingRecord` does not yet exist |
+| Část vedoucího zdravotníka (ZZ) | RP section | The non-confidential part of the debriefing form filled only by the responsible person |
+
+### Equipment Concepts
+
+| Czech (UI) | English (code) | Notes |
+|---|---|---|
+| Sdílené vybavení | Shared equipment — `EquipmentItem.is_personal = False` | Items assigned per-event (e.g. AED) |
+| Osobní vybavení | Personal equipment — `EquipmentItem.is_personal = True` | Items issued long-term to a user (e.g. uniform) |
+| Vydáno | Issued to — `issued_to` | Personal item currently held by a user |
+| Výchozí úložiště | Home location — `home_location` | Where an item belongs when not in use |
+
+### UI Actions & Navigation Labels
+
+| Czech (UI) | English (code/route) | Notes |
+|---|---|---|
+| Akce (nav) | Events — `events.index` | Note: "Akce" means both "event" and "action" in Czech; context distinguishes |
+| Nadřazené akce | Master Events — `master_events.index` | |
+| Šablony akcí | Event Templates — `templates.index` | |
+| Vybavení | Equipment — `equipment.items` | |
+| Přehledy | Reports — `reports.index` | |
+| Debriefing | Debriefing — `debriefing.index` | |
+| Uživatelé | Users — `users.index` | |
+| Pozvánky | Invites — `users.invites` | |
+| Audit log | Audit Log — `admin.audit_log_list` | |
+| Kvalifikace | Qualifications — `qualifications.index` | |
+| Přehled oprávnění | Permissions Overview — `admin.permissions` | |
+| Přehledový e-mail | Admin Digest — `admin_digest.index` | |
+| Záloha | Backup — `backup.index` | |
+| Zpětná vazba | Feedback — `feedback.index` | |
+| Nastavení | App Settings — `app_settings.index` | |
+
+### Common Form Labels
+
+| Czech (UI) | English (field name) |
+|---|---|
+| Název | `name` |
+| Popis | `description` |
+| Adresa / Místo konání | `address` |
+| Kontaktní osoba | `contact_person` |
+| Zodpovědný zdravotník | `responsible_person_id` |
+| Placená akce | `paid` (boolean) |
+| Archivovaná | `archived` (boolean) |
+| Popis pozice | `EventSpot.description` |
+| Výchozí zobrazení kalendáře | `preferred_calendar_view` |
+
+### Terminology Ambiguities to Watch
+
+| Situation | Rule |
+|---|---|
+| "Vedoucí" vs "Zodpovědný zdravotník (ZZ)" | Both refer to the on-site lead. Use **"Zodpovědný zdravotník"** (full form) in form labels and tables. "ZZ" is the accepted abbreviation. "Vedoucí" alone is acceptable in error badges/alerts for brevity (e.g. "Chybí vedoucí"). |
+| "Pozice" vs "Místo" | **"Pozice"** is the standard term for an EventSpot in all headings and tables. "Místo" is used only in the fixed phrase **"Místo konání"** (venue/location of the event). |
+| "Akce" (ambiguity) | Means both "event" (domain noun) and "action" (generic Czech word). In nav and UI always means Event. In button labels "Akce" with dropdown caret means actions menu. The context disambiguates. |
+| "Přihlášení" vs "Přihláška" | Both are valid Czech for Assignment. "Přihlášení" is used as a verb noun (the act of joining); "Přihláška" as a noun (the registration). Both map to the `Assignment` model. |
+
+
 
 ### Overall Idea
 - a web application for planning medical cover for Events
