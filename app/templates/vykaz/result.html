@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Výkaz práce — stažení — MedCover{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 540px;">
+  <h2 class="mb-3">Výkaz práce — připraven ke stažení</h2>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <p>
+    Výkaz pro <strong>{{ month_name }} {{ year }}</strong> byl vygenerován.
+    Kliknutím na tlačítko soubor stáhněte, vytiskněte a předejte nadřízenému.
+  </p>
+
+  <a href="{{ url_for('vykaz.download', year=year, month=month) }}"
+     class="btn btn-success me-2">
+    <i class="bi bi-file-earmark-excel me-1"></i>Stáhnout výkaz (xlsx)
+  </a>
+  <a href="{{ url_for('vykaz.index') }}" class="btn btn-outline-secondary">
+    Generovat jiný měsíc
+  </a>
+</div>
+{% endblock %}

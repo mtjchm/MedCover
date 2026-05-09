@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Výkaz práce — MedCover{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 540px;">
+  <h2 class="mb-4">Výkaz práce</h2>
+  <p class="text-muted">
+    Vygenerujte předvyplněný výkaz odpracovaných hodin za vybraný měsíc.
+    Soubor obsahuje všechny placené akce, které jste v daném měsíci odpracoval/a.
+  </p>
+
+  <form method="POST" action="{{ url_for('vykaz.generate') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="row g-3 mb-4">
+      <div class="col-7">
+        <label for="month" class="form-label fw-semibold">Měsíc</label>
+        <select class="form-select" id="month" name="month" required>
+          {% set month_names = [
+            (1, "Leden"), (2, "Únor"), (3, "Březen"), (4, "Duben"),
+            (5, "Květen"), (6, "Červen"), (7, "Červenec"), (8, "Srpen"),
+            (9, "Září"), (10, "Říjen"), (11, "Listopad"), (12, "Prosinec")
+          ] %}
+          {% for num, name in month_names %}
+            <option value="{{ num }}" {% if num == current_month %}selected{% endif %}>
+              {{ name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-5">
+        <label for="year" class="form-label fw-semibold">Rok</label>
+        <select class="form-select" id="year" name="year" required>
+          {% for y in range(current_year - 3, current_year + 2) %}
+            <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-file-earmark-arrow-down me-1"></i>Vygenerovat výkaz
+    </button>
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary ms-2">Zpět</a>
+  </form>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mt-4">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+</div>
+{% endblock %}

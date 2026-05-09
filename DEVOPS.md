@@ -563,6 +563,26 @@ Running the script on an already-seeded database is safe — it checks for exist
 
 ---
 
+## Temporary File Storage
+
+### Výkaz práce xlsx files
+
+Generated monthly work-report files are stored in the Flask `instance/` directory:
+
+```
+instance/
+  vykaz/
+    <user-uuid>/
+      <year>-<MM>.xlsx   (e.g. 2026-05.xlsx)
+```
+
+- Each user has their own subdirectory; generating a new report for the same month overwrites the previous file.
+- Files are **automatically deleted after 1 day** by the `cleanup_vykaz` scheduler task (runs hourly in the `scheduler` container).
+- **Do not commit these files** — the `instance/` directory is gitignored.
+- The `holidays` Python package (Czech locale) is used to detect Czech public holidays for correct cell colouring. It is declared in `requirements.txt`.
+
+---
+
 ## Secrets Management
 
 | Secret | Where stored |
