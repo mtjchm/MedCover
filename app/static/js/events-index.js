@@ -264,7 +264,7 @@
       th.addEventListener("click", function () { sortTable(th.dataset.col); });
     });
     document.querySelectorAll(".filter-btn").forEach(function (btn) {
-      btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); });
+      btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); btn.blur(); });
     });
 
     eligFilter = loadEligFilter();
