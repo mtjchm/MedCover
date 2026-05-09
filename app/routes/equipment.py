@@ -401,3 +401,30 @@ def item_return(item_id: int) -> Response:
 
     flash(f'Položka „{item.name}" byla vrácena.', "success")
     return redirect(url_for("equipment.items"))
+
+
+@equipment_bp.post("/items/<int:item_id>/take")
+@login_required
+def item_take(item_id: int) -> Response:
+    """Issue item to the currently logged-in user in one click."""
+    if not current_user.has_permission("equipment_item.issue_personal"):
+        abort(403)
+
+    item = db.session.get(EquipmentItem, item_id)
+    if item is None:
+        abort(404)
+
+    if item.issued_to_id is not None:
+        flash("Položka je již vydána.", "danger")
+        return redirect(url_for("equipment.items"))
+
+    item.issued_to_id = current_user.id
+    item.issued_at = datetime.now(timezone.utc)
+    item.version += 1
+    _audit("edit", "EquipmentItem", str(item.id),
+           f"Vydána osobní položka '{item.name}' uživateli '{current_user.name}' (vzít s sebou)",
+           {"issued_to": [None, str(current_user.id)]})
+    db.session.commit()
+
+    flash(f'Položka „{item.name}" byla vydána vám.', "success")
+    return redirect(url_for("equipment.items"))

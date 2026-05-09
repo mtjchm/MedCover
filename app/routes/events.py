@@ -34,7 +34,7 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
 from app.models.audit import AuditLogEntry
-from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
+from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.utils import diff_changes
@@ -286,12 +286,15 @@ def detail(event_id: int) -> str | Response:
     if assigned_item_ids:
         available_equipment_items = db.session.scalars(
             db.select(EquipmentItem).where(
-                EquipmentItem.id.notin_(assigned_item_ids)
+                EquipmentItem.id.notin_(assigned_item_ids),
+                EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
             ).order_by(EquipmentItem.name)
         ).all()
     else:
         available_equipment_items = db.session.scalars(
-            db.select(EquipmentItem).order_by(EquipmentItem.name)
+            db.select(EquipmentItem).where(
+                EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
+            ).order_by(EquipmentItem.name)
         ).all()
 
     all_qualifications = db.session.scalars(

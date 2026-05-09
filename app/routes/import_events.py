@@ -501,7 +501,7 @@ def events_confirm() -> Response:
             event = Event(
                 name=name,
                 master_event_id=master_event.id,
-                status=EventStatus.DRAFT,
+                status=EventStatus.COMPLETED if end_dt < datetime.now(timezone.utc) else EventStatus.DRAFT,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
                 address=location,

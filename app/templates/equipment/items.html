@@ -69,6 +69,11 @@
         <td class="text-end" onclick="event.stopPropagation()">
           <div class="d-flex gap-1 justify-content-end flex-wrap">
             {% if current_user.has_permission('equipment_item.issue_personal') and not item.issued_to %}
+              <form method="POST" action="{{ url_for('equipment.item_take', item_id=item.id) }}"
+                    onsubmit="return confirm('Vzít položku „{{ item.name }}" s sebou?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-primary btn-sm">Vzít s sebou</button>
+              </form>
               <button class="btn btn-outline-success btn-sm" type="button"
                       data-bs-toggle="collapse" data-bs-target="#issue-form-{{ item.id }}">
                 Vydat
