@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Neplatný odkaz — MedCover{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-8 col-md-5 col-lg-4">
+    <div class="card shadow-sm mt-4 border-danger">
+      <div class="card-body p-4 text-center">
+        <h4 class="card-title mb-3 text-danger">Neplatný odkaz</h4>
+        <p class="mb-3">
+          Odkaz pro obnovení hesla je neplatný nebo již byl použit.<br>
+          Každý odkaz lze použít pouze jednou a vyprší po 10 minutách.
+        </p>
+        <a href="{{ url_for('auth.forgot_password') }}" class="btn btn-danger">
+          Požádat o nový odkaz
+        </a>
+        <div class="mt-3 small">
+          <a href="{{ url_for('auth.login') }}">Zpět na přihlášení</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
