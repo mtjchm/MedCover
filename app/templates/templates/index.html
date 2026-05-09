@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Šablony akcí — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Šablony akcí</h2>
+  <h2 class="mb-0">Šablony akcí {{ help_icon("Šablona akce předvyplní novou akci — název, pozice, poznámky atd. Ušetří čas při opakovaně pořádaných akcích stejného typu. Šablonu vyberete při vytváření nové akce.") }}</h2>
   {% if current_user.has_permission('event_template.create') %}
   <a href="{{ url_for('templates.create') }}" class="btn btn-danger btn-sm">Nová šablona</a>
   {% endif %}
