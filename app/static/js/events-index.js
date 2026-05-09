@@ -14,6 +14,7 @@
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_FILT  = "medcover_events_filters";
   var STORAGE_SORT  = "medcover_events_sort";
+  var STORAGE_ELIG  = "medcover_events_elig";
 
   var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
 
@@ -21,6 +22,7 @@
   var calendar = null;
   var allCalendarEvents = null;
   var sortState = { col: "start", dir: "asc" };
+  var eligFilter = false;
 
   // ── Filter state ──────────────────────────────────────────────────────────
 
@@ -29,6 +31,10 @@
     return DEFAULT_FILTERS.slice();
   }
   function saveFilters(f) { localStorage.setItem(STORAGE_FILT, JSON.stringify(f)); }
+  function loadEligFilter() {
+    try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
+  }
+  function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
   function loadSort() {
     try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
     return { col: "start", dir: "asc" };
@@ -59,7 +65,19 @@
     applyFilters(f);
   }
 
+  function toggleEligFilter() {
+    eligFilter = !eligFilter;
+    saveEligFilter(eligFilter);
+    var btn = document.getElementById("btn-elig-filter");
+    if (btn) btn.classList.toggle("active", eligFilter);
+    applyFilters(loadFilters());
+  }
+
   function resetFilters() {
+    eligFilter = false;
+    saveEligFilter(false);
+    var btn = document.getElementById("btn-elig-filter");
+    if (btn) btn.classList.remove("active");
     saveFilters(DEFAULT_FILTERS.slice());
     renderFilterButtons(DEFAULT_FILTERS.slice());
     applyFilters(DEFAULT_FILTERS.slice());
@@ -72,7 +90,9 @@
     if (!tbody) return;
     var visibleCount = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
-      var visible = activeFilters.includes(row.dataset.status);
+      var statusOk = activeFilters.includes(row.dataset.status);
+      var eligOk = !eligFilter || row.dataset.eligible === "1";
+      var visible = statusOk && eligOk;
       row.style.display = visible ? "" : "none";
       if (visible) visibleCount++;
     });
@@ -247,6 +267,10 @@
       btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); });
     });
 
+    eligFilter = loadEligFilter();
+    var eligBtn = document.getElementById("btn-elig-filter");
+    if (eligBtn) eligBtn.classList.toggle("active", eligFilter);
+
     var activeFilters = loadFilters();
     renderFilterButtons(activeFilters);
     applyFilters(activeFilters);
@@ -296,4 +320,5 @@
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
   window.resetFilters = resetFilters;
+  window.toggleEligFilter = toggleEligFilter;
 })();

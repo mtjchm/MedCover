@@ -49,19 +49,17 @@
 {# ── Status filter bar ──────────────────────────────────────────────────── #}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT"
-          data-bs-toggle="tooltip" title="Akce ve fázi přípravy">Koncept</button>
-  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED"
-          data-bs-toggle="tooltip" title="Zveřejněná, přihlašování nezačalo">Zveřejněná</button>
-  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN"
-          data-bs-toggle="tooltip" title="Přihlašování je otevřeno">Přihlášky otevřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT">Koncept</button>
+  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED">Zveřejněná</button>
+  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
   <button type="button" class="btn btn-sm filter-btn" data-status="ASSIGNMENTS_CLOSED"
-          style="color:#000;border-color:#ffc107"
-          data-bs-toggle="tooltip" title="Přihlašování bylo uzavřeno">Přihlášky uzavřeny</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn filter-btn-neutral" data-status="COMPLETED"
-          data-bs-toggle="tooltip" title="Proběhlé a uzavřené akce">Dokončena</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED"
-          data-bs-toggle="tooltip" title="Zrušené akce">Zrušena</button>
+          style="color:#000;border-color:#ffc107">Přihlášky uzavřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn filter-btn-neutral" data-status="COMPLETED">Dokončena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
+  {% if current_user.has_permission('event.assign_own') %}
+  <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-elig-filter"
+          onclick="toggleEligFilter()">Pro mě</button>
+  {% endif %}
   <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
           onclick="resetFilters()">Výchozí</button>
 </div>
@@ -141,6 +139,7 @@
         {% set staffing_ratio = (mand_filled / mand_total) if mand_total > 0 else 0 %}
         <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
             data-status="{{ event.status.name }}"
+            data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
             data-event-id="{{ event.id }}"
             data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td class="px-2">
