@@ -34,7 +34,7 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
 from app.models.audit import AuditLogEntry
-from app.models.equipment import EquipmentItem, EquipmentType, EventEquipmentPlan, EventEquipmentAssignment
+from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.utils import diff_changes
@@ -199,6 +199,15 @@ def create() -> str | Response:
             flash(error or "Chyba formuláře.", "danger")
             return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
 
+        quick_publish = request.form.get("action") == "quick_publish"
+        if quick_publish:
+            if not current_user.has_permission("event.publish") or \
+               not current_user.has_permission("event.assignments.open"):
+                abort(403)
+            from datetime import datetime, timezone
+            event.status = EventStatus.ASSIGNMENTS_OPEN
+            event.assignments_open_datetime = datetime.now(timezone.utc)
+
         db.session.add(event)
         db.session.flush()
 
@@ -216,7 +225,10 @@ def create() -> str | Response:
         _audit("create", event, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
-        flash("Akce byla vytvořena.", "success")
+        if quick_publish:
+            flash("Akce byla vytvořena a přihlášky okamžitě otevřeny.", "success")
+        else:
+            flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
     return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
@@ -274,12 +286,15 @@ def detail(event_id: int) -> str | Response:
     if assigned_item_ids:
         available_equipment_items = db.session.scalars(
             db.select(EquipmentItem).where(
-                EquipmentItem.id.notin_(assigned_item_ids)
+                EquipmentItem.id.notin_(assigned_item_ids),
+                EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
             ).order_by(EquipmentItem.name)
         ).all()
     else:
         available_equipment_items = db.session.scalars(
-            db.select(EquipmentItem).order_by(EquipmentItem.name)
+            db.select(EquipmentItem).where(
+                EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
+            ).order_by(EquipmentItem.name)
         ).all()
 
     all_qualifications = db.session.scalars(

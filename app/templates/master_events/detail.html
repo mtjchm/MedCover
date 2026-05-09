@@ -89,23 +89,31 @@
 
 {% if events %}
 <div class="table-responsive">
-  <table class="table table-hover align-middle table-sm">
+  <table class="table table-hover align-middle table-sm" id="me-events-table">
     <thead class="table-light">
       <tr>
-        <th>Název</th>
-        <th>Začátek</th>
-        <th>Stav</th>
-        <th>Obsazení</th>
+        <th class="sortable" data-col="start" style="cursor:pointer;white-space:nowrap">
+          Začátek <span class="sort-icon text-muted">↕</span>
+        </th>
+        <th class="sortable" data-col="name" style="cursor:pointer">
+          Název <span class="sort-icon text-muted">↕</span>
+        </th>
+        <th class="sortable" data-col="status" style="cursor:pointer">
+          Stav <span class="sort-icon text-muted">↕</span>
+        </th>
+        <th class="sortable" data-col="filled" style="cursor:pointer;white-space:nowrap">
+          Obsazení <span class="sort-icon text-muted">↕</span>
+        </th>
         <th>Zodpovědný zdravotník</th>
       </tr>
     </thead>
     <tbody>
       {% for event in events %}
-      <tr>
+      <tr data-sv='{"start": "{{ event.start_datetime.isoformat() }}", "name": {{ event.name | tojson }}, "status": {{ event.status.value | tojson }}, "filled": {{ event.filled_spots }}}'>
+        <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
         <td>
           <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none">{{ event.name }}</a>
         </td>
-        <td class="text-nowrap">{{ event.start_datetime | localdt }}</td>
         <td>
           {% set status_colors = {
             'Koncept': 'secondary',
@@ -135,4 +143,8 @@
     ← Zpět na seznam
   </a>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/table-sort.js') }}"></script>
 {% endblock %}

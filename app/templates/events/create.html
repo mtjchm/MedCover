@@ -43,7 +43,7 @@
             <option value="">— Vyberte —</option>
             {% for me in master_events %}
               <option value="{{ me.id }}"
-                {{ 'selected' if request.form.get('master_event_id') == me.id|string }}>
+                {{ 'selected' if (request.form.get('master_event_id') == me.id|string) or (not request.form.get('master_event_id') and me.is_general) }}>
                 {{ me.name }}{% if me.is_general %} (Výchozí){% endif %}
               </option>
             {% endfor %}
@@ -166,8 +166,13 @@
           <textarea class="form-control" id="description" name="description" rows="3">{{ request.form.get('description', '') }}</textarea>
         </div>
       </div>
-      <div class="d-flex gap-2 mt-4">
-        <button type="submit" class="btn btn-danger">Vytvořit akci</button>
+      <div class="d-flex gap-2 mt-4 flex-wrap">
+        <button type="submit" name="action" value="create" class="btn btn-danger">Vytvořit akci</button>
+        {% if current_user.has_permission("event.publish") and current_user.has_permission("event.assignments.open") %}
+        <button type="submit" name="action" value="quick_publish" class="btn btn-success">
+          Vytvořit a otevřít přihlášky
+        </button>
+        {% endif %}
         <a href="{{ url_for('events.index') }}" class="btn btn-outline-secondary">Zrušit</a>
       </div>
     </form>

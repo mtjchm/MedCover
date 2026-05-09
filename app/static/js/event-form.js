@@ -6,6 +6,25 @@
   if (cb) { cb.addEventListener('change', update); update(); }
 })();
 
+/* Auto-fill end_datetime from start_datetime (create/edit forms).
+ * If end is empty, or end is before the newly chosen start, copy start → end. */
+document.addEventListener("DOMContentLoaded", function () {
+  var startEl = document.getElementById("start_datetime");
+  var endEl   = document.getElementById("end_datetime");
+  if (!startEl || !endEl) return;
+  var startFp = startEl._flatpickr;
+  var endFp   = endEl._flatpickr;
+  if (!startFp || !endFp) return;
+  startFp.config.onChange.push(function (selectedDates) {
+    if (!selectedDates.length) return;
+    var startDate = selectedDates[0];
+    var endDates  = endFp.selectedDates;
+    if (!endDates.length || endDates[0] < startDate) {
+      endFp.setDate(startDate, true);
+    }
+  });
+});
+
 /* Dynamic spot rows — event create form only. */
 (function () {
   var addBtn    = document.getElementById('addSpotBtn');

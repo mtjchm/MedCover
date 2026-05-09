@@ -121,6 +121,11 @@
       fieldOk = validateMinLength(el) && fieldOk;
       fieldOk = validateMaxLength(el) && fieldOk;
       fieldOk = validateNumericRange(el) && fieldOk;
+      // Also check native HTML validity (type=email, pattern, etc.)
+      if (fieldOk && el.value.trim() && !el.checkValidity()) {
+        setInvalid(el, el.validationMessage || "Neplatná hodnota.");
+        fieldOk = false;
+      }
       if (fieldOk && el.value.trim()) setValid(el);
       ok = fieldOk && ok;
     });
