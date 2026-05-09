@@ -33,8 +33,8 @@ Column mapping (GS "Dozory" sheet, row 2 = headers, data from row 3):
     J (9)  Počet ošetření        → (ignored)
     K (10) Placený               → paid  (bool)
     L (11) Doba trvání           → (ignored – computed by DB)
-    M (12) Zodpovědný zdravotník → responsible_person (converted to Firstname Lastname)
-    N+ (13+) Přihlášení         → signups list (converted names) + description snippet
+    M (12) Zodpovědný zdravotník → responsible_person (Lastname Firstname, as in GS)
+    N+ (13+) Přihlášení         → signups list (Lastname Firstname) + description snippet
 
 Column mapping (GS "Lidi" sheet, data from row 2):
     A (0)  Jméno      → gs_name (Lastname Firstname format)
@@ -48,7 +48,7 @@ Output JSON schema (v2):
         "users": [
             {
                 "gs_name":       str,   # original "Lastname Firstname" from GS
-                "name":          str,   # converted "Firstname Lastname"
+                "name":          str,   # same as gs_name — Lastname Firstname convention
                 "email":         str or null,
                 "phone":         str or null,
                 "is_zdravotnik": bool
@@ -62,20 +62,19 @@ Output JSON schema (v2):
                 "end_time":           "HH:MM" or null,
                 "location":           str or null,
                 "paid":               bool,
-                "responsible_person": str or null,  # "Firstname Lastname"
+                "responsible_person": str or null,  # "Lastname Firstname"
                 "contact_person":     str or null,
                 "description":        str,
                 "time_missing":       bool,
-                "signups":            list[str]      # "Firstname Lastname" of col N+ people
+                "signups":            list[str]      # "Lastname Firstname" of col N+ people
             }
         ]
     }
 
 Notes
 -----
-- Past events (before today) are filtered out.
 - Duplicate event names get the date appended: "Vítání občánků 22.1."
-- Names are converted from GS "Lastname Firstname" to MedCover "Firstname Lastname".
+- Names are kept in GS "Lastname Firstname" format (Czech convention).
 - Users are extracted from all names in Dozory (cols M+N+) cross-referenced with Lidi.
 - People not found in Lidi will have null email and phone — email must be filled manually.
 - Spot count: ≤3 people → standard 3-spot pattern; >3 people → dynamic count.
@@ -223,21 +222,21 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
             if end_time == _time(0, 0):
                 end_time = None
 
-        # --- Responsible person: convert to Firstname Lastname ---
+        # --- Responsible person: keep GS format (Lastname Firstname) ---
         responsible_person_gs = row[12]
         if responsible_person_gs is not None:
             rp_str = str(responsible_person_gs).strip()
-            responsible_person: str | None = _reverse_name(rp_str) if _is_valid_name(rp_str) else None
+            responsible_person: str | None = rp_str if _is_valid_name(rp_str) else None
         else:
             responsible_person = None
 
-        # --- Signups (col N onwards): collect and convert names ---
+        # --- Signups (col N onwards): collect names, keep GS format ---
         signup_gs_names = [
             str(v).strip()
             for v in row[13:]
             if v is not None and _is_valid_name(str(v).strip())
         ]
-        signup_converted = [_reverse_name(n) for n in signup_gs_names]
+        signup_converted = list(signup_gs_names)  # already in Lastname Firstname format
 
         description = _build_description(
             vehicle=row[3],
@@ -360,7 +359,7 @@ def extract_users(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
             lidi_info = lidi.get(gs_name)
             users.append({
                 "gs_name": gs_name,
-                "name": _reverse_name(gs_name),
+                "name": gs_name,  # GS stores Lastname Firstname — keep that convention
                 "email": lidi_info["email"] if lidi_info else None,
                 "phone": lidi_info["phone"] if lidi_info else None,
                 "is_zdravotnik": lidi_info["is_zdravotnik"] if lidi_info else False,
