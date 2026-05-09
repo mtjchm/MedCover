@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Akce — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h2 class="mb-0">Akce</h2>
+  <h2 class="mb-0">Akce {{ help_icon("Akce procházejí těmito fázemi:\n• Koncept — vidí jen koordinátoři, nelze se přihlásit\n• Zveřejněná — viditelná, přihlášky zatím uzavřeny\n• Přihlášky otevřeny — členové se mohou přihlašovat (manuálně nebo automaticky dle data otevření)\n• Přihlášky uzavřeny — obsazování uzavřeno, akce probíhá\n• Dokončena — automaticky po skončení akce (scheduler)\n• Zrušena — lze nastavit kdykoli\nFáze Koncept → Zveřejněná a Zveřejněná → Přihlášky otevřeny jsou manuální (nebo automatické dle data). Fáze Dokončena se nastaví automaticky po uplynutí data ukončení.", "Fáze akce") }}</h2>
   <div class="d-flex gap-2 flex-wrap align-items-center">
     {# View toggle #}
     <div class="btn-group btn-group-sm" role="group" aria-label="Zobrazení">

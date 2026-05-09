@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Přehled — MedCover{% endblock %}
 
 {% block content %}
@@ -102,7 +103,7 @@
 {# ── Moje akce ─────────────────────────────────────────────────────────────── #}
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2">
-    <span class="fw-semibold">Moje akce <span class="text-muted fw-normal small">(příštích {{ horizon_days }} dní)</span></span>
+    <span class="fw-semibold">Moje akce {{ help_icon("Akce, na které jste přihlášeni v příštích " ~ horizon_days ~ " dnech. Kliknutím na akci zobrazíte detail a případně se odhlásíte.") }} <span class="text-muted fw-normal small">(příštích {{ horizon_days }} dní)</span></span>
     <a href="{{ url_for('events.index') }}" class="text-decoration-none small">Všechny →</a>
   </div>
   {% if my_events %}
@@ -163,6 +164,7 @@
 <div class="card mb-3">
   <div class="card-header d-flex justify-content-between align-items-center py-2">
     <span class="fw-semibold">Otevřené přihlášky
+      {{ help_icon("Akce, na které se lze přihlásit. Výchozí zobrazení filtruje jen akce, pro které máte potřebnou kvalifikaci. Tlačítkem 'Zobrazit vše' vidíte i ostatní akce — přihlásit se ale půjde jen na pozice odpovídající vaší kvalifikaci.") }}
       <span class="text-muted fw-normal small" id="open-label">(jen vaše kvalifikace)</span>
     </span>
     {% if open_events_all | length > open_events | length %}

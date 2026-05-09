@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Nadřazené akce — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Nadřazené akce</h2>
+  <h2 class="mb-0">Nadřazené akce {{ help_icon("Nadřazená akce (NA) sdružuje více akcí do celku pro souhrnné výkazy a přehledy.\n\nKaždá akce musí patřit do nějaké NA — výchozí je 'Obecné', která slouží pro samostatné akce bez zvláštního zařazení.\n\nVlastní NA se hodí například pro velký letní festival, který má 5 samostatných akcí (dní) — všechny je pak možné reportovat dohromady.\n\nNA lze také uspořádat hierarchicky, např. 'Rok 2026' → 'Letní festival 2026' → jednotlivé dny.", "Nadřazené akce — co to je?") }}</h2>
   <div class="d-flex gap-2">
     {% if show_archived %}
       <a href="{{ url_for('master_events.index') }}" class="btn btn-outline-secondary btn-sm">
