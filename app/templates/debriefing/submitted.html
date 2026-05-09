@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Výjezdová zpráva odevzdána — {{ event.name }} — MedCover{% endblock %}
+{% block title %}Debriefing odevzdán — {{ event.name }} — MedCover{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-lg-7">
 
-    <h2 class="mb-1">Výjezdová zpráva</h2>
+    <h2 class="mb-1">Debriefing</h2>
     <p class="text-muted mb-4">
       <strong>{{ event.name }}</strong> —
       {{ event.start_datetime | localdt }}
@@ -13,7 +13,7 @@
 
     <div class="alert alert-success py-2">
       <i class="bi bi-check-circle-fill me-1"></i>
-      Výjezdová zpráva byla odevzdána {{ record.submitted_at | localdt }}. Děkujeme.
+      Debriefing byl odevzdán {{ record.submitted_at | localdt }}. Děkujeme.
     </div>
 
     <div class="card mb-3">

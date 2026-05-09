@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
-{% block title %}Výjezdová zpráva — {{ event.name }} — MedCover{% endblock %}
+{% block title %}Debriefing — {{ event.name }} — MedCover{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-lg-7">
 
-    <h2 class="mb-1">Výjezdová zpráva
+    <h2 class="mb-1">Debriefing
       {{ help_icon("Povinné hodnocení po každé akci. Váš záznam je přísně důvěrný — přístup k němu mají pouze vedoucí organizace s rolí Debriefing Manager. Ani administrátoři systému ho neuvidí.") }}
     </h2>
     <p class="text-muted mb-4">
@@ -124,11 +124,11 @@
 
       <div class="alert alert-warning py-2 small">
         <i class="bi bi-exclamation-triangle-fill me-1"></i>
-        Odevzdání je <strong>nevratné</strong>. Po odeslání již výjezdovou zprávu nelze upravit.
+        Odevzdání je <strong>nevratné</strong>. Po odeslání již debriefing nelze upravit.
       </div>
 
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-danger">Odevzdat výjezdovou zprávu</button>
+        <button type="submit" class="btn btn-danger">Odevzdat debriefing</button>
         <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-outline-secondary">Zpět na akci</a>
       </div>
     </form>

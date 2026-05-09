@@ -6,16 +6,16 @@ akce, které jste se zúčastnili, byla dokončena:
   Začátek: {{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}
   Konec:   {{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}
 
-Prosíme vás o vyplnění výjezdové zprávy. Jedná se o povinný krok pro
+Prosíme vás o vyplnění debriefingu. Jedná se o povinný krok pro
 každého účastníka akce.
 
-Výjezdová zpráva obsahuje hodnocení průběhu akce, které je přísně
+Debriefing obsahuje hodnocení průběhu akce, které je přísně
 důvěrné a přístupné pouze vedení organizace.
 
-Vyplnit výjezdovou zprávu:
+Vyplnit debriefing:
   {{ debriefing_url }}
 
-Děkujeme za vyplnění zprávy co nejdříve.
+Děkujeme za vyplnění co nejdříve.
 
 S pozdravem,
 MedCover

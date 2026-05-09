@@ -59,7 +59,7 @@ def submit(assignment_id: int) -> str | Response:
 
     # Debriefing only allowed after event is Completed
     if event.status != EventStatus.COMPLETED:
-        flash("Výjezdovou zprávu lze vyplnit až po dokončení akce.", "warning")
+        flash("Debriefing lze vyplnit až po dokončení akce.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
     # Submission is final — show read-only view if already submitted
@@ -147,7 +147,7 @@ def submit(assignment_id: int) -> str | Response:
         db.session.add(record)
         db.session.flush()
         _audit("create", "DebriefingRecord", str(record.id),
-               f"Výjezdová zpráva odevzdána pro akci '{event.name}'")
+               f"Debriefing odevzdán pro akci '{event.name}'")
 
         # ── Persist RP event actuals ──────────────────────────────────────────
         if is_rp and actual_start and actual_end and patients_count is not None:
@@ -169,7 +169,7 @@ def submit(assignment_id: int) -> str | Response:
                    }))
 
         db.session.commit()
-        flash("Výjezdová zpráva byla úspěšně odevzdána. Děkujeme.", "success")
+        flash("Debriefing byl úspěšně odevzdán. Děkujeme.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
     return render_template(
