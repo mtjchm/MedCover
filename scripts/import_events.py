@@ -160,17 +160,15 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 
     Args:
         wb:     Opened openpyxl workbook.
-        cutoff: Only include events with date >= cutoff.  Defaults to today.
+        cutoff: Only include events with date >= cutoff.  Defaults to None
+                (include all events, including past ones).
 
     Returns:
         List of event dicts in the v2 interchange JSON schema.
     """
-    if cutoff is None:
-        cutoff = date.today()
-
     ws = wb["Dozory"]
 
-    # Count occurrences of each name among future events so we know
+    # Count occurrences of each name (among included events) so we know
     # which names need the date suffix to stay unique.
     name_counts: dict[str, int] = {}
     for row in ws.iter_rows(min_row=3, values_only=True):
@@ -178,7 +176,7 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
         dt = row[1]
         if not name or not isinstance(dt, datetime):
             continue
-        if dt.date() < cutoff:
+        if cutoff is not None and dt.date() < cutoff:
             continue
         name_counts[str(name)] = name_counts.get(str(name), 0) + 1
 
@@ -193,8 +191,8 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
         if not name or not isinstance(dt, datetime):
             continue
 
-        # Filter past events
-        if dt.date() < cutoff:
+        # Apply optional cutoff filter
+        if cutoff is not None and dt.date() < cutoff:
             continue
 
         name = str(name).strip()
@@ -324,14 +322,12 @@ def extract_users(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 
     Args:
         wb:     Opened openpyxl workbook.
-        cutoff: Only consider events on or after this date.  Defaults to today.
+        cutoff: Only consider events on or after this date.  Defaults to None
+                (include all events, including past ones).
 
     Returns:
         Sorted list of user dicts, one per unique person found in Dozory.
     """
-    if cutoff is None:
-        cutoff = date.today()
-
     lidi = _load_lidi_lookup(wb)
     ws = wb["Dozory"]
     seen: set[str] = set()
@@ -339,7 +335,9 @@ def extract_users(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 
     for row in ws.iter_rows(min_row=3, values_only=True):
         dt = row[1]
-        if not isinstance(dt, datetime) or dt.date() < cutoff:
+        if not isinstance(dt, datetime):
+            continue
+        if cutoff is not None and dt.date() < cutoff:
             continue
 
         # Collect all names: col M (RP) + cols N+ (signups)
@@ -375,7 +373,7 @@ def extract_users(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Extract future events and users from a Google Sheets .xlsx export to JSON (v2)."
+            "Extract events and users from a Google Sheets .xlsx export to JSON (v2)."
         )
     )
     parser.add_argument(
@@ -391,7 +389,7 @@ def main() -> None:
     parser.add_argument(
         "--cutoff",
         default=None,
-        help="Only include events on or after this date (YYYY-MM-DD). Default: today.",
+        help="Only include events on or after this date (YYYY-MM-DD). Default: all events.",
     )
     args = parser.parse_args()
 
