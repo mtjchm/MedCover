@@ -122,6 +122,14 @@ def send_admin_digest_task() -> None:
         run_admin_digest(db.session)
 
 
+def scheduled_backup_task() -> None:
+    """Create a daily backup if backup_schedule_enabled is True in AppSettings."""
+    with app.app_context():
+        from app.extensions import db
+        from app.scheduler_tasks import run_scheduled_backup
+        run_scheduled_backup(db.session)
+
+
 def record_metrics() -> None:
     """Record outbox queue depth snapshot every 15 minutes."""
     with app.app_context():
@@ -135,6 +143,7 @@ schedule.every(1).minutes.do(open_assignments)
 schedule.every(1).minutes.do(close_completed_events)
 schedule.every(5).minutes.do(send_reminders)
 schedule.every(1).minutes.do(send_admin_digest_task)
+schedule.every(1).hours.do(scheduled_backup_task)
 schedule.every(15).minutes.do(record_metrics)
 
 log.info("Scheduler started (mail queue interval: %ds)", MAIL_QUEUE_INTERVAL_SECONDS)

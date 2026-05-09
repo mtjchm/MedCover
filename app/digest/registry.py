@@ -10,6 +10,7 @@ from app.digest.blocks.upcoming_events import UpcomingEventsBlock
 from app.digest.blocks.new_users import NewUsersBlock
 from app.digest.blocks.feedback_summary import FeedbackSummaryBlock
 from app.digest.blocks.free_text import FreeTextBlock
+from app.digest.blocks.backup_status import BackupStatusBlock
 from app.digest.base import BaseBlock
 
 BLOCK_REGISTRY: dict[str, type[BaseBlock]] = {
@@ -19,4 +20,5 @@ BLOCK_REGISTRY: dict[str, type[BaseBlock]] = {
     NewUsersBlock.block_type:       NewUsersBlock,
     FeedbackSummaryBlock.block_type: FeedbackSummaryBlock,
     FreeTextBlock.block_type:       FreeTextBlock,
+    BackupStatusBlock.block_type:   BackupStatusBlock,
 }

@@ -72,9 +72,15 @@ pytest tests/
 tox -e py314
 ```
 
-Environment variables (`FLASK_ENV`, `SECRET_KEY`, `TEST_DATABASE_URL`) are
-injected automatically by `pytest-env` via `pyproject.toml` (plain `pytest`)
-or via the `setenv` block in `pyproject.toml [tool.tox]` (tox).
+Environment variables (`FLASK_ENV`, `SECRET_KEY`) are injected automatically by
+`pytest-env` via `pyproject.toml`.
+
+**`TEST_DATABASE_URL` is managed automatically** by `testcontainers`:
+- If `TEST_DATABASE_URL` is **not set**, a temporary `postgres:17` Docker container
+  is started at the beginning of the test session and stopped at the end.
+  The only requirement is a running Docker daemon.
+- If `TEST_DATABASE_URL` **is set** (e.g. in CI or by a developer with a local
+  Postgres), testcontainers skips the container and uses the provided URL.
 
 Coverage report is written to `htmlcov/` after each run.
 

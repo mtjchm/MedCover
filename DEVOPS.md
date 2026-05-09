@@ -137,16 +137,23 @@ docker compose exec web pytest
 docker compose exec web tox -e py314
 ```
 
-Or without Docker (requires a local Python env with `requirements-dev.txt` installed):
+Or without Docker Compose (requires a local Python env with `requirements-dev.txt` installed
+and a running Docker daemon for testcontainers):
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
 
-# Run directly
+# Run directly — testcontainers auto-starts a postgres:17 container
 pytest
 
-# Run via tox
+# Run via tox — same behaviour
 tox -e py314
+```
+
+To skip testcontainers and use an existing Postgres, set `TEST_DATABASE_URL` before running:
+
+```bash
+TEST_DATABASE_URL=postgresql://user:pass@host:5432/mydb pytest
 ```
 
 ---
