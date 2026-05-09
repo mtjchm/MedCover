@@ -192,7 +192,7 @@ def events_preview() -> str | Response:
         db.select(MasterEvent).order_by(MasterEvent.name)
     ).all())
     qualifications = list(db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
     ).all())
 
     # ── Process users for preview ────────────────────────────────────────────
@@ -374,7 +374,7 @@ def events_confirm() -> Response:
         kw = keyword.lower()
         return db.session.scalars(
             db.select(Qualification).where(
-                Qualification.is_deleted == False,  # noqa: E712
+                Qualification.is_deleted.is_(False),
                 db.func.lower(Qualification.name).contains(kw),
             )
         ).first()

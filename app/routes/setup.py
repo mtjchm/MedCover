@@ -193,7 +193,7 @@ def _ensure_roles() -> None:
 def _ensure_general_me() -> None:
     """Idempotently create the built-in General master event."""
     from app.models.master_event import MasterEvent
-    if not db.session.scalar(db.select(MasterEvent).where(MasterEvent.is_general == True)):  # noqa: E712
+    if not db.session.scalar(db.select(MasterEvent).where(MasterEvent.is_general.is_(True))):
         db.session.add(MasterEvent(
             name="Obecné",
             description="Výchozí nadřazená akce pro akce bez specifického zařazení.",

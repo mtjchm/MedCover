@@ -102,7 +102,7 @@ def dashboard() -> str:
         attention_events = list(db.session.scalars(
             db.select(Event)
             .where(
-                Event.archived == False,  # noqa: E712
+                Event.archived.is_(False),
                 Event.status.in_([EventStatus.DRAFT, EventStatus.PUBLISHED, EventStatus.ASSIGNMENTS_OPEN]),
                 Event.start_datetime <= horizon,
                 Event.end_datetime >= now,
@@ -122,7 +122,7 @@ def dashboard() -> str:
     if current_user.has_permission("user.activate"):
         pending_activations = list(db.session.scalars(
             db.select(UserAccount)
-            .where(UserAccount.is_active == False)  # noqa: E712
+            .where(UserAccount.is_active.is_(False))
             .order_by(UserAccount.created_at)
         ).all())
 
@@ -133,7 +133,7 @@ def dashboard() -> str:
         missing_rp_events = list(db.session.scalars(
             db.select(Event)
             .where(
-                Event.archived == False,  # noqa: E712
+                Event.archived.is_(False),
                 Event.status.notin_([EventStatus.DRAFT, EventStatus.CANCELLED]),
                 Event.responsible_person_id == None,  # noqa: E711
                 Event.start_datetime >= now,

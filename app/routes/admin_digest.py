@@ -317,7 +317,7 @@ def send_now() -> Response:
     html = render_digest(db.session)
 
     recipients = db.session.scalars(
-        sa.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        sa.select(UserAccount).where(UserAccount.is_active.is_(True))
     ).all()
 
     count = 0

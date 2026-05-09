@@ -19,6 +19,7 @@ from app.extensions import db
 from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
 from app.models.user import UserAccount
 from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.queries import active_users_list
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
 
@@ -169,9 +170,7 @@ def items() -> str:
 
     active_users: list[UserAccount] = []
     if current_user.has_permission("equipment_item.issue_personal"):
-        active_users = list(db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-        ).all())
+        active_users = list(active_users_list())
 
     return render_template(
         "equipment/items.html",

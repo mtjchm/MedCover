@@ -15,8 +15,8 @@ from flask_login import login_required
 
 from app.extensions import db
 from app.models.master_event import MasterEvent
-from app.models.user import UserAccount
 from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.queries import active_users_list
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
 
@@ -31,7 +31,7 @@ def index() -> str:
     show_archived = request.args.get("archived") == "1"
     query = db.select(MasterEvent)
     if not show_archived:
-        query = query.where(MasterEvent.archived == False)  # noqa: E712
+        query = query.where(MasterEvent.archived.is_(False))
     query = query.order_by(MasterEvent.is_general.desc(), MasterEvent.name)
     master_events = db.session.scalars(query).all()
 
@@ -49,9 +49,7 @@ def index() -> str:
 def create() -> str | Response:
     require_permission("master_event.create")
 
-    coordinators = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    coordinators = active_users_list()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -118,9 +116,7 @@ def edit(me_id: int) -> str | Response:
 
     me = get_or_404(MasterEvent, me_id)
 
-    coordinators = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    coordinators = active_users_list()
 
     if request.method == "POST":
         if check_version_conflict(me, request.form.get("version")):

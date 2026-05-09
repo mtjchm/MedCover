@@ -85,7 +85,7 @@ def index() -> str:
 
     # ── Statistics ─────────────────────────────────────────────────────────────
     user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount))
-    user_active = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_active == True))  # noqa: E712
+    user_active = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_active.is_(True)))
     user_pending = user_total - user_active
 
     event_counts = {

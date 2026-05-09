@@ -27,7 +27,7 @@ qualifications_bp = Blueprint("qualifications", __name__, url_prefix="/qualifica
 def index() -> str:
     require_permission("qualification.view")
     qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
     ).all()
     return render_template("qualifications/index.html", qualifications=qualifications)
 
@@ -39,7 +39,7 @@ def index() -> str:
 def create() -> str | Response:
     require_permission("qualification.create")
 
-    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)).all()  # noqa: E712
+    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)).all()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -50,7 +50,7 @@ def create() -> str | Response:
             flash("Název kvalifikace je povinný.", "danger")
             return render_template("qualifications/create.html", all_qualifications=all_qualifications)
 
-        if db.session.scalar(db.select(Qualification).where(Qualification.name == name, Qualification.is_deleted == False)):  # noqa: E712
+        if db.session.scalar(db.select(Qualification).where(Qualification.name == name, Qualification.is_deleted.is_(False))):
             flash("Kvalifikace s tímto názvem již existuje.", "danger")
             return render_template("qualifications/create.html", all_qualifications=all_qualifications)
 
@@ -81,7 +81,7 @@ def edit(cred_id: int) -> str | Response:
     cred = get_or_404(Qualification, cred_id)
 
     all_qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
+        db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted.is_(False)).order_by(Qualification.name)
     ).all()
 
     if request.method == "POST":
@@ -94,7 +94,7 @@ def edit(cred_id: int) -> str | Response:
             return render_template("qualifications/edit.html", cred=cred, all_qualifications=all_qualifications)
 
         conflict = db.session.scalar(
-            db.select(Qualification).where(Qualification.name == name, Qualification.id != cred_id, Qualification.is_deleted == False)  # noqa: E712
+            db.select(Qualification).where(Qualification.name == name, Qualification.id != cred_id, Qualification.is_deleted.is_(False))
         )
         if conflict:
             flash("Kvalifikace s tímto názvem již existuje.", "danger")

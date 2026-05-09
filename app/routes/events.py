@@ -37,6 +37,7 @@ from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.queries import active_users_list
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -72,7 +73,7 @@ def index() -> str:
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
-        query = query.where(Event.archived == False)  # noqa: E712
+        query = query.where(Event.archived.is_(False))
 
     events = db.session.scalars(query).all()
     event_templates: list[EventTemplate] = []
@@ -133,7 +134,7 @@ def feed() -> Response:
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
-        query = query.where(Event.archived == False)  # noqa: E712
+        query = query.where(Event.archived.is_(False))
 
     events = db.session.scalars(query).all()
 
@@ -185,11 +186,9 @@ def create() -> str | Response:
     require_permission("event.create")
 
     master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
+        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
     ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     if request.method == "POST":
@@ -242,11 +241,9 @@ def create_from_template(template_id: int) -> str | Response:
     tmpl = get_or_404(EventTemplate, template_id)
 
     master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
+        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
     ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     return render_template(
@@ -269,9 +266,7 @@ def detail(event_id: int) -> str | Response:
 
     eligible_users: list[UserAccount] = []
     if current_user.has_permission("event.assign_other"):
-        eligible_users = list(db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-        ).all())
+        eligible_users = list(active_users_list())
 
     all_equipment_types = db.session.scalars(
         db.select(EquipmentType)
@@ -344,11 +339,9 @@ def edit(event_id: int) -> str | Response:
         return redirect(url_for("events.detail", event_id=event_id))
 
     master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
+        db.select(MasterEvent).where(MasterEvent.archived.is_(False)).order_by(MasterEvent.is_general.desc(), MasterEvent.name)
     ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    users = active_users_list()
 
     if request.method == "POST":
         if check_version_conflict(event, request.form.get("version")):
@@ -432,13 +425,13 @@ def transition(event_id: int) -> Response:
     # Email notifications
     if target_status == EventStatus.PUBLISHED:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+            db.select(UserAccount).where(UserAccount.is_active.is_(True))
         ).all()
         for u in active_users:
             mailer.send_event_published(u, event)
     elif target_status == EventStatus.ASSIGNMENTS_OPEN:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+            db.select(UserAccount).where(UserAccount.is_active.is_(True))
         ).all()
         for u in active_users:
             mailer.send_assignments_opened(u, event)
