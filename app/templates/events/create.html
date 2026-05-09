@@ -43,7 +43,7 @@
             <option value="">— Vyberte —</option>
             {% for me in master_events %}
               <option value="{{ me.id }}"
-                {{ 'selected' if request.form.get('master_event_id') == me.id|string }}>
+                {{ 'selected' if (request.form.get('master_event_id') == me.id|string) or (not request.form.get('master_event_id') and me.is_general) }}>
                 {{ me.name }}{% if me.is_general %} (Výchozí){% endif %}
               </option>
             {% endfor %}
