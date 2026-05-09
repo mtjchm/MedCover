@@ -278,7 +278,26 @@
 
     eligFilter = loadEligFilter();
     var eligBtn = document.getElementById("btn-elig-filter");
-    if (eligBtn) eligBtn.classList.toggle("active", eligFilter);
+    if (eligBtn) {
+      eligBtn.classList.toggle("active", eligFilter);
+      var eligTouchStartY = 0;
+      var eligTouchFired = false;
+      eligBtn.addEventListener("touchstart", function (e) {
+        eligTouchStartY = e.touches[0].clientY;
+      }, { passive: true });
+      eligBtn.addEventListener("touchend", function (e) {
+        var dy = Math.abs(e.changedTouches[0].clientY - eligTouchStartY);
+        if (dy > 10) return;
+        eligTouchFired = true;
+        e.preventDefault();
+        toggleEligFilter();
+        setTimeout(function () { eligTouchFired = false; }, 500);
+      }, { passive: false });
+      eligBtn.addEventListener("click", function () {
+        if (eligTouchFired) return;
+        toggleEligFilter();
+      });
+    }
 
     var activeFilters = loadFilters();
     renderFilterButtons(activeFilters);
