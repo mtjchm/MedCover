@@ -25,6 +25,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.extensions import db
+from app.utils import audit, require_permission
 from app.models.settings import get_settings
 from app.models.audit import AuditLogEntry
 
@@ -34,11 +35,6 @@ backup_bp = Blueprint("backup", __name__, url_prefix="/admin/backup")
 
 # Filename pattern — only allow files we created to prevent path traversal.
 _BACKUP_FILENAME_RE = re.compile(r"^medcover_backup_\d{8}_\d{6}_\d+\.zip$")
-
-
-def _require_permission(code: str) -> None:
-    if not current_user.has_permission(code):
-        abort(403)
 
 
 def _resolve_backup_dir() -> Path:
@@ -64,7 +60,7 @@ def _safe_backup_path(filename: str) -> Path:
 @backup_bp.route("/")
 @login_required
 def index() -> str:
-    _require_permission("admin.view")
+    require_permission("admin.view")
 
     from app.backup import list_backups
     backup_dir = _resolve_backup_dir()
@@ -83,7 +79,7 @@ def index() -> str:
 @backup_bp.route("/run", methods=["POST"])
 @login_required
 def run_backup() -> Response:
-    _require_permission("backup.run")
+    require_permission("backup.run")
 
     from app.backup import export_to_zip, prune_old_backups
     backup_dir = _resolve_backup_dir()
@@ -91,14 +87,7 @@ def run_backup() -> Response:
     try:
         zip_path = export_to_zip(backup_dir)
         pruned = prune_old_backups(backup_dir, settings.backup_keep_count)
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="create",
-            entity_type="Backup",
-            entity_id=zip_path.name,
-            summary=f"Ruční záloha vytvořena: {zip_path.name}",
-            changes_json={"file": zip_path.name, "pruned": [p.name for p in pruned]},
-        ))
+        audit("create", "Backup", zip_path.name, f"Ruční záloha vytvořena: {zip_path.name}", {"file": zip_path.name, "pruned": [p.name for p in pruned]})
         db.session.commit()
         flash(f"Záloha byla vytvořena: {zip_path.name}", "success")
     except Exception as exc:
@@ -112,7 +101,7 @@ def run_backup() -> Response:
 @backup_bp.route("/download/<filename>")
 @login_required
 def download(filename: str) -> Response:
-    _require_permission("backup.download")
+    require_permission("backup.download")
     path = _safe_backup_path(filename)
     return send_file(
         io.BytesIO(path.read_bytes()),
@@ -127,7 +116,7 @@ def download(filename: str) -> Response:
 @backup_bp.route("/restore/<filename>", methods=["POST"])
 @login_required
 def restore(filename: str) -> Response:
-    _require_permission("backup.restore")
+    require_permission("backup.restore")
 
     confirmation = request.form.get("confirmation", "").strip()
     if confirmation != "RESTORE":
@@ -144,7 +133,7 @@ def restore(filename: str) -> Response:
 @backup_bp.route("/upload-restore", methods=["POST"])
 @login_required
 def upload_restore() -> Response:
-    _require_permission("backup.restore")
+    require_permission("backup.restore")
 
     confirmation = request.form.get("confirmation", "").strip()
     if confirmation != "RESTORE":
@@ -202,7 +191,7 @@ def _do_restore(zip_path: Path, actor_id: int | None) -> None:
 @backup_bp.route("/delete/<filename>", methods=["POST"])
 @login_required
 def delete(filename: str) -> Response:
-    _require_permission("backup.delete")
+    require_permission("backup.delete")
 
     confirmation = request.form.get("confirmation", "").strip()
     if confirmation != "SMAZAT":
@@ -212,14 +201,7 @@ def delete(filename: str) -> Response:
     path = _safe_backup_path(filename)
     try:
         path.unlink()
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="delete",
-            entity_type="Backup",
-            entity_id=filename,
-            summary=f"Záloha smazána: {filename}",
-            changes_json={"file": filename},
-        ))
+        audit("delete", "Backup", filename, f"Záloha smazána: {filename}", {"file": filename})
         db.session.commit()
         flash(f"Záloha {filename} byla smazána.", "success")
     except Exception as exc:
@@ -233,7 +215,7 @@ def delete(filename: str) -> Response:
 @backup_bp.route("/settings", methods=["POST"])
 @login_required
 def save_settings() -> Response:
-    _require_permission("admin.manage_settings")
+    require_permission("admin.manage_settings")
 
     settings = get_settings()
     old = {
@@ -264,14 +246,7 @@ def save_settings() -> Response:
         "backup_schedule_enabled": settings.backup_schedule_enabled,
         "backup_schedule_hour": settings.backup_schedule_hour,
     }
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="AppSettings",
-        entity_id="1",
-        summary="Nastavení zálohování upraveno",
-        changes_json={"before": old, "after": new},
-    ))
+    audit("edit", "AppSettings", "1", "Nastavení zálohování upraveno", {"before": old, "after": new})
     db.session.commit()
     flash("Nastavení zálohování bylo uloženo.", "success")
     return redirect(url_for("backup.index"))

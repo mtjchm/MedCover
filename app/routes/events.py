@@ -30,14 +30,13 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate
-from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
-from app.models.audit import AuditLogEntry
 from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
-from app.utils import diff_changes
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.queries import active_master_events_list, active_users_list
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -54,17 +53,6 @@ _TRANSITIONS: list[tuple[EventStatus, EventStatus, str]] = [
 ]
 
 
-def _audit(action: str, event: Event, summary: str, changes: dict | None = None) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="Event",
-        entity_id=str(event.id),
-        summary=summary,
-        changes_json=changes,
-    ))
-
-
 def _can_view(event: Event) -> bool:
     if event.status == EventStatus.DRAFT:
         return current_user.has_permission("event.view_draft")
@@ -76,8 +64,7 @@ def _can_view(event: Event) -> bool:
 @events_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_any_permission("event.view", "event.view_draft"):
-        abort(403)
+    require_permission("event.view", "event.view_draft")
 
     show_archived = request.args.get("archived") == "1"
     query = db.select(Event).order_by(Event.start_datetime.desc())
@@ -85,7 +72,7 @@ def index() -> str:
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
-        query = query.where(Event.archived == False)  # noqa: E712
+        query = query.where(Event.archived.is_(False))
 
     events = db.session.scalars(query).all()
     event_templates: list[EventTemplate] = []
@@ -105,8 +92,7 @@ def index() -> str:
                 continue
             eligible = [
                 (s.id, s.description)
-                for s in e.spots
-                if s.assignment is None and s.id not in user_assigned_spot_ids and s.is_eligible(current_user)
+                for s in e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids)
             ]
             if eligible:
                 eligible_spot_map[e.id] = eligible
@@ -139,8 +125,7 @@ _STATUS_COLORS: dict[str, str] = {
 @login_required
 def feed() -> Response:
     """Return events as FullCalendar-compatible JSON."""
-    if not current_user.has_any_permission("event.view", "event.view_draft"):
-        abort(403)
+    require_permission("event.view", "event.view_draft")
 
     show_archived = request.args.get("archived") == "1"
 
@@ -148,7 +133,7 @@ def feed() -> Response:
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
-        query = query.where(Event.archived == False)  # noqa: E712
+        query = query.where(Event.archived.is_(False))
 
     events = db.session.scalars(query).all()
 
@@ -167,12 +152,7 @@ def feed() -> Response:
         color = _STATUS_COLORS.get(e.status.value, "#6c757d")
         eligible = False
         if current_user.has_permission("event.assign_own"):
-            eligible = any(
-                s.assignment is None
-                and s.id not in user_assigned_spot_ids
-                and s.is_eligible(current_user)
-                for s in e.spots
-            )
+            eligible = bool(e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids))
         items.append({
             "id": e.id,
             "title": e.name,
@@ -202,15 +182,10 @@ def feed() -> Response:
 @events_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
-    if not current_user.has_permission("event.create"):
-        abort(403)
+    require_permission("event.create")
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
-    ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    master_events = active_master_events_list()
+    users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     if request.method == "POST":
@@ -242,7 +217,7 @@ def create() -> str | Response:
         else:
             _build_spots(event, request.form)
 
-        _audit("create", event, f"Vytvořena akce '{event.name}'")
+        audit("create", "Event", event.id, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
         if quick_publish:
@@ -259,18 +234,11 @@ def create() -> str | Response:
 @events_bp.get("/create-from-template/<int:template_id>")
 @login_required
 def create_from_template(template_id: int) -> str | Response:
-    if not current_user.has_permission("event.create"):
-        abort(403)
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    require_permission("event.create")
+    tmpl = get_or_404(EventTemplate, template_id)
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
-    ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    master_events = active_master_events_list()
+    users = active_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).order_by(Qualification.name)).all()
 
     return render_template(
@@ -287,17 +255,13 @@ def create_from_template(template_id: int) -> str | Response:
 @events_bp.get("/<int:event_id>")
 @login_required
 def detail(event_id: int) -> str | Response:
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if not _can_view(event):
         abort(403)
 
     eligible_users: list[UserAccount] = []
     if current_user.has_permission("event.assign_other"):
-        eligible_users = list(db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-        ).all())
+        eligible_users = list(active_users_list())
 
     all_equipment_types = db.session.scalars(
         db.select(EquipmentType)
@@ -361,28 +325,20 @@ def detail(event_id: int) -> str | Response:
 @events_bp.route("/<int:event_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(event_id: int) -> str | Response:
-    if not current_user.has_permission("event.edit"):
-        abort(403)
+    require_permission("event.edit")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     if event.status in (EventStatus.COMPLETED, EventStatus.CANCELLED):
         flash("Dokončené nebo zrušené akce nelze upravovat.", "warning")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    master_events = db.session.scalars(
-        db.select(MasterEvent).where(MasterEvent.archived == False).order_by(MasterEvent.is_general.desc(), MasterEvent.name)  # noqa: E712
-    ).all()
-    users = db.session.scalars(
-        db.select(UserAccount).where(UserAccount.is_active == True).order_by(UserAccount.name)  # noqa: E712
-    ).all()
+    master_events = active_master_events_list()
+    users = active_users_list()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != event.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(event, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("events/edit.html", event=event, master_events=master_events, users=users)
 
         # Snapshot before mutation
@@ -418,7 +374,7 @@ def edit(event_id: int) -> str | Response:
         }
 
         event.version += 1
-        _audit("edit", event, f"Upravena akce '{event.name}'", diff_changes(before, after))
+        audit("edit", "Event", event.id, f"Upravena akce '{event.name}'", diff_changes(before, after))
         db.session.commit()
 
         flash("Akce byla uložena.", "success")
@@ -432,9 +388,7 @@ def edit(event_id: int) -> str | Response:
 @events_bp.post("/<int:event_id>/transition")
 @login_required
 def transition(event_id: int) -> Response:
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     target = request.form.get("target_status")
     try:
@@ -455,7 +409,7 @@ def transition(event_id: int) -> Response:
 
     event.status = target_status
     event.version += 1
-    _audit("status_change", event, f"Stav akce '{event.name}' změněn na '{target_status.value}'", {
+    audit("status_change", "Event", event.id, f"Stav akce '{event.name}' změněn na '{target_status.value}'", {
         "before": {"status": event.status.value},
         "after": {"status": target_status.value},
     })
@@ -464,13 +418,13 @@ def transition(event_id: int) -> Response:
     # Email notifications
     if target_status == EventStatus.PUBLISHED:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+            db.select(UserAccount).where(UserAccount.is_active.is_(True))
         ).all()
         for u in active_users:
             mailer.send_event_published(u, event)
     elif target_status == EventStatus.ASSIGNMENTS_OPEN:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+            db.select(UserAccount).where(UserAccount.is_active.is_(True))
         ).all()
         for u in active_users:
             mailer.send_assignments_opened(u, event)
@@ -489,12 +443,9 @@ def transition(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/cancel")
 @login_required
 def cancel(event_id: int) -> Response:
-    if not current_user.has_permission("event.cancel"):
-        abort(403)
+    require_permission("event.cancel")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.COMPLETED:
         flash("Dokončené akce nelze zrušit.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -502,7 +453,7 @@ def cancel(event_id: int) -> Response:
     event.status = EventStatus.CANCELLED
     event.archived = True
     event.version += 1
-    _audit("status_change", event, f"Akce '{event.name}' zrušena a archivována")
+    audit("status_change", "Event", event.id, f"Akce '{event.name}' zrušena a archivována")
 
     # Notify all assigned users before commit so we still have spot data
     assigned_users = [
@@ -521,12 +472,9 @@ def cancel(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/restore")
 @login_required
 def restore(event_id: int) -> Response:
-    if not current_user.has_permission("event.restore"):
-        abort(403)
+    require_permission("event.restore")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status != EventStatus.CANCELLED:
         flash("Pouze zrušené akce lze obnovit.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -534,7 +482,7 @@ def restore(event_id: int) -> Response:
     event.status = EventStatus.DRAFT
     event.archived = False
     event.version += 1
-    _audit("status_change", event, f"Akce '{event.name}' obnovena do stavu Koncept")
+    audit("status_change", "Event", event.id, f"Akce '{event.name}' obnovena do stavu Koncept")
     db.session.commit()
 
     flash("Akce byla obnovena.", "success")
@@ -598,12 +546,9 @@ def bulk_action() -> Response:
         if target_status == EventStatus.CANCELLED:
             event.archived = True
         event.version += 1
-        _audit(
-            "status_change",
-            event,
-            f"Hromadná akce: stav akce '{event.name}' změněn na '{target_status.value}'",
-            {"before": {"status": prev_status}, "after": {"status": target_status.value}},
-        )
+        audit("status_change", "Event", event.id,
+              f"Hromadná akce: stav akce '{event.name}' změněn na '{target_status.value}'",
+              {"before": {"status": prev_status}, "after": {"status": target_status.value}})
         changed += 1
 
     db.session.commit()
@@ -618,11 +563,8 @@ def bulk_action() -> Response:
 @events_bp.post("/<int:event_id>/spots/add")
 @login_required
 def add_spot(event_id: int) -> Response:
-    if not current_user.has_permission("event.edit"):
-        abort(403)
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    require_permission("event.edit")
+    event = get_or_404(Event, event_id)
 
     description = request.form.get("description", "").strip() or None
     is_optional = request.form.get("is_optional") == "1"
@@ -643,7 +585,7 @@ def add_spot(event_id: int) -> Response:
     event.version += 1
     opt_flag = " (volitelná)" if is_optional else ""
     qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
-    _audit("edit", event, f"Přidáno {quantity}× pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
+    audit("edit", "Event", event.id, f"Přidáno {quantity}× pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
     db.session.commit()
 
     flash(f"{'Pozice přidány' if quantity > 1 else 'Místo přidáno'}.", "success")
@@ -653,14 +595,11 @@ def add_spot(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/spots/<int:spot_id>/edit")
 @login_required
 def edit_spot(event_id: int, spot_id: int) -> Response:
-    if not current_user.has_permission("event.edit"):
-        abort(403)
+    require_permission("event.edit")
     spot = db.session.get(EventSpot, spot_id)
     if spot is None or spot.event_id != event_id:
         abort(404)
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     description = request.form.get("description", "").strip() or None
     qual_ids = [int(c) for c in request.form.getlist("qualification_ids") if c.isdigit()]
@@ -696,18 +635,12 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
     event.version += 1
     opt_flag = " (volitelná)" if spot.is_optional else ""
     qual_names = ", ".join(c.name for c in qualifications) if qualifications else "žádná"
-    _audit("edit", event, f"Upravena pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
+    audit("edit", "Event", event.id, f"Upravena pozice '{description or '—'}'{opt_flag} (kvalifikace: {qual_names})")
 
     if unassign_needed:
         assignment = spot.assignment
         unassigned_user = assignment.user
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="delete",
-            entity_type="Assignment",
-            entity_id=str(assignment.id),
-            summary=f"Uživatel '{unassigned_user.name}' automaticky odhlášen — nesplňuje nové požadavky pozice",
-        ))
+        audit("delete", "Assignment", assignment.id, f"Uživatel '{unassigned_user.name}' automaticky odhlášen — nesplňuje nové požadavky pozice")
         db.session.delete(assignment)
         db.session.flush()
 
@@ -724,8 +657,7 @@ def edit_spot(event_id: int, spot_id: int) -> Response:
 @events_bp.post("/<int:event_id>/spots/<int:spot_id>/delete")
 @login_required
 def delete_spot(event_id: int, spot_id: int) -> Response:
-    if not current_user.has_permission("event.edit"):
-        abort(403)
+    require_permission("event.edit")
     spot = db.session.get(EventSpot, spot_id)
     if spot is None or spot.event_id != event_id:
         abort(404)
@@ -734,11 +666,9 @@ def delete_spot(event_id: int, spot_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event_id))
 
     db.session.delete(spot)
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     event.version += 1
-    _audit("edit", event, f"Odstraněna pozice z akce '{event.name}'")
+    audit("edit", "Event", event.id, f"Odstraněna pozice z akce '{event.name}'")
     db.session.commit()
 
     flash("Místo odstraněno.", "success")
@@ -877,12 +807,9 @@ def _build_spots_from_template(event: Event, template: object) -> None:
 @events_bp.post("/<int:event_id>/equipment/plan")
 @login_required
 def equipment_plan_add(event_id: int) -> Response:
-    if not current_user.has_permission("event.equipment.plan"):
-        abort(403)
+    require_permission("event.equipment.plan")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.CANCELLED:
         flash("Zrušeným akcím nelze plánovat vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -893,9 +820,7 @@ def equipment_plan_add(event_id: int) -> Response:
         flash("Zadejte platný typ a množství.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    et = db.session.get(EquipmentType, type_id)
-    if et is None:
-        abort(404)
+    et = get_or_404(EquipmentType, type_id)
 
     existing = db.session.get(EventEquipmentPlan, (event_id, type_id))
     if existing:
@@ -907,7 +832,7 @@ def equipment_plan_add(event_id: int) -> Response:
             quantity_required=quantity,
         ))
 
-    _audit("edit", event, f"Plán vybavení akce '{event.name}': {et.name} × {quantity}")
+    audit("edit", "Event", event.id, f"Plán vybavení akce '{event.name}': {et.name} × {quantity}")
     db.session.commit()
 
     flash("Plán vybavení byl aktualizován.", "success")
@@ -917,12 +842,9 @@ def equipment_plan_add(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/equipment/plan/remove")
 @login_required
 def equipment_plan_remove(event_id: int) -> Response:
-    if not current_user.has_permission("event.equipment.plan"):
-        abort(403)
+    require_permission("event.equipment.plan")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     type_id = request.form.get("type_id", type=int)
     if not type_id:
@@ -932,7 +854,7 @@ def equipment_plan_remove(event_id: int) -> Response:
     plan = db.session.get(EventEquipmentPlan, (event_id, type_id))
     if plan:
         db.session.delete(plan)
-        _audit("edit", event, f"Odstraněn typ vybavení z plánu akce '{event.name}'")
+        audit("edit", "Event", event.id, f"Odstraněn typ vybavení z plánu akce '{event.name}'")
         db.session.commit()
 
     flash("Plán vybavení byl aktualizován.", "success")
@@ -944,12 +866,9 @@ def equipment_plan_remove(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/equipment/assign")
 @login_required
 def equipment_assign(event_id: int) -> Response:
-    if not current_user.has_permission("event.equipment.assign"):
-        abort(403)
+    require_permission("event.equipment.assign")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
     if event.status == EventStatus.CANCELLED:
         flash("Zrušeným akcím nelze přiřazovat vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
@@ -959,9 +878,7 @@ def equipment_assign(event_id: int) -> Response:
         flash("Vyberte položku vybavení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    item = db.session.get(EquipmentItem, item_id)
-    if item is None:
-        abort(404)
+    item = get_or_404(EquipmentItem, item_id)
 
     existing = db.session.scalar(
         db.select(EventEquipmentAssignment).where(
@@ -975,7 +892,7 @@ def equipment_assign(event_id: int) -> Response:
 
     assignment = EventEquipmentAssignment(event_id=event_id, equipment_item_id=item_id)
     db.session.add(assignment)
-    _audit("edit", event, f"Přiřazena položka vybavení '{item.name}' k akci '{event.name}'")
+    audit("edit", "Event", event.id, f"Přiřazena položka vybavení '{item.name}' k akci '{event.name}'")
     db.session.commit()
 
     flash(f'Položka „{item.name}" byla přiřazena k akci.', "success")
@@ -985,12 +902,9 @@ def equipment_assign(event_id: int) -> Response:
 @events_bp.post("/<int:event_id>/equipment/unassign")
 @login_required
 def equipment_unassign(event_id: int) -> Response:
-    if not current_user.has_permission("event.equipment.assign"):
-        abort(403)
+    require_permission("event.equipment.assign")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     item_id = request.form.get("item_id", type=int)
     if not item_id:
@@ -1009,7 +923,7 @@ def equipment_unassign(event_id: int) -> Response:
 
     item = db.session.get(EquipmentItem, item_id)
     db.session.delete(assignment)
-    _audit("edit", event, f"Vrácena položka vybavení '{item.name if item else item_id}' z akce '{event.name}'")
+    audit("edit", "Event", event.id, f"Vrácena položka vybavení '{item.name if item else item_id}' z akce '{event.name}'")
     db.session.commit()
 
     flash("Položka vybavení byla vrácena.", "success")
@@ -1022,12 +936,9 @@ def equipment_unassign(event_id: int) -> Response:
 @login_required
 def set_rp(event_id: int) -> Response:
     """Manually assign a responsible person from RP-eligible attendees."""
-    if not current_user.has_any_permission("event.set_responsible_person"):
-        abort(403)
+    require_permission("event.set_responsible_person")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     user_id_str = request.form.get("user_id", "").strip()
     if not user_id_str:
@@ -1062,14 +973,7 @@ def set_rp(event_id: int) -> Response:
     old_rp = event.responsible_person_id
     event.responsible_person_id = user_id
     event.version += 1
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="Event",
-        entity_id=str(event_id),
-        summary=f"Vedoucí akce nastaven na '{user.name}'",
-        changes_json={"responsible_person_id": {"before": str(old_rp), "after": str(user_id)}},
-    ))
+    audit("edit", "Event", event_id, f"Vedoucí akce nastaven na '{user.name}'", {"responsible_person_id": {"before": str(old_rp), "after": str(user_id)}})
     db.session.commit()
 
     flash(f"{user.name} byl nastaven jako vedoucí akce.", "success")

@@ -15,12 +15,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.extensions import db
+from app.utils import audit, require_permission
 from app.models.assignment import Assignment
-from app.models.audit import AuditLogEntry
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
@@ -36,8 +36,7 @@ _PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 def _require_import_permission() -> None:
     """Abort 403 unless the current user may import events."""
-    if not current_user.has_permission("event.create"):
-        abort(403)
+    require_permission("event.create")
 
 
 def _match_responsible_person(
@@ -193,7 +192,7 @@ def events_preview() -> str | Response:
         db.select(MasterEvent).order_by(MasterEvent.name)
     ).all())
     qualifications = list(db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
     ).all())
 
     # ── Process users for preview ────────────────────────────────────────────
@@ -375,7 +374,7 @@ def events_confirm() -> Response:
         kw = keyword.lower()
         return db.session.scalars(
             db.select(Qualification).where(
-                Qualification.is_deleted == False,  # noqa: E712
+                Qualification.is_deleted.is_(False),
                 db.func.lower(Qualification.name).contains(kw),
             )
         ).first()
@@ -441,14 +440,7 @@ def events_confirm() -> Response:
             if email:
                 existing_by_email[email.lower()] = new_user
 
-            db.session.add(AuditLogEntry(
-                actor_id=current_user.id,
-                action_type="import",
-                entity_type="UserAccount",
-                entity_id=str(new_user.id),
-                summary=f"Uživatel importován z Google Sheets: {name}",
-                changes_json=None,
-            ))
+            audit("import", "UserAccount", new_user.id, f"Uživatel importován z Google Sheets: {name}", None)
             created_users += 1
 
         # Build comprehensive name→user map (all DB users incl. newly created)
@@ -590,14 +582,7 @@ def events_confirm() -> Response:
                         ))
 
             # ── Audit log ─────────────────────────────────────────────────
-            db.session.add(AuditLogEntry(
-                actor_id=current_user.id,
-                action_type="import",
-                entity_type="Event",
-                entity_id=str(event.id),
-                summary=f"Akce importována z Google Sheets: {name}",
-                changes_json=None,
-            ))
+            audit("import", "Event", event.id, f"Akce importována z Google Sheets: {name}", None)
 
             created += 1
 

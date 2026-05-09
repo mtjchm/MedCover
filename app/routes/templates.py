@@ -10,30 +10,16 @@ Permissions:
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
-from flask_login import login_required, current_user
+from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
+from flask_login import login_required
 
 from app.extensions import db
 from app.models.event import EventTemplate, EventSpotTemplate
 from app.models.qualification import Qualification
 from app.models.equipment import EquipmentType, EventTemplateEquipmentPlan
-from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 templates_bp = Blueprint("templates", __name__, url_prefix="/templates")
-
-
-def _audit(
-    action: str, template: EventTemplate, summary: str, changes: dict | None = None
-) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="EventTemplate",
-        entity_id=str(template.id),
-        summary=summary,
-        changes_json=changes,
-    ))
 
 
 def _parse_spot_slots(form: dict) -> list[tuple[str | None, bool, list[int]]]:
@@ -99,8 +85,7 @@ def _rebuild_spot_templates(
 @templates_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("event_template.view"):
-        abort(403)
+    require_permission("event_template.view")
 
     all_templates = db.session.scalars(
         db.select(EventTemplate).order_by(EventTemplate.name)
@@ -113,8 +98,7 @@ def index() -> str:
 @templates_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
-    if not current_user.has_permission("event_template.create"):
-        abort(403)
+    require_permission("event_template.create")
 
     qualifications = db.session.scalars(
         db.select(Qualification).order_by(Qualification.name)
@@ -150,7 +134,7 @@ def create() -> str | Response:
         _rebuild_spot_templates(tmpl, slots)
         _rebuild_equipment_plans(tmpl, request.form)
 
-        _audit("create", tmpl, f"Vytvořena šablona akce '{tmpl.name}'")
+        audit("create", "EventTemplate", tmpl.id, f"Vytvořena šablona akce '{tmpl.name}'")
         db.session.commit()
 
         flash(f'Šablona „{tmpl.name}" byla vytvořena.', "success")
@@ -164,12 +148,9 @@ def create() -> str | Response:
 @templates_bp.route("/<int:template_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(template_id: int) -> str | Response:
-    if not current_user.has_permission("event_template.edit"):
-        abort(403)
+    require_permission("event_template.edit")
 
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    tmpl = get_or_404(EventTemplate, template_id)
 
     qualifications = db.session.scalars(
         db.select(Qualification).order_by(Qualification.name)
@@ -179,9 +160,8 @@ def edit(template_id: int) -> str | Response:
     ).all()
 
     if request.method == "POST":
-        submitted_version = int(request.form.get("version", 0))
-        if submitted_version != tmpl.version:
-            flash("Záznam byl mezitím změněn, načtěte stránku znovu.", "danger")
+        if check_version_conflict(tmpl, request.form.get("version")):
+            flash(RECORD_MODIFIED_MSG, "danger")
             return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
 
         name = request.form.get("name", "").strip()
@@ -228,9 +208,10 @@ def edit(template_id: int) -> str | Response:
             "spot_count": len(slots),
         }
 
-        _audit(
+        audit(
             "edit",
-            tmpl,
+            "EventTemplate",
+            tmpl.id,
             f"Upravena šablona akce '{tmpl.name}'",
             diff_changes(before, after),
         )
@@ -247,15 +228,12 @@ def edit(template_id: int) -> str | Response:
 @templates_bp.post("/<int:template_id>/delete")
 @login_required
 def delete(template_id: int) -> Response:
-    if not current_user.has_permission("event_template.delete"):
-        abort(403)
+    require_permission("event_template.delete")
 
-    tmpl = db.session.get(EventTemplate, template_id)
-    if tmpl is None:
-        abort(404)
+    tmpl = get_or_404(EventTemplate, template_id)
 
     name = tmpl.name
-    _audit("delete", tmpl, f"Smazána šablona akce '{name}'")
+    audit("delete", "EventTemplate", tmpl.id, f"Smazána šablona akce '{name}'")
     db.session.delete(tmpl)
     db.session.commit()
 

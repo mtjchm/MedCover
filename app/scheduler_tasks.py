@@ -36,7 +36,7 @@ def run_send_reminders(db_session: Any, now: datetime | None = None) -> int:
     events = db_session.scalars(
         sa.select(Event).where(
             Event.status == EventStatus.ASSIGNMENTS_OPEN,
-            Event.archived == False,  # noqa: E712
+            Event.archived.is_(False),
             Event.start_datetime > now,
         )
     ).all()
@@ -138,7 +138,7 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
             return False
 
     recipients = db_session.scalars(
-        sa.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+        sa.select(UserAccount).where(UserAccount.is_active.is_(True))
     ).all()
     eligible = [u for u in recipients if user_can_receive_notification(u, "admin_digest")]
 

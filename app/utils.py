@@ -1,6 +1,14 @@
 """Shared utility helpers for the MedCover application."""
 from __future__ import annotations
 
+from typing import TypeVar
+
+# Reusable flash message constants (Czech UI).
+RECORD_MODIFIED_MSG = "Záznam byl mezitím změněn, načtěte stránku znovu."
+
+T = TypeVar("T")
+E = TypeVar("E")
+
 
 def external_url_for(endpoint: str, **values: object) -> str:
     """Build an absolute URL for *endpoint*, honouring the configured ``app_base_url``.
@@ -45,3 +53,79 @@ def diff_changes(before: dict, after: dict) -> dict:
         for k in sorted(all_keys)
         if str(before.get(k)) != str(after.get(k))
     }
+
+
+def audit(
+    action: str,
+    entity_type: str,
+    entity_id: str | int,
+    summary: str,
+    changes: dict | None = None,
+) -> None:
+    """Append an ``AuditLogEntry`` for the current user to the active DB session.
+
+    The caller is responsible for committing. Use within a transaction so that
+    the audit row is rolled back together with the business change on failure.
+    """
+    from flask_login import current_user
+    from app.extensions import db
+    from app.models.audit import AuditLogEntry
+
+    db.session.add(AuditLogEntry(
+        actor_id=current_user.id,
+        action_type=action,
+        entity_type=entity_type,
+        entity_id=str(entity_id),
+        summary=summary,
+        changes_json=changes,
+    ))
+
+
+def get_or_404(model: type[T], pk: object) -> T:
+    """Fetch *model* by primary key; abort 404 if missing.
+
+    Standard idiom for view functions to resolve a URL parameter to an entity.
+    """
+    from flask import abort
+    from app.extensions import db
+
+    obj = db.session.get(model, pk)
+    if obj is None:
+        abort(404)
+    return obj  # type: ignore[return-value]
+
+
+def require_permission(*codes: str) -> None:
+    """Abort 403 unless the current user holds at least one of *codes*.
+
+    Call inline at the top of view functions that already use ``@login_required``.
+    """
+    from flask import abort
+    from flask_login import current_user
+
+    if not current_user.has_any_permission(*codes):
+        abort(403)
+
+
+def check_version_conflict(obj: object, form_value: str | None) -> bool:
+    """Return True if the form's submitted version doesn't match ``obj.version``.
+
+    Used for optimistic-locking edit forms — caller flashes
+    :data:`RECORD_MODIFIED_MSG` and re-renders the form when this returns True.
+    """
+    try:
+        submitted = int(form_value or 0)
+    except (TypeError, ValueError):
+        submitted = 0
+    current = getattr(obj, "version", None)
+    return current is not None and submitted != current
+
+
+def parse_enum(enum_class: type[E], value: object, default: E | None = None) -> E | None:
+    """Coerce *value* to *enum_class*; return *default* on failure."""
+    if value is None:
+        return default
+    try:
+        return enum_class(value)  # type: ignore[call-arg]
+    except (ValueError, KeyError):
+        return default

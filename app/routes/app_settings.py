@@ -6,29 +6,23 @@ after the initial setup wizard has completed.
 from __future__ import annotations
 
 import pytz
-from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
+from flask_login import login_required
 from flask_mail import Message
 
 from app.extensions import db, mail
-from app.models.audit import AuditLogEntry
 from app.models.settings import get_settings
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, require_permission
 
 app_settings_bp = Blueprint("app_settings", __name__, url_prefix="/admin/settings")
 
 _ALL_TIMEZONES = pytz.common_timezones
 
 
-def _require_permission() -> None:
-    if not current_user.has_permission("admin.manage_settings"):
-        abort(403)
-
-
 @app_settings_bp.route("/", methods=["GET", "POST"])
 @login_required
 def index() -> str | Response:
-    _require_permission()
+    require_permission("admin.manage_settings")
     settings = get_settings()
 
     if request.method == "POST":
@@ -119,14 +113,7 @@ def index() -> str | Response:
             return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
 
         # --- Commit + audit ---
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="AppSettings",
-            entity_id=1,
-            summary="Nastavení aplikace bylo upraveno.",
-            changes_json=diff_changes(before, after),
-        ))
+        audit("edit", "AppSettings", 1, "Nastavení aplikace bylo upraveno.", diff_changes(before, after))
         db.session.commit()
         settings.apply_to_app(current_app._get_current_object())
         flash("Nastavení bylo uloženo.", "success")
