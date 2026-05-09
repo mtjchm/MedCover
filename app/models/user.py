@@ -47,6 +47,9 @@ class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
     dark_mode = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
+    # Single-use password reset: nonce is set when a reset link is issued and
+    # cleared after successful password change. Old links become invalid immediately.
+    password_reset_nonce = db.Column(db.String(64), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

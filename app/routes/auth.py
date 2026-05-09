@@ -44,19 +44,19 @@ def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
         current_app.logger.warning("Mail send failed: %s", exc)
 
 
-def _make_signed_token(payload: str, salt: str, hours: int) -> str:
+def _make_signed_token(payload: str, salt: str, max_age_seconds: int) -> str:
     from itsdangerous import URLSafeTimedSerializer
 
     s = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
     return s.dumps(payload, salt=salt)
 
 
-def _load_signed_token(token: str, salt: str, hours: int) -> str | None:
+def _load_signed_token(token: str, salt: str, max_age_seconds: int) -> str | None:
     from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
     s = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
     try:
-        return s.loads(token, salt=salt, max_age=hours * 3600)
+        return s.loads(token, salt=salt, max_age=max_age_seconds)
     except (SignatureExpired, BadSignature):
         return None
 
@@ -99,16 +99,19 @@ def forgot_password() -> str | Response:
         # Always show the same message to prevent user enumeration.
         flash("Pokud je e-mail registrován, byl odeslán odkaz pro obnovení hesla.", "info")
         if user:
-            from app.config import RESET_TOKEN_HOURS
+            import secrets
+            from app.config import RESET_TOKEN_MINUTES
 
-            token = _make_signed_token(str(user.id), _RESET_SALT, RESET_TOKEN_HOURS)
+            nonce = secrets.token_hex(16)
+            user.password_reset_nonce = nonce
+            token = _make_signed_token(f"{user.id}:{nonce}", _RESET_SALT, RESET_TOKEN_MINUTES * 60)
             reset_url = external_url_for("auth.reset_password", token=token)
             _send_mail(
                 to=user.email,
                 subject="MedCover — obnovení hesla",
                 template="email/reset_password.txt",
                 reset_url=reset_url,
-                hours=RESET_TOKEN_HOURS,
+                hours=RESET_TOKEN_MINUTES,
             )
             db.session.add(AuditLogEntry(
                 actor_id=user.id,
@@ -126,18 +129,19 @@ def forgot_password() -> str | Response:
 
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token: str) -> str | Response:
-    from app.config import RESET_TOKEN_HOURS
-    import uuid
+    from app.config import RESET_TOKEN_MINUTES
+    import uuid as _uuid
 
-    user_id_str = _load_signed_token(token, _RESET_SALT, RESET_TOKEN_HOURS)
-    if not user_id_str:
-        flash("Odkaz pro obnovení hesla je neplatný nebo vypršel.", "danger")
-        return redirect(url_for("auth.forgot_password"))
+    payload = _load_signed_token(token, _RESET_SALT, RESET_TOKEN_MINUTES * 60)
+    if not payload or ":" not in payload:
+        return render_template("auth/reset_invalid.html"), 400
 
-    user = db.session.get(UserAccount, uuid.UUID(user_id_str))
-    if not user:
-        flash("Uživatel nenalezen.", "danger")
-        return redirect(url_for("auth.forgot_password"))
+    user_id_str, nonce = payload.split(":", 1)
+    user = db.session.get(UserAccount, _uuid.UUID(user_id_str))
+
+    # Invalid if user not found, nonce already cleared (used), or nonce mismatch
+    if not user or not user.password_reset_nonce or user.password_reset_nonce != nonce:
+        return render_template("auth/reset_invalid.html"), 400
 
     if request.method == "POST":
         password = request.form.get("password", "")
@@ -148,6 +152,7 @@ def reset_password(token: str) -> str | Response:
             flash("Hesla se neshodují.", "warning")
         else:
             user.set_password(password)
+            user.password_reset_nonce = None  # invalidate link immediately
             db.session.add(AuditLogEntry(
                 actor_id=user.id,
                 action_type="password_reset_completed",
