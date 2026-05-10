@@ -116,7 +116,39 @@ class TestFeedbackAdmin:
         with app.app_context():
             assert db.session.get(UserFeedback, entry_id) is None
 
-    def test_delete_nonexistent_returns_404(self, app, admin_client):
+    def test_delete_blocked_when_dev_login_enabled(self, app, admin_client, member_client):
+        entry_id = self._seed_entry(app, member_client)
+        app.config["DEV_LOGIN_ENABLED"] = True
+        try:
+            rv = admin_client.post(f"/admin/feedback/{entry_id}/delete", follow_redirects=True)
+            assert rv.status_code == 200
+            assert "testovacím prostředí".encode() in rv.data
+            with app.app_context():
+                assert db.session.get(UserFeedback, entry_id) is not None
+        finally:
+            app.config["DEV_LOGIN_ENABLED"] = False
+
+    def test_delete_button_hidden_when_dev_login_enabled(self, app, admin_client, member_client):
+        _post_feedback(member_client, "Chráněná zpráva")
+        app.config["DEV_LOGIN_ENABLED"] = True
+        try:
+            rv = admin_client.get("/admin/feedback/")
+            assert rv.status_code == 200
+            assert b"Smazat" not in rv.data
+            assert "testovacím prostředí".encode() in rv.data
+        finally:
+            app.config["DEV_LOGIN_ENABLED"] = False
+
+    def test_delete_works_when_dev_login_disabled(self, app, admin_client, member_client):
+        """Sanity check: deletion still works when DEV_LOGIN_ENABLED is False (the default)."""
+        app.config["DEV_LOGIN_ENABLED"] = False
+        entry_id = self._seed_entry(app, member_client)
+        rv = admin_client.post(f"/admin/feedback/{entry_id}/delete", follow_redirects=True)
+        assert rv.status_code == 200
+        assert "smazána".encode() in rv.data
+        with app.app_context():
+            assert db.session.get(UserFeedback, entry_id) is None
+
         fake_id = str(uuid.uuid4())
         rv = admin_client.post(f"/admin/feedback/{fake_id}/delete")
         assert rv.status_code == 404

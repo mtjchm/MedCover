@@ -102,8 +102,12 @@ def feedback_list() -> str:
 @feedback_bp.post("/admin/feedback/<uuid:entry_id>/delete")
 @login_required
 def feedback_delete(entry_id: object) -> Response:
-    """Delete a feedback entry (admin only)."""
+    """Delete a feedback entry (admin only). Blocked when DEV_LOGIN_ENABLED is True."""
     require_permission("admin.view")
+
+    if current_app.config.get("DEV_LOGIN_ENABLED"):
+        flash("Mazání zpětné vazby je v testovacím prostředí zakázáno.", "warning")
+        return redirect(url_for("feedback.feedback_list"))
 
     entry = get_or_404(UserFeedback, entry_id)
 
