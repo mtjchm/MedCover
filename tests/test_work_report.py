@@ -122,8 +122,8 @@ class TestVykazGenerate:
         assert resp.status_code == 200
         assert "Měsíc musí být" in resp.data.decode()
 
-    def test_generate_creates_file_and_shows_result(self, app, client, tmp_path, monkeypatch):
-        """POST /work-report/generate creates an xlsx and renders result page."""
+    def test_generate_creates_file_and_shows_list(self, app, client, tmp_path, monkeypatch):
+        """POST /work-report/generate creates an xlsx and shows it in the report list."""
         with app.app_context():
             _make_user("vykaz_gen@test.com", "Jana Nováková")
 
@@ -138,9 +138,10 @@ class TestVykazGenerate:
         )
         assert resp.status_code == 200
         body = resp.data.decode()
+        # Flash success message
         assert "Leden" in body
         assert "2026" in body
-        # Result page has a download button
+        # Index now shows the download link for the generated report
         assert "/work-report/download" in body
 
         with app.app_context():
