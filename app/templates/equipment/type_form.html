@@ -35,7 +35,7 @@
 
       <div class="mb-4">
         <label for="description" class="form-label">Popis</label>
-        <textarea class="form-control" id="description" name="description" rows="3">{{ et.description if edit else request.form.get('description', '') }}</textarea>
+        <textarea class="form-control" id="description" name="description" rows="3">{{ (et.description or '') if edit else request.form.get('description', '') }}</textarea>
       </div>
 
       <div class="d-flex gap-2">

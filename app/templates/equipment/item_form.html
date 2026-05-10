@@ -34,18 +34,18 @@
       <div class="mb-3">
         <label for="serial_number" class="form-label">Sériové číslo</label>
         <input type="text" class="form-control" id="serial_number" name="serial_number"
-               value="{{ item.serial_number if edit else request.form.get('serial_number', '') }}">
+               value="{{ (item.serial_number or '') if edit else request.form.get('serial_number', '') }}">
       </div>
 
       <div class="mb-3">
         <label for="home_location" class="form-label">Výchozí umístění</label>
         <input type="text" class="form-control" id="home_location" name="home_location"
-               value="{{ item.home_location if edit else request.form.get('home_location', '') }}">
+               value="{{ (item.home_location or '') if edit else request.form.get('home_location', '') }}">
       </div>
 
       <div class="mb-4">
         <label for="notes" class="form-label">Poznámky</label>
-        <textarea class="form-control" id="notes" name="notes" rows="3">{{ item.notes if edit else request.form.get('notes', '') }}</textarea>
+        <textarea class="form-control" id="notes" name="notes" rows="3">{{ (item.notes or '') if edit else request.form.get('notes', '') }}</textarea>
       </div>
 
       <div class="d-flex gap-2">
