@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_info %}
 {% block title %}Akce — MedCover{% endblock %}
 
 {% block content %}
@@ -168,7 +169,7 @@
             {% else %}
               {{ mand_filled }}/{{ mand_total }}
               {% if opt_total > 0 %}
-                <span class="badge bg-info text-dark ms-1 font-65">+{{ opt_total }}&nbsp;vol.</span>
+                {{ badge_info('+' ~ opt_total ~ '\u00a0vol.', extra_classes='ms-1 font-65') }}
               {% endif %}
             {% endif %}
           </td>

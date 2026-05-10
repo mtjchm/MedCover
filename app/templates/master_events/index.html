@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary, badge_warning %}
 {% block title %}Nadřazené akce — MedCover{% endblock %}
 
 {% block content %}
@@ -42,10 +43,10 @@
             {{ me.name }}
           </a>
           {% if me.is_general %}
-            <span class="badge bg-secondary ms-1">Výchozí</span>
+            {{ badge_secondary('Výchozí', extra_classes='ms-1') }}
           {% endif %}
           {% if me.archived %}
-            <span class="badge bg-warning text-dark ms-1">Archivováno</span>
+            {{ badge_warning('Archivováno', extra_classes='ms-1') }}
           {% endif %}
         </td>
         <td>{{ me.coordinator.name if me.coordinator else '—' }}</td>

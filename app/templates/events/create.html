@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Nová akce — MedCover{% endblock %}
 
 {% block extra_head %}
@@ -131,7 +132,7 @@
         <div class="col-12 col-md-3">
           <label class="form-label">Počet míst ze šablony</label>
           <div class="form-control-plaintext">
-            <span class="badge bg-secondary">{{ template.spot_templates | length }} pozic</span>
+            {{ badge_secondary(template.spot_templates | length ~ ' pozic') }}
             <div class="form-text">Pozice budou vytvořeny ze šablony po uložení akce.</div>
           </div>
         </div>

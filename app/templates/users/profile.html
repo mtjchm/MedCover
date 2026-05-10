@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Můj profil — MedCover{% endblock %}
 
 {% block extra_head %}
@@ -113,7 +114,7 @@
         {% if user.qualifications %}
           <div class="d-flex flex-wrap gap-2">
             {% for c in user.qualifications %}
-              <span class="badge bg-secondary fs-6">{{ c.name }}</span>
+              {{ badge_secondary(c.name, extra_classes='fs-6') }}
             {% endfor %}
           </div>
         {% else %}

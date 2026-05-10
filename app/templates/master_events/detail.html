@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_secondary, badge_warning, badge_status %}
 {% block title %}{{ me.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -7,10 +8,10 @@
     <h2 class="mb-1">
       {{ me.name }}
       {% if me.is_general %}
-        <span class="badge bg-secondary ms-1 fs-6">Výchozí</span>
+        {{ badge_secondary('Výchozí', extra_classes='ms-1 fs-6') }}
       {% endif %}
       {% if me.archived %}
-        <span class="badge bg-warning text-dark ms-1 fs-6">Archivováno</span>
+        {{ badge_warning('Archivováno', extra_classes='ms-1 fs-6') }}
       {% endif %}
     </h2>
     {% if me.coordinator %}
@@ -128,9 +129,7 @@
             'Dokončena': 'dark',
             'Zrušena': 'danger'
           } %}
-          <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
-            {{ event.status.value }}
-          </span>
+          {{ badge_status(event.status.value, status_colors) }}
         </td>
         <td>{{ event.filled_spots }}/{{ event.total_spots }}</td>
         <td>{{ event.responsible_person.name if event.responsible_person else '—' }}</td>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_status, badge_secondary %}
 {% block title %}Přehled — MedCover{% endblock %}
 
 {% block content %}
@@ -125,7 +126,7 @@
           <div class="text-muted small">{{ e.start_datetime | localdt }}</div>
         </div>
         <div class="text-end">
-          <span class="badge bg-{{ status_colors.get(e.status.value, 'secondary') }} mb-1">{{ e.status.value }}</span>
+          {{ badge_status(e.status.value, status_colors, extra_classes='mb-1') }}
           {% if e.status == EventStatus.ASSIGNMENTS_OPEN %}
           <div class="text-muted small">{{ e.filled_spots }}/{{ e.total_spots }} obsazeno</div>
           {% endif %}
@@ -167,9 +168,7 @@
         <div class="text-end flex-shrink-0 ms-2 d-flex flex-column align-items-end gap-1">
           {% set fully_staffed = event.total_spots > 0 and event.filled_spots == event.total_spots %}
           {% if not (event.status == EventStatus.ASSIGNMENTS_OPEN and fully_staffed) %}
-          <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}">
-            {{ event.status.value }}
-          </span>
+          {{ badge_status(event.status.value, status_colors) }}
           {% endif %}
           {% if event.paid %}
           <span class="badge bg-success">Placená</span>

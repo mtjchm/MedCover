@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Šablony akcí — MedCover{% endblock %}
 
 {% block content %}
@@ -36,7 +37,7 @@
           {% if tmpl.paid %}
             <span class="badge bg-success">Ano</span>
           {% else %}
-            <span class="badge bg-secondary">Ne</span>
+            {{ badge_secondary('Ne') }}
           {% endif %}
         </td>
         <td class="text-center">{{ tmpl.reminder_schedule or '24' }}</td>

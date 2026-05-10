@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Smazat kvalifikaci — MedCover{% endblock %}
 
 {% block content %}
@@ -60,7 +61,7 @@
                 — <span class="text-muted">{{ spot.description }}</span>
               {% endif %}
             </div>
-            <span class="badge bg-secondary ms-2">zachováno</span>
+            {{ badge_secondary('zachováno', extra_classes='ms-2') }}
           </li>
           {% endfor %}
         </ul>

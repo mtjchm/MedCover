@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_status, badge_info, badge_secondary %}
 {% block title %}{{ event.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -15,9 +16,7 @@
   <div>
     <h2 class="mb-1">
       {{ event.name }}
-      <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} ms-1 fs-6">
-        {{ event.status.value }}
-      </span>
+      {{ badge_status(event.status.value, status_colors, extra_classes='ms-1 fs-6') }}
       {% if event.paid %}<span class="badge bg-success ms-1 fs-6">Placená</span>{% endif %}
       <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1 fs-6">{{ event.staffing_status }}</span>
     </h2>
@@ -233,7 +232,7 @@
         <td class="text-break text-wrap">
           {{ spot.description or '—' }}
           {% if spot.is_optional %}
-            <span class="badge bg-info text-dark ms-1 font-65">volitelná</span>
+            {{ badge_info('volitelná', extra_classes='ms-1 font-65') }}
           {% endif %}
         </td>
         <td class="text-break text-wrap maxw-180">
@@ -241,7 +240,7 @@
             {% for q in spot.required_qualifications %}
               {% if q.is_deleted %}
                 <span class="text-decoration-line-through text-muted">{{ q.name }}</span>
-                <span class="badge bg-secondary font-65">odstraněna</span>{% if not loop.last %}, {% endif %}
+                {{ badge_secondary('odstraněna', extra_classes='font-65') }}{% if not loop.last %}, {% endif %}
               {% else %}
                 {{ q.name }}{% if not loop.last %}, {% endif %}
               {% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Přehled nadřazené akce — {{ master_event.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -25,7 +26,7 @@
       <dd class="col-sm-9">
         {% if status_counts %}
           {% for status, cnt in status_counts.items() %}
-            <span class="badge bg-secondary me-1">{{ status }}: {{ cnt }}</span>
+            {{ badge_secondary(status ~ ': ' ~ cnt, extra_classes='me-1') }}
           {% endfor %}
         {% else %}
           <span class="text-muted">žádné akce</span>

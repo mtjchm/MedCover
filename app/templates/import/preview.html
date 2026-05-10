@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_warning, badge_secondary %}
 {% block title %}Náhled importu — MedCover{% endblock %}
 
 {% block extra_head %}
@@ -29,10 +30,10 @@
   <span class="badge bg-primary fs-6">{{ total }} akcí celkem</span>
   {% if users_preview_rows %}
   <span class="badge bg-success fs-6">{{ users_new }} nových uživatelů</span>
-  <span class="badge bg-secondary fs-6">{{ users_existing }} existujících</span>
+  {{ badge_secondary(users_existing ~ ' existujících', extra_classes='fs-6') }}
   {% endif %}
   {% if warnings_count %}
-  <span class="badge bg-warning text-dark fs-6">{{ warnings_count }} varování</span>
+  {{ badge_warning(warnings_count ~ ' varování', extra_classes='fs-6') }}
   {% endif %}
   {% if duplicates_count %}
   <span class="badge bg-danger fs-6">{{ duplicates_count }} duplikátů</span>
@@ -53,7 +54,7 @@
       <span class="badge bg-success">{{ users_new }} nových</span>
       {% endif %}
       {% if users_existing %}
-      <span class="badge bg-secondary">{{ users_existing }} existujících</span>
+      {{ badge_secondary(users_existing ~ ' existujících') }}
       {% endif %}
       {{ help_icon(
         "Noví uživatelé budou vytvořeni s rolí Člen a odpovídající kvalifikací. "
@@ -134,7 +135,7 @@
                   {% if urow.match_reason == 'name' %}(jméno){% else %}(e-mail){% endif %}
                 </span>
                 {% elif not urow.email %}
-                <span class="badge bg-warning text-dark">⚠ Chybí e-mail</span>
+                {{ badge_warning('⚠ Chybí e-mail') }}
                 {% else %}
                 <span class="badge bg-success">Nový</span>
                 {% endif %}
@@ -340,7 +341,7 @@
           {# Warnings #}
           <td>
             {% if row.warnings %}
-            <span class="warn-badge badge bg-warning text-dark"
+            <span class="warn-badge badge bg-warning text-black"
                   data-bs-toggle="tooltip"
                   data-bs-placement="left"
                   title="{{ row.warnings | join(' | ') }}">
