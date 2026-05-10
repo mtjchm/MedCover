@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Backup timestamps displayed in CET (Europe/Prague) instead of UTC in both the backup management page and the admin digest email (closes #110)
+- Completed events now appear in the table view; status filtering moved server-side (before pagination) so all pages are correctly filtered — previously only the calendar showed completed events (closes #120)
 
 ## [0.9.0] - 2026-05-10
 
