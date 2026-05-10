@@ -337,6 +337,13 @@ class TestEquipmentTypeEditExtended:
         response = member_client.post(f"/equipment/types/{type_id}/edit", data={})
         assert response.status_code == 403
 
+    def test_null_description_renders_empty_not_none(self, app, admin_client):
+        """Regression for #84: NULL description must render as '' not 'None'."""
+        type_id = _make_type(app)  # description is NULL by default
+        response = admin_client.get(f"/equipment/types/{type_id}/edit")
+        body = response.data.decode()
+        assert "None" not in body
+
 
 # ── Type delete: extended ─────────────────────────────────────────────────────
 
@@ -469,6 +476,14 @@ class TestEquipmentItemEdit:
         item_id = _make_item(app, type_id)
         response = member_client.post(f"/equipment/items/{item_id}/edit", data={})
         assert response.status_code == 403
+
+    def test_null_optional_fields_render_empty_not_none(self, app, admin_client):
+        """Regression for #84: NULL optional fields must render as '' not 'None'."""
+        type_id = _make_type(app)
+        item_id = _make_item(app, type_id)  # serial_number/home_location/notes all NULL
+        response = admin_client.get(f"/equipment/items/{item_id}/edit")
+        body = response.data.decode()
+        assert "None" not in body
 
 
 # ── Item delete: extended ─────────────────────────────────────────────────────
