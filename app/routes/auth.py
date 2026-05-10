@@ -213,7 +213,7 @@ def register(token: str) -> str | Response:
         elif db.session.scalar(db.select(UserAccount).where(UserAccount.email == invite.email)):
             flash("Účet s tímto e-mailem již existuje.", "danger")
         else:
-            user = UserAccount(email=invite.email, name=full_name, is_active=False)
+            user = UserAccount(email=invite.email, name=full_name, is_active=True)
             user.set_password(password)
             member_role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
             if member_role:
@@ -230,7 +230,7 @@ def register(token: str) -> str | Response:
                 changes_json={},
             ))
             db.session.commit()
-            flash("Registrace dokončena. Účet aktivuje administrátor.", "success")
+            flash("Registrace dokončena. Nyní se můžete přihlásit.", "success")
             return redirect(url_for("auth.login"))
 
     return render_template("auth/register.html", invite=invite)

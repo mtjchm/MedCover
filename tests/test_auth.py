@@ -262,7 +262,7 @@ class TestRegisterFlow:
         assert response.status_code == 200
         assert b"newuser@example.com" in response.data
 
-    def test_register_creates_inactive_user(self, app, client):
+    def test_register_creates_active_user(self, app, client):
         token = self._make_invite(app)
         response = client.post(
             f"/auth/register/{token}",
@@ -275,10 +275,11 @@ class TestRegisterFlow:
         )
         assert response.status_code == 200
         assert "Registrace dokončena".encode() in response.data
+        assert "přihlásit".encode() in response.data
         with app.app_context():
             user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "newuser@example.com"))
             assert user is not None
-            assert user.is_active is False
+            assert user.is_active is True
 
     def test_register_short_password_rejected(self, app, client):
         token = self._make_invite(app)
