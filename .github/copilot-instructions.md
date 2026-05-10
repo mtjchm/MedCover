@@ -172,7 +172,7 @@ When fixing or implementing a GitHub issue:
 
 ## MVP Phase Tracker
 - ✅ Phase 1: Models, auth flow, setup wizard, admin activation
-- 🔲 Phase 2: Event CRUD, Master Event CRUD, event list, FullCalendar, spot assignment
-- 🔲 Phase 3: Email notifications, scheduler tasks, debriefing
-- 🔲 Phase 4: Audit log UI, equipment inventory, event templates, reports
-- 🔲 Phase 5: Admin panel, user profile, mobile polish, full dev seed
+- ✅ Phase 2: Event CRUD, Master Event CRUD, event list, FullCalendar, spot assignment, ME filter
+- ✅ Phase 3: Email notifications, scheduler tasks, debriefing, email outbox/retry
+- ✅ Phase 4: Audit log UI, equipment inventory, event templates, work reports (Výkaz práce), statistics
+- ✅ Phase 5: Admin panel, user profile, mobile polish, full dev seed, backup/restore, import/export
