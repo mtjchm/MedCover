@@ -68,7 +68,7 @@ def _match_responsible_person(
     if name_str.lower() in by_name_lower:
         return by_name_lower[name_str.lower()], "iexact"
 
-    # 3. Reversed — GS may store "Firstname Lastname"; DB now stores "Lastname Firstname"
+    # 3. Reversed — safety net for any name that arrives in the wrong order
     parts = name_str.split()
     if len(parts) == 2:
         reversed_name = f"{parts[1]} {parts[0]}"
@@ -484,7 +484,13 @@ def events_confirm() -> Response:
 
             # Responsible person
             rp_id_str = form.get(f"{prefix}responsible_person_id", "").strip()
-            responsible_person_id: str | None = rp_id_str or None
+            if rp_id_str.startswith("name:"):
+                # New user imported in same batch — resolve by name after user creation
+                rp_name_lookup = rp_id_str[5:].strip()
+                rp_from_name = name_to_user.get(rp_name_lookup.lower())
+                responsible_person_id: str | None = str(rp_from_name.id) if rp_from_name else None
+            else:
+                responsible_person_id = rp_id_str or None
 
             # Datetimes (Prague → UTC)
             start_dt = _parse_datetime(date_str, start_time_str, _PRAGUE_TZ)
