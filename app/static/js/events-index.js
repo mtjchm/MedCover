@@ -88,7 +88,7 @@
     document.querySelectorAll("#events-table tbody tr[data-me]").forEach(function (row) {
       if (row.dataset.me && row.dataset.meArchived !== "1") names.add(row.dataset.me);
     });
-    if (names.size < 2) return; // only show if 2+ distinct non-archived MEs present
+    if (names.size < 1) return; // hide only when no non-archived MEs present
     names.forEach(function (name) {
       var opt = document.createElement("option");
       opt.value = name;
