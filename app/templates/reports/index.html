@@ -39,19 +39,7 @@
             Zobrazit přehled
           </button>
         </form>
-        <script>
-          (function () {
-            var sel = document.getElementById('me-select');
-            var btn = document.getElementById('me-go-btn');
-            var form = document.getElementById('me-select-form');
-            sel.addEventListener('change', function () { btn.disabled = !sel.value; });
-            form.addEventListener('submit', function (e) {
-              e.preventDefault();
-              var opt = sel.options[sel.selectedIndex];
-              if (opt && opt.dataset.url) window.location.href = opt.dataset.url;
-            });
-          })();
-        </script>
+        <script src="{{ url_for('static', filename='js/reports-index.js') }}"></script>
         {% else %}
         <p class="text-muted small mt-2">Žádné aktivní nadřazené akce.</p>
         {% endif %}

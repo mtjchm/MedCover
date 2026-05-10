@@ -193,16 +193,6 @@
   </div>
 </div>
 
-<script>
-  const restoreModal = document.getElementById('restoreModal');
-  restoreModal.addEventListener('show.bs.modal', function (event) {
-    const btn = event.relatedTarget;
-    const filename = btn.getAttribute('data-filename');
-    document.getElementById('restoreFilename').textContent = filename;
-    document.getElementById('restoreForm').action = '/admin/backup/restore/' + encodeURIComponent(filename);
-    document.getElementById('restore_confirmation').value = '';
-  });
-</script>
 {% endif %}
 
 {# ── Delete confirmation modal ────────────────────────────────────────────── #}
@@ -239,16 +229,9 @@
   </div>
 </div>
 
-<script>
-  const deleteModal = document.getElementById('deleteModal');
-  deleteModal.addEventListener('show.bs.modal', function (event) {
-    const btn = event.relatedTarget;
-    const filename = btn.getAttribute('data-filename');
-    document.getElementById('deleteFilename').textContent = filename;
-    document.getElementById('deleteForm').action = '/admin/backup/delete/' + encodeURIComponent(filename);
-    document.getElementById('delete_confirmation').value = '';
-  });
-</script>
 {% endif %}
 
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/backup.js') }}"></script>
 {% endblock %}

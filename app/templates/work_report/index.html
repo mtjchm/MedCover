@@ -99,27 +99,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function () {
-  const currentYear = {{ current_year }};
-  const currentMonth = {{ current_month }};
-  const yearSel = document.getElementById('year');
-  const monthSel = document.getElementById('month');
-
-  function updateMonths() {
-    const selectedYear = parseInt(yearSel.value, 10);
-    Array.from(monthSel.options).forEach(function (opt) {
-      const m = parseInt(opt.value, 10);
-      const isFuture = selectedYear === currentYear && m > currentMonth;
-      opt.disabled = isFuture;
-      if (isFuture && opt.selected) {
-        monthSel.value = currentMonth;
-      }
-    });
-  }
-
-  yearSel.addEventListener('change', updateMonths);
-  updateMonths();
-})();
-</script>
+<div id="work-report-data"
+     data-current-year="{{ current_year }}"
+     data-current-month="{{ current_month }}"
+     hidden></div>
+<script src="{{ url_for('static', filename='js/work-report.js') }}"></script>
 {% endblock %}
