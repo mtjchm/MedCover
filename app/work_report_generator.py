@@ -61,16 +61,20 @@ _HDR_BORDER_A = Border(
     top=_side("medium"), bottom=_side("medium"),
 )
 _HDR_BORDER_B = Border(
-    left=_side("thin"), right=_side("thin"),
-    top=_side("medium"), bottom=_side("medium"),
+    left=_side("medium"), right=_side("thin"),
+    top=_side("medium"),
 )
 _HDR_BORDER_C = Border(
-    left=_side("thin"), right=_side("thin"),
+    left=_side("medium"), right=_side("thin"),
     top=_side("medium"), bottom=_side("medium"),
 )
 _HDR_BORDER_D = Border(
     left=_side("thin"), right=_side("medium"),
     top=_side("medium"), bottom=_side("medium"),
+)
+# Right-edge cell (E) of merged D:E — only right/top/bottom needed
+_HDR_BORDER_E = Border(
+    right=_side("medium"), top=_side("medium"), bottom=_side("medium"),
 )
 _DAY_BORDER_A = Border(
     left=_side("medium"), right=_side("thin"),
@@ -88,8 +92,16 @@ _DAY_BORDER_D = Border(
     left=_side("thin"), right=_side("medium"),
     top=_side("thin"), bottom=_side("thin"),
 )
+# Right-edge cell (E) of merged D:E for day rows
+_DAY_BORDER_E = Border(
+    right=_side("medium"), top=_side("thin"), bottom=_side("thin"),
+)
 _TOTAL_BORDER_A = Border(
     left=_side("medium"), right=_side("thin"),
+    top=_side("medium"), bottom=_side("medium"),
+)
+_TOTAL_BORDER_B = Border(
+    left=_side("thin"), right=_side("thin"),
     top=_side("medium"), bottom=_side("medium"),
 )
 _TOTAL_BORDER_C = Border(
@@ -99,6 +111,9 @@ _TOTAL_BORDER_C = Border(
 _TOTAL_BORDER_D = Border(
     left=_side("thin"), right=_side("medium"),
     top=_side("medium"), bottom=_side("medium"),
+)
+_TOTAL_BORDER_E = Border(
+    right=_side("medium"), top=_side("medium"), bottom=_side("medium"),
 )
 
 # ── Layout constants ──────────────────────────────────────────────────────────
@@ -279,6 +294,8 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
                 font=_BOLD_FONT, fill=_BLUE_FILL,
                 alignment=Alignment(horizontal="center"),
                 border=_HDR_BORDER_D)
+    # Right edge of merged D9:E9
+    _write_cell(ws, 9, 5, None, border=_HDR_BORDER_E)
 
     # ── Day rows ──────────────────────────────────────────────────────────────
     for day in range(1, days_in_month + 1):
@@ -310,30 +327,30 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
         _write_cell(ws, row, 3, hours_display,
                     font=_STD_FONT,
                     alignment=Alignment(horizontal="center"),
-                    border=_DAY_BORDER_C,
-                    number_format="0.##")
+                    border=_DAY_BORDER_C)
         _write_cell(ws, row, 4, description,
                     font=_STD_FONT,
                     alignment=Alignment(horizontal="left"),
                     border=_DAY_BORDER_D)
+        # Right edge of merged D:E
+        _write_cell(ws, row, 5, None, border=_DAY_BORDER_E)
 
     # ── Totals row ────────────────────────────────────────────────────────────
     total_row = _FIRST_DATA_ROW + days_in_month
     _apply_row_height(ws, total_row)
-    first_data = _FIRST_DATA_ROW
-    last_data = total_row - 1
+    total_hours = float(sum(h for h, _ in events_by_day.values())) if events_by_day else 0.0
     ws.merge_cells(f"D{total_row}:E{total_row}")
     _write_cell(ws, total_row, 1, "Celkem hodin",
                 font=_BOLD_FONT, border=_TOTAL_BORDER_A)
     _write_cell(ws, total_row, 2, None, font=_BOLD_FONT,
-                border=Border(right=_side("thin"), top=_side("medium"), bottom=_side("medium")))
-    _write_cell(ws, total_row, 3,
-                f"=SUM(C{first_data}:C{last_data})",
+                border=_TOTAL_BORDER_B)
+    _write_cell(ws, total_row, 3, total_hours,
                 font=_BOLD_FONT,
                 alignment=Alignment(horizontal="center"),
-                border=_TOTAL_BORDER_C,
-                number_format="0.##")
+                border=_TOTAL_BORDER_C)
     _write_cell(ws, total_row, 4, None, border=_TOTAL_BORDER_D)
+    # Right edge of merged D:E
+    _write_cell(ws, total_row, 5, None, border=_TOTAL_BORDER_E)
 
     # ── Signature rows ────────────────────────────────────────────────────────
     sig_worker = total_row + 4
