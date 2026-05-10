@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app.extensions import db, mail
+from app.extensions import db
 from app.models.invite import RegistrationInvite
 from app.models.role import Role
 from app.models.user import UserAccount
@@ -32,16 +32,12 @@ def _safe_next(next_url: str | None) -> str:
 
 
 def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
-    """Render a plain-text email template and send it. Silent on misconfigured mail."""
+    """Render a plain-text email template and enqueue it via the outbox."""
     from flask import render_template as rt
-    from flask_mail import Message
+    from app.mail import _enqueue  # noqa: PLC0415
 
     body = rt(template, **ctx)
-    msg = Message(subject=subject, recipients=[to], body=body)
-    try:
-        mail.send(msg)
-    except Exception as exc:  # noqa: BLE001
-        current_app.logger.warning("Mail send failed: %s", exc)
+    _enqueue(to, subject, body)
 
 
 def _make_signed_token(payload: str, salt: str, max_age_seconds: int) -> str:
