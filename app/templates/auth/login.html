@@ -7,6 +7,10 @@
   <div class="col-12 col-sm-8 col-md-5 col-lg-4">
     <div class="card shadow-sm mt-4">
       <div class="card-body p-4">
+        <div class="text-center mb-3">
+          <img src="{{ url_for('static', filename='img/logo.webp') }}"
+               alt="MedCover logo" class="img-fluid" style="max-height: 160px;">
+        </div>
         <h4 class="card-title mb-4 text-center">Přihlášení</h4>
         <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
