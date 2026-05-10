@@ -119,7 +119,7 @@ When in doubt about the correct Czech UI label or English code name for a concep
 | Vybavení | Equipment — `equipment.items` | |
 | Přehledy | Reports — `reports.index` | |
 | Debriefing | Debriefing — `debriefing.index` | |
-| Výkaz práce | Monthly work report / `vykaz` blueprint | Pre-filled xlsx payroll document generated per user per month; contains worked hours for paid events |
+| Výkaz práce | Monthly work report / `work_report` blueprint | Pre-filled xlsx payroll document generated per user per month; contains worked hours for paid events |
 | Uživatelé | Users — `users.index` | |
 | Pozvánky | Invites — `users.invites` | |
 | Audit log | Audit Log — `admin.audit_log_list` | |

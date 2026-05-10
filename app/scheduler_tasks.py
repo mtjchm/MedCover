@@ -224,10 +224,10 @@ def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
         return False
 
 
-def cleanup_vykaz_files(instance_path: str, now: datetime | None = None) -> int:
-    """Delete generated výkaz práce xlsx files older than 1 day.
+def cleanup_work_report_files(instance_path: str, now: datetime | None = None) -> int:
+    """Delete generated employee work report xlsx files older than 1 day.
 
-    Files are stored under  <instance_path>/vykaz/<user_id>/<year>-<MM>.xlsx.
+    Files are stored under  <instance_path>/work_report/<user_id>/<year>-<MM>.xlsx.
     Returns the number of files removed.
     """
     from pathlib import Path
@@ -235,20 +235,20 @@ def cleanup_vykaz_files(instance_path: str, now: datetime | None = None) -> int:
     if now is None:
         now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=1)
-    vykaz_root = Path(instance_path) / "vykaz"
-    if not vykaz_root.exists():
+    work_report_root = Path(instance_path) / "work_report"
+    if not work_report_root.exists():
         return 0
 
     removed = 0
-    for xlsx_file in vykaz_root.rglob("*.xlsx"):
+    for xlsx_file in work_report_root.rglob("*.xlsx"):
         mtime = datetime.fromtimestamp(xlsx_file.stat().st_mtime, tz=timezone.utc)
         if mtime < cutoff:
             try:
                 xlsx_file.unlink()
                 removed += 1
             except OSError as exc:  # pragma: no cover
-                log.warning("Could not remove old vykaz file %s: %s", xlsx_file, exc)
+                log.warning("Could not remove old work report file %s: %s", xlsx_file, exc)
 
     if removed:
-        log.info("Cleaned up %d old výkaz file(s).", removed)
+        log.info("Cleaned up %d old work report file(s).", removed)
     return removed

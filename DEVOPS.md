@@ -571,13 +571,13 @@ Generated monthly work-report files are stored in the Flask `instance/` director
 
 ```
 instance/
-  vykaz/
+  work_report/
     <user-uuid>/
       <year>-<MM>.xlsx   (e.g. 2026-05.xlsx)
 ```
 
 - Each user has their own subdirectory; generating a new report for the same month overwrites the previous file.
-- Files are **automatically deleted after 1 day** by the `cleanup_vykaz` scheduler task (runs hourly in the `scheduler` container).
+- Files are **automatically deleted after 1 day** by the `cleanup_work_report` scheduler task (runs hourly in the `scheduler` container).
 - **Do not commit these files** — the `instance/` directory is gitignored.
 - The `holidays` Python package (Czech locale) is used to detect Czech public holidays for correct cell colouring. It is declared in `requirements.txt`.
 

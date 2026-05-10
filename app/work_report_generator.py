@@ -1,5 +1,5 @@
 """
-Výkaz práce (monthly work report) xlsx generator.
+Výkaz práce (employee work report) xlsx generator.
 
 Generates a single-sheet openpyxl workbook that matches the layout of the
 legacy Google-Sheets "Dozory YYYY.xlsx" monthly report used by Czech Red
@@ -7,9 +7,9 @@ Cross members to document worked hours for DPP payroll purposes.
 
 Public entry point::
 
-    path = generate_vykaz(user, year, month)
+    path = generate_work_report(user, year, month)
 
-The file is written to  instance/vykaz/<user_id>/<year>-<MM>.xlsx
+The file is written to  instance/work_report/<user_id>/<year>-<MM>.xlsx
 and is overwritten on each call.  Callers are responsible for serving
 the file and scheduling cleanup (files older than 1 day should be removed).
 """
@@ -185,11 +185,11 @@ def _fetch_events_for_month(
 
 # ── Core generator ────────────────────────────────────────────────────────────
 
-def generate_vykaz(user: UserAccount, year: int, month: int) -> Path:
+def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     """
     Build the výkaz práce xlsx for *user* for the given *year*/*month*.
 
-    The file is written to  instance/vykaz/<user_id>/<year>-<MM>.xlsx
+    The file is written to  instance/work_report/<user_id>/<year>-<MM>.xlsx
     and is overwritten if it already exists.  Returns the absolute Path.
     """
 
@@ -344,7 +344,7 @@ def generate_vykaz(user: UserAccount, year: int, month: int) -> Path:
 
     # ── Save ──────────────────────────────────────────────────────────────────
     instance_path = Path(current_app.instance_path)
-    out_dir = instance_path / "vykaz" / str(user.id)
+    out_dir = instance_path / "work_report" / str(user.id)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{year}-{month:02d}.xlsx"
 

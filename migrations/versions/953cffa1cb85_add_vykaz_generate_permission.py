@@ -1,10 +1,10 @@
-"""add vykaz.generate permission
+"""add work_report.generate permission
 
 Revision ID: 953cffa1cb85
 Revises: 20dbd30fbcfe
 Create Date: 2026-05-10 01:10:00.000000
 
-Inserts the new 'vykaz.generate' permission and assigns it to the
+Inserts the new 'work_report.generate' permission and assigns it to the
 Admin, Coordinator, and Member roles.  Viewer and Debriefing Manager
 roles do NOT receive this permission.
 """
@@ -26,20 +26,20 @@ def upgrade() -> None:
 
     # Insert permission (idempotent: skip if already present)
     existing = conn.execute(
-        sa.text("SELECT id FROM permission WHERE code = 'vykaz.generate'")
+        sa.text("SELECT id FROM permission WHERE code = 'work_report.generate'")
     ).fetchone()
 
     if existing is None:
         conn.execute(
             sa.text(
                 "INSERT INTO permission (code, description) "
-                "VALUES ('vykaz.generate', 'Generate own monthly work report (výkaz práce)')"
+                "VALUES ('work_report.generate', 'Generate own monthly work report (výkaz práce)')"
             )
         )
 
     # Assign permission to allowed roles
     perm_row = conn.execute(
-        sa.text("SELECT id FROM permission WHERE code = 'vykaz.generate'")
+        sa.text("SELECT id FROM permission WHERE code = 'work_report.generate'")
     ).fetchone()
     perm_id = perm_row[0]
 
@@ -71,7 +71,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     conn = op.get_bind()
     perm_row = conn.execute(
-        sa.text("SELECT id FROM permission WHERE code = 'vykaz.generate'")
+        sa.text("SELECT id FROM permission WHERE code = 'work_report.generate'")
     ).fetchone()
     if perm_row is None:
         return

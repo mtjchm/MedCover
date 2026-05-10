@@ -9,7 +9,7 @@
     Soubor obsahuje všechny placené akce, které jste v daném měsíci odpracoval/a.
   </p>
 
-  <form method="POST" action="{{ url_for('vykaz.generate') }}">
+  <form method="POST" action="{{ url_for('work_report.generate') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="row g-3 mb-4">
