@@ -59,6 +59,15 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # Hour of day (0–23, server local time) at which the scheduled backup runs.
     backup_schedule_hour = db.Column(db.Integer, default=2, nullable=False, server_default="2")
 
+    # --- Notification toggles ---
+    # Auth emails (invite, password reset, account activation) are always sent
+    # and cannot be toggled.  The flags below control operational notifications.
+    notify_assignment = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_event_lifecycle = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_event_cancelled = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_unfilled_reminder = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_debriefing = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
     feedback_enabled = db.Column(db.Boolean, default=True, nullable=False)

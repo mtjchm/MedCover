@@ -148,6 +148,25 @@ When implementing a release (bumping the version number), always do all of the f
 
 `APP_VERSION` (from `VERSION` file) is the canonical displayed version. `GIT_COMMIT` (Docker build arg) is kept separately for static file cache-busting — do not replace one with the other.
 
+**Czech changelog (`changelog.html`) — user-facing only.**
+Include only changes the user would notice or care about: new features/screens, workflow changes, visible bug fixes, new automatic emails. **Never include:** security hardening, performance optimisations, refactors, migrations, developer tooling, CI, or internal technical details. The English `CHANGELOG.md` captures everything; the Czech template is for end users only.
+
+### Notification Catalog — mandatory update rule
+`NOTIFICATION_CATALOG` in `app/mail.py` is the authoritative list of all email notification types.
+The admin UI at `/admin/notifications/` renders this list.
+
+**Whenever you add, rename, remove, or change the recipients/trigger of any `send_*` function
+in `app/mail.py`, you MUST:**
+
+1. Update or add the corresponding entry in `NOTIFICATION_CATALOG` (same file).
+2. If the notification should be togglable: add a `notify_<code>` boolean column to `AppSettings`
+   (model + Alembic migration, default `True`) and reference it in `settings_field`.
+3. Call `_is_notify_enabled("notify_<code>")` at the top of the new `send_*` function.
+4. Pass `notification_type="<code>"` to `_enqueue()`.
+5. Update `CHANGELOG.md` and `changelog.html`.
+
+Failure to update the catalog means the admin page will be out of sync with actual behaviour.
+
 ### Working on a GitHub Issue
 When fixing or implementing a GitHub issue:
 1. **Treat the issue as incomplete.** Issues often describe only the symptom. Always investigate the broader context: look for related code paths, similar patterns elsewhere in the codebase, and edge cases the issue does not mention.

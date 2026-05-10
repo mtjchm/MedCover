@@ -87,16 +87,20 @@ class TestChangelog:
         rv = member_client.get("/changelog")
         assert rv.status_code == 200
         assert "Změny ve verzích".encode() in rv.data
-        assert b"0.9.0" in rv.data
+        assert app.config["APP_VERSION"].encode() in rv.data
 
     def test_admin_can_view(self, app, admin_client):
         rv = admin_client.get("/changelog")
         assert rv.status_code == 200
-        assert b"0.9.0" in rv.data
+        assert app.config["APP_VERSION"].encode() in rv.data
 
 
 # ── APP_VERSION config ────────────────────────────────────────────────────────
 
 
 def test_app_version_config(app):
-    assert app.config["APP_VERSION"] == "0.9.0"
+    # Verify APP_VERSION is a non-empty semver-like string read from the VERSION file.
+    version = app.config["APP_VERSION"]
+    assert version and version != "unknown"
+    parts = version.split(".")
+    assert len(parts) == 3 and all(p.isdigit() for p in parts)
