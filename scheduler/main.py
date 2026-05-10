@@ -29,9 +29,15 @@ def process_email_queue() -> None:
     Called every MAIL_QUEUE_INTERVAL_SECONDS (default 6 s).  Delegates to
     app.mail.drain_one_outbox_email which contains the actual logic and can
     also be called directly in tests without importing the scheduler.
+
+    Re-applies SMTP settings from the DB on every run so changes made via
+    the admin settings page take effect without a container restart.
     """
     with app.app_context():
+        from app.models.settings import get_settings
         from app.mail import drain_one_outbox_email
+        s = get_settings()
+        s.apply_to_app(app)
         drain_one_outbox_email()
 
 
