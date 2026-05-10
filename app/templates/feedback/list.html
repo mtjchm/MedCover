@@ -61,12 +61,16 @@
           {% else %}—{% endif %}
         </td>
         <td class="text-end">
-          <form method="POST"
-                action="{{ url_for('feedback.feedback_delete', entry_id=entry.id) }}"
-                onsubmit="return confirm('Smazat tuto zpětnou vazbu?');">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm">Smazat</button>
-          </form>
+          {% if config.DEV_LOGIN_ENABLED %}
+            <span class="text-muted small" title="Mazání je zakázáno v testovacím prostředí">—</span>
+          {% else %}
+            <form method="POST"
+                  action="{{ url_for('feedback.feedback_delete', entry_id=entry.id) }}"
+                  onsubmit="return confirm('Smazat tuto zpětnou vazbu?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Smazat</button>
+            </form>
+          {% endif %}
         </td>
       </tr>
     {% endfor %}
