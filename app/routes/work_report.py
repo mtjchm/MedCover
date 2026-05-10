@@ -124,7 +124,7 @@ def download() -> object:
         flash("Soubor nenalezen. Vygenerujte výkaz znovu.", "warning")
         return redirect(url_for("work_report.index"))
 
-    download_name = f"vykaz_prace_{year}_{month:02d}_{current_user.name.replace(' ', '_')}.xlsx"
+    download_name = f"výkaz práce {year}-{month:02d} {current_user.name}.xlsx"
     return send_from_directory(
         directory=str(user_dir),
         path=filename,
