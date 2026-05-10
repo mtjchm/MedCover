@@ -10,6 +10,7 @@
   var FEED_URL_BASE  = cfg.feedUrl  || "";
   var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
   var CLAIM_BASE     = cfg.claimBase || "";
+  var ACTIVE_MES     = cfg.activeMes || [];
 
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_FILT  = "medcover_events_filters";
@@ -83,13 +84,8 @@
 
   function populateMeSelect() {
     var sel = document.getElementById("me-filter-select");
-    if (!sel) return;
-    var names = new Set();
-    document.querySelectorAll("#events-table tbody tr[data-me]").forEach(function (row) {
-      if (row.dataset.me && row.dataset.meArchived !== "1") names.add(row.dataset.me);
-    });
-    if (names.size < 1) return; // hide when no non-archived named MEs present
-    names.forEach(function (name) {
+    if (!sel || ACTIVE_MES.length === 0) return;
+    ACTIVE_MES.forEach(function (name) {
       var opt = document.createElement("option");
       opt.value = name;
       opt.textContent = name;
