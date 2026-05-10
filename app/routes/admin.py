@@ -250,7 +250,6 @@ def audit_log_list() -> str:
         try:
             dt_to = datetime.strptime(f_date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             # include the full day
-            from datetime import timedelta  # noqa: F811 (already imported at top)
             query = query.where(AuditLogEntry.timestamp < dt_to + timedelta(days=1))
         except ValueError:
             pass

@@ -4,9 +4,6 @@ from __future__ import annotations
 from typing import TypeVar
 from urllib.parse import urlsplit
 
-# Reusable flash message constants (Czech UI).
-RECORD_MODIFIED_MSG = "Záznam byl mezitím změněn, načtěte stránku znovu."
-
 T = TypeVar("T")
 E = TypeVar("E")
 

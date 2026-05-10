@@ -20,6 +20,7 @@ from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
 from app.utils import audit, diff_changes, external_url_for, get_or_404, require_permission
 from app.config import INVITE_TOKEN_HOURS
+from app.constants import MIN_PASSWORD_LENGTH
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
 
@@ -135,7 +136,7 @@ def _change_password(user: UserAccount) -> Response:
     if not user.check_password(current_pw):
         flash("Současné heslo je nesprávné.", "danger")
         return redirect(url_for("users.profile"))
-    if len(new_pw) < 8:
+    if len(new_pw) < MIN_PASSWORD_LENGTH:
         flash("Nové heslo musí mít alespoň 8 znaků.", "danger")
         return redirect(url_for("users.profile"))
     if new_pw != confirm:
@@ -305,7 +306,7 @@ def save_user(user_id: uuid.UUID) -> Response:
     # ── Admin password set (optional) ───────────────────────────────────────
     new_password = request.form.get("new_password", "").strip()
     if new_password:
-        if len(new_password) < 8:
+        if len(new_password) < MIN_PASSWORD_LENGTH:
             flash("Heslo musí mít alespoň 8 znaků.", "danger")
             return redirect(url_for("users.detail", user_id=user_id))
         user.set_password(new_password)

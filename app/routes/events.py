@@ -36,7 +36,8 @@ from app.models.role import Role
 from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
-from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.constants import RECORD_MODIFIED_MSG
+from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_master_events_list, active_users_list, user_fillable_qual_ids
 import app.mail as mailer
 from zoneinfo import ZoneInfo

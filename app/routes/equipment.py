@@ -18,7 +18,8 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
 from app.models.user import UserAccount
-from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.constants import RECORD_MODIFIED_MSG
+from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_users_list
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
