@@ -144,6 +144,7 @@
             data-status="{{ event.status.name }}"
             data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
             data-me="{{ '' if event.master_event.is_general else event.master_event.name }}"
+            data-me-archived="{{ '1' if event.master_event.archived else '0' }}"
             data-event-id="{{ event.id }}"
             data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td class="px-2">
