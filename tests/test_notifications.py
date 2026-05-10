@@ -169,3 +169,145 @@ class TestIsNotifyEnabled:
     def test_unknown_field_defaults_true(self, app):
         with app.app_context():
             assert _is_notify_enabled("notify_nonexistent_field") is True
+
+
+# ── event_changed catalog & send function ─────────────────────────────────────
+
+
+class TestEventChangedNotification:
+    def test_catalog_has_event_changed(self):
+        from app.mail import NOTIFICATION_CATALOG
+        codes = [e["code"] for e in NOTIFICATION_CATALOG]
+        assert "event_changed" in codes
+
+    def test_event_changed_has_settings_field(self):
+        from app.mail import NOTIFICATION_CATALOG
+        entry = next(e for e in NOTIFICATION_CATALOG if e["code"] == "event_changed")
+        assert entry["settings_field"] == "notify_event_changed"
+        assert not entry["always_on"]
+
+    def test_send_event_changed_enqueues_when_enabled(self, app):
+        """When notify_event_changed is on, an outbox row is created."""
+        from app.mail import send_event_changed
+        from app.models.outbox import OutboxEmail
+        from app.models.settings import get_settings
+        from app.models.user import UserAccount
+        from app.models.event import Event
+        from app.models.master_event import MasterEvent
+        from datetime import datetime, timezone
+
+        with app.app_context():
+            settings = get_settings()
+            settings.notify_event_changed = True
+            db.session.commit()
+
+            me = MasterEvent(name="ME for notify test")
+            db.session.add(me)
+            db.session.flush()
+
+            from app.models.role import Role
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            user = UserAccount(
+                email="member_notify_test@example.com",
+                name="Test Member",
+                is_active=True,
+            )
+            user.set_password("testpass")
+            user.roles = [role]
+            db.session.add(user)
+            db.session.flush()
+
+            event = Event(
+                name="Notify Test Event",
+                master_event_id=me.id,
+                start_datetime=datetime(2030, 7, 1, 9, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 7, 1, 17, 0, tzinfo=timezone.utc),
+                created_by_id=user.id,
+            )
+            db.session.add(event)
+            db.session.commit()
+
+            before_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+            send_event_changed(user, event, {"name": ["Stará akce", "Nová akce"]}, event_url="http://example.com/events/1")
+
+            after_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+            assert after_count == before_count + 1
+
+    def test_send_event_changed_skipped_when_disabled(self, app):
+        """When notify_event_changed is off, no outbox row is created."""
+        from app.mail import send_event_changed
+        from app.models.outbox import OutboxEmail
+        from app.models.settings import get_settings
+        from app.models.user import UserAccount
+        from app.models.event import Event
+        from app.models.master_event import MasterEvent
+        from datetime import datetime, timezone
+
+        with app.app_context():
+            settings = get_settings()
+            settings.notify_event_changed = False
+            db.session.commit()
+
+            me = MasterEvent(name="ME for notify test 2")
+            db.session.add(me)
+            db.session.flush()
+
+            from app.models.role import Role
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            user = UserAccount(
+                email="member_notify_disabled@example.com",
+                name="Test Member 2",
+                is_active=True,
+            )
+            user.set_password("testpass")
+            user.roles = [role]
+            db.session.add(user)
+            db.session.flush()
+
+            event = Event(
+                name="No Notify Event",
+                master_event_id=me.id,
+                start_datetime=datetime(2030, 8, 1, 9, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 8, 1, 17, 0, tzinfo=timezone.utc),
+                created_by_id=user.id,
+            )
+            db.session.add(event)
+            db.session.commit()
+
+            before_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+            send_event_changed(user, event, {"name": ["Old", "New"]}, event_url="http://example.com/events/1")
+
+            after_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+            assert after_count == before_count  # nothing enqueued
+
+    def test_format_change_value_datetime(self, app):
+        from app.mail import _format_event_change_value
+        with app.app_context():
+            result = _format_event_change_value("start_datetime", "2026-06-01 08:00:00+00:00")
+            # Should display in Prague time (UTC+2 in summer)
+            assert "01.06.2026" in result
+            assert "10:00" in result  # UTC+2
+
+    def test_format_change_value_bool_paid(self, app):
+        from app.mail import _format_event_change_value
+        with app.app_context():
+            assert _format_event_change_value("paid", "True") == "Ano"
+            assert _format_event_change_value("paid", "False") == "Ne"
+
+    def test_format_change_value_none(self, app):
+        from app.mail import _format_event_change_value
+        with app.app_context():
+            assert _format_event_change_value("name", None) == "—"
+            assert _format_event_change_value("name", "None") == "—"
