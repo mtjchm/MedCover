@@ -133,7 +133,7 @@
           {% if rp_eligible_attendees | length > 1 or (rp_eligible_attendees | length == 1 and event.responsible_person_id != rp_eligible_attendees[0].id) %}
             <form method="post" action="{{ url_for('events.set_rp', event_id=event.id) }}" class="mt-2 d-flex gap-2 align-items-center">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <select name="user_id" class="form-select form-select-sm" style="max-width:220px">
+              <select name="user_id" class="form-select form-select-sm maxw-220">
                 {% for u in rp_eligible_attendees %}
                   <option value="{{ u.id }}" {% if u.id == event.responsible_person_id %}selected{% endif %}>{{ u.name }}</option>
                 {% endfor %}
@@ -183,7 +183,7 @@
         </div>
         <div class="col-auto">
           <label class="form-label small mb-1">Počet</label>
-          <select class="form-select form-select-sm" name="quantity" style="width: 80px">
+          <select class="form-select form-select-sm col-80" name="quantity">
             {% for n in range(1, 11) %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
           </select>
         </div>
@@ -230,18 +230,18 @@
       {% for spot in event.spots %}
       <tr>
         <td class="text-muted small">{{ loop.index }}</td>
-        <td style="white-space: normal; word-break: break-word">
+        <td class="text-break text-wrap">
           {{ spot.description or '—' }}
           {% if spot.is_optional %}
-            <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">volitelná</span>
+            <span class="badge bg-info text-dark ms-1 font-65">volitelná</span>
           {% endif %}
         </td>
-        <td style="white-space: normal; word-break: break-word; max-width: 180px">
+        <td class="text-break text-wrap maxw-180">
           {% if spot.required_qualifications %}
             {% for q in spot.required_qualifications %}
               {% if q.is_deleted %}
                 <span class="text-decoration-line-through text-muted">{{ q.name }}</span>
-                <span class="badge bg-secondary" style="font-size:.65rem">odstraněna</span>{% if not loop.last %}, {% endif %}
+                <span class="badge bg-secondary font-65">odstraněna</span>{% if not loop.last %}, {% endif %}
               {% else %}
                 {{ q.name }}{% if not loop.last %}, {% endif %}
               {% endif %}
@@ -443,13 +443,13 @@
   {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_plan_add', event_id=event.id) }}" class="d-flex gap-2 mb-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="type_id" class="form-select form-select-sm" style="max-width: 200px" required>
+    <select name="type_id" class="form-select form-select-sm maxw-200" required>
       <option value="">— typ —</option>
       {% for et in all_equipment_types %}
         <option value="{{ et.id }}">{{ et.name }}</option>
       {% endfor %}
     </select>
-    <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm" style="max-width: 80px">
+    <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm maxw-80">
     <button class="btn btn-outline-danger btn-sm">Přidat</button>
   </form>
   {% endif %}
@@ -494,7 +494,7 @@
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="item_id" class="form-select form-select-sm" style="max-width: 250px" required>
+    <select name="item_id" class="form-select form-select-sm maxw-250" required>
       <option value="">— položka —</option>
       {% for item in available_equipment_items %}
         <option value="{{ item.id }}">{{ item.name }} ({{ item.equipment_type.name }})</option>

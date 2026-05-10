@@ -90,7 +90,7 @@
       if (visible) visibleCount++;
     });
     var emptyMsg = document.getElementById("table-empty-msg");
-    if (emptyMsg) emptyMsg.style.display = visibleCount === 0 ? "" : "none";
+    if (emptyMsg) emptyMsg.classList.toggle('d-none', visibleCount > 0);
     if (calendarInitialized && calendar) calendar.refetchEvents();
   }
 
@@ -142,8 +142,8 @@
 
   function setView(view) {
     localStorage.setItem(STORAGE_VIEW, view);
-    document.getElementById("view-table").style.display    = view === "table"    ? "" : "none";
-    document.getElementById("view-calendar").style.display = view === "calendar" ? "" : "none";
+    document.getElementById("view-table").classList.toggle('d-none', view !== "table");
+    document.getElementById("view-calendar").classList.toggle('d-none', view !== "calendar");
     document.getElementById("btn-table-view").classList.toggle("active", view === "table");
     document.getElementById("btn-calendar-view").classList.toggle("active", view === "calendar");
     if (view === "calendar" && !calendarInitialized) initCalendar();

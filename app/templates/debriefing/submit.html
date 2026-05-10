@@ -112,7 +112,7 @@
               Počet ošetřených <span class="text-danger">*</span>
               {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče. Zadejte 0 pokud nebyl ošetřen žádný pacient.") }}
             </label>
-            <input type="number" min="0" class="form-control" style="max-width: 160px"
+            <input type="number" min="0" class="form-control" class="maxw-160"
                    id="patients_count" name="patients_count"
                    value="{{ request.form.get('patients_count', '0') }}"
                    required>

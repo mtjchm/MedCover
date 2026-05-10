@@ -21,14 +21,14 @@
         <div class="small text-muted">Databáze</div>
         {% if db_status == 'ok' %}
           <span class="text-success fw-semibold">✔ OK</span>
-          <div class="text-muted" style="font-size:0.75rem">SELECT 1 — {{ db_ms }} ms</div>
+          <div class="text-muted font-75">SELECT 1 — {{ db_ms }} ms</div>
         {% elif db_status == 'warning' %}
           <span class="text-warning fw-semibold">⚠ Pomalá</span>
-          <div class="text-warning" style="font-size:0.75rem">SELECT 1 — {{ db_ms }} ms (limit 200 ms)</div>
+          <div class="text-warning font-75">SELECT 1 — {{ db_ms }} ms (limit 200 ms)</div>
         {% else %}
           <span class="text-danger fw-semibold">✘ Chyba</span>
           {% if db_error %}
-            <div class="text-danger" style="font-size:0.75rem">{{ db_error }}</div>
+            <div class="text-danger font-75">{{ db_error }}</div>
           {% endif %}
         {% endif %}
       </div>
@@ -43,16 +43,16 @@
         <div class="small text-muted">Plánovač</div>
         {% if sched_status == 'ok' %}
           <span class="text-success fw-semibold">✔ OK</span>
-          <div class="text-muted" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s</div>
+          <div class="text-muted font-75">heartbeat před {{ sched_age_s }} s</div>
         {% elif sched_status == 'warning' %}
           <span class="text-warning fw-semibold">⚠ Varování</span>
-          <div class="text-warning" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s (limit 30 s)</div>
+          <div class="text-warning font-75">heartbeat před {{ sched_age_s }} s (limit 30 s)</div>
         {% elif sched_status == 'error' %}
           <span class="text-danger fw-semibold">✘ Chyba</span>
-          <div class="text-danger" style="font-size:0.75rem">heartbeat před {{ sched_age_s }} s — kontejner neodpovídá</div>
+          <div class="text-danger font-75">heartbeat před {{ sched_age_s }} s — kontejner neodpovídá</div>
         {% else %}
           <span class="text-secondary fw-semibold">? Neznámý</span>
-          <div class="text-muted" style="font-size:0.75rem">heartbeat dosud nepřijat</div>
+          <div class="text-muted font-75">heartbeat dosud nepřijat</div>
         {% endif %}
       </div>
     </div>
@@ -68,13 +68,13 @@
           <span class="text-secondary fw-semibold">— Nenakonfigurováno</span>
         {% elif smtp_status == 'ok' %}
           <span class="text-success fw-semibold">✔ OK</span>
-          <div class="text-muted" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms</div>
+          <div class="text-muted font-75">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms</div>
         {% elif smtp_status == 'warning' %}
           <span class="text-warning fw-semibold">⚠ Pomalé</span>
-          <div class="text-warning" style="font-size:0.75rem">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms (limit 1000 ms)</div>
+          <div class="text-warning font-75">{{ settings.smtp_server }}:{{ settings.smtp_port }} — {{ smtp_ms }} ms (limit 1000 ms)</div>
         {% else %}
           <span class="text-danger fw-semibold">✘ Chyba</span>
-          <div class="text-danger" style="font-size:0.75rem">
+          <div class="text-danger font-75">
             {% if smtp_error %}{{ smtp_error }}{% else %}{{ settings.smtp_server }}:{{ settings.smtp_port }}{% endif %}
           </div>
         {% endif %}
@@ -111,7 +111,7 @@
           {% endif %}
         </div>
         {% if outbox_last_sent %}
-          <div class="text-muted" style="font-size:0.75rem">posl. odesláno {{ outbox_last_sent | localdt }}</div>
+          <div class="text-muted font-75">posl. odesláno {{ outbox_last_sent | localdt }}</div>
         {% endif %}
       </div>
     </div>

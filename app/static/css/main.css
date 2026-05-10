@@ -186,3 +186,62 @@
     box-shadow: none !important;
   }
 }
+
+/* ── Utility extensions (CSP-safe replacements for inline styles) ── */
+
+/* White-space */
+.text-prewrap { white-space: pre-wrap; }
+
+/* Font-size */
+.font-65  { font-size: 0.65rem; }
+.font-70  { font-size: 0.70rem; }
+.font-75  { font-size: 0.75rem; }
+.font-78  { font-size: 0.78rem; }
+.font-85  { font-size: 0.85rem; }
+
+/* Column / element widths — pixel */
+.col-60   { width:  60px; }
+.col-80   { width:  80px; }
+.col-90   { width:  90px; }
+.col-100  { width: 100px; }
+.col-110  { width: 110px; }
+.col-130  { width: 130px; }
+
+/* Column / element widths — relative */
+.col-2r    { width:  2rem; }
+.col-2p5r  { width:  2.5rem; }
+.col-13e   { width:  13em; }
+.col-14r   { width:  14rem; }
+.col-375p  { width:  37.5%; }
+
+/* Min-width utilities */
+.minw-7r   { min-width:   7rem; }
+.minw-8r   { min-width:   8rem; }
+.minw-9r   { min-width:   9rem; }
+.minw-12r  { min-width:  12rem; }
+.minw-110  { min-width: 110px; }
+.minw-120  { min-width: 120px; }
+.minw-140  { min-width: 140px; }
+.minw-160  { min-width: 160px; }
+.minw-180  { min-width: 180px; }
+.minw-200  { min-width: 200px; }
+.minw-260  { min-width: 260px; }
+.minw-1200 { min-width: 1200px; }
+
+/* Max-width utilities */
+.maxw-80   { max-width:  80px; }
+.maxw-160  { max-width: 160px; }
+.maxw-180  { max-width: 180px; }
+.maxw-200  { max-width: 200px; }
+.maxw-220  { max-width: 220px; }
+.maxw-250  { max-width: 250px; }
+.maxw-340  { max-width: 340px; }
+.maxw-640  { max-width: 640px; }
+.maxw-5p5r { max-width: 5.5rem; }
+.maxw-9r   { max-width:   9rem; }
+.maxw-14r  { max-width:  14rem; }
+.maxw-22r  { max-width:  22rem; }
+.maxw-30r  { max-width:  30rem; }
+
+/* Batch toolbar — flex layout when shown; d-none class overrides this */
+#batchToolbar { display: flex; }

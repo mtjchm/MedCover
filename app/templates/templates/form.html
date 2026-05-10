@@ -138,7 +138,7 @@
         {% for et in equipment_types %}
         <div class="col-12 col-sm-6 col-md-4">
           <div class="input-group input-group-sm">
-            <span class="input-group-text" style="min-width:8rem;white-space:normal">{{ et.name }}</span>
+            <span class="input-group-text" class="minw-8r text-wrap">{{ et.name }}</span>
             <input type="number" class="form-control" name="equip_qty_{{ et.id }}"
                    value="{{ equip_plan_map.get(et.id, 0) }}" min="0" max="99">
           </div>

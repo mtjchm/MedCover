@@ -77,7 +77,7 @@
         <small class="text-muted">Přetažením změníte pořadí</small>
         <form method="POST" action="{{ url_for('admin_digest.add_block') }}" class="d-flex gap-1">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select class="form-select form-select-sm" name="block_type" style="width:auto;">
+          <select class="form-select form-select-sm w-auto" name="block_type">
             {% for btype, cls in block_registry.items() %}
             <option value="{{ btype }}">{{ cls.label }}</option>
             {% endfor %}
@@ -95,7 +95,7 @@
         {% if cls %}
         <div class="border-bottom p-3" data-block-id="{{ block.id }}" id="block-row-{{ block.id }}">
           <div class="d-flex align-items-center gap-2">
-            <span class="text-muted" style="cursor:grab;" data-drag-handle title="Přetáhnout">☰</span>
+            <span class="text-muted cursor-grab" data-drag-handle title="Přetáhnout">☰</span>
             <strong>{{ block.config_json.get('title') or cls.label }}</strong>
             <span class="badge bg-secondary ms-1 text-lowercase"
                   data-bs-toggle="tooltip" title="{{ cls.description if cls.description else block.block_type }}">{{ block.block_type }}</span>

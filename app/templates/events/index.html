@@ -111,21 +111,21 @@
     <table class="table table-hover align-middle" id="events-table">
       <thead class="table-light">
         <tr>
-          <th style="width:2rem;" class="px-2">
+          <th class="col-2r px-2">
             <input type="checkbox" class="form-check-input" id="check-all-events"
                    title="Vybrat / odebrat vše viditelné">
           </th>
-          <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap;min-width:12rem">
+          <th class="sortable cursor-pointer text-nowrap minw-12r" data-col="name">
             Název <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="me_name">
             Nadřazená<br>akce <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="start" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="start">
             Začátek <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="status" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="status">
             Stav <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="total" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="total">
             Obsazení <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="rp" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="rp">
             Zodpovědný<br>zdravotník <span class="sort-icon text-muted">↕</span></th>
           <th></th>
         </tr>
@@ -154,7 +154,7 @@
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
           <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
           <td>
-            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}" style="white-space:normal;max-width:5.5rem">
+            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
@@ -163,7 +163,7 @@
             {% else %}
               {{ mand_filled }}/{{ mand_total }}
               {% if opt_total > 0 %}
-                <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">+{{ opt_total }}&nbsp;vol.</span>
+                <span class="badge bg-info text-dark ms-1 font-65">+{{ opt_total }}&nbsp;vol.</span>
               {% endif %}
             {% endif %}
           </td>
@@ -202,7 +202,7 @@
       </tbody>
     </table>
   </div>
-  <p class="text-muted small" id="table-empty-msg" style="display:none">Žádné akce neodpovídají aktivním filtrům.</p>
+  <p class="text-muted small d-none" id="table-empty-msg">Žádné akce neodpovídají aktivním filtrům.</p>
   {% else %}
   <p class="text-muted">Žádné akce nenalezeny.</p>
   {% endif %}
@@ -222,7 +222,7 @@
 </div>
 
 {# ── Calendar view ──────────────────────────────────────────────────────── #}
-<div id="view-calendar" style="display:none">
+<div id="view-calendar" class="d-none">
   <div id="fullcalendar"></div>
 </div>
 {% endblock %}
