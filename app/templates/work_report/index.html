@@ -29,7 +29,7 @@
       <form method="POST" action="{{ url_for('work_report.generate') }}" class="row g-3 align-items-end">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <div class="col-7">
+        <div class="col">
           <label for="month" class="form-label fw-semibold">Měsíc</label>
           <select class="form-select" id="month" name="month" required>
             {% set month_names = [
@@ -56,8 +56,8 @@
           </select>
         </div>
 
-        <div class="col-2">
-          <button type="submit" class="btn btn-primary w-100">
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm">
             <i class="bi bi-arrow-repeat me-1"></i>Vygenerovat
           </button>
         </div>
