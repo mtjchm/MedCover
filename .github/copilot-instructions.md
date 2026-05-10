@@ -135,6 +135,13 @@ Two modules hold all reusable building blocks. **Always import the existing help
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
+### Working on a GitHub Issue
+When fixing or implementing a GitHub issue:
+1. **Treat the issue as incomplete.** Issues often describe only the symptom. Always investigate the broader context: look for related code paths, similar patterns elsewhere in the codebase, and edge cases the issue does not mention.
+2. **Check tests.** Verify whether existing tests cover the affected code. If they don't — or if the bug/feature has no test — add one. Coverage must not decrease.
+3. **Check documentation.** After implementing the fix, review whether `architecture.md`, `DEVOPS.md`, `README.md`, or `mvp.md` need updating. Update them if affected.
+4. **Close the issue in the PR body** using `Closes #<number>` so GitHub links and auto-closes it on merge.
+
 ### GitHub CLI (`gh`)
 - Use the `gh` tool for all GitHub interactions (PRs, issues, etc.).
 - **Opening a PR:** use `gh pr create --web` (the repo uses Enterprise Managed Users; API-based `gh pr create` without `--web` will fail with an Unauthorized GraphQL error).
