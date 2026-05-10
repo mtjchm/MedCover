@@ -18,6 +18,13 @@ satisfies the events-list hot-path query in a single index-only scan.
 from alembic import op
 
 
+# revision identifiers, used by Alembic.
+revision = "b1c2d3e4f5a6"
+down_revision = "a2f3c4d5e6f7"
+branch_labels = None
+depends_on = None
+
+
 def upgrade() -> None:
     op.create_index("ix_event_status", "event", ["status"])
     op.create_index("ix_event_start_datetime", "event", ["start_datetime"])
