@@ -36,7 +36,7 @@
   </div>
 
   {% if event.actual_start_datetime %}
-  <div class="card-body border-bottom py-2 bg-light">
+  <div class="card-body border-bottom py-2 bg-body-secondary">
     <div class="row g-2 small">
       <div class="col-auto"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</div>
       <div class="col-auto"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</div>
