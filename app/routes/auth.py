@@ -13,6 +13,7 @@ from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.utils import external_url_for, safe_next
 from app.config import LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES
+from app.constants import MIN_PASSWORD_LENGTH
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -157,7 +158,7 @@ def reset_password(token: str) -> str | Response:
     if request.method == "POST":
         password = request.form.get("password", "")
         password2 = request.form.get("password2", "")
-        if len(password) < 8:
+        if len(password) < MIN_PASSWORD_LENGTH:
             flash("Heslo musí mít alespoň 8 znaků.", "warning")
         elif password != password2:
             flash("Hesla se neshodují.", "warning")
@@ -205,7 +206,7 @@ def register(token: str) -> str | Response:
 
         if not full_name:
             flash("Zadejte celé jméno.", "warning")
-        elif len(password) < 8:
+        elif len(password) < MIN_PASSWORD_LENGTH:
             flash("Heslo musí mít alespoň 8 znaků.", "warning")
         elif password != password2:
             flash("Hesla se neshodují.", "warning")

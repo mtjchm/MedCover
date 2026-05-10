@@ -17,7 +17,8 @@ from app.extensions import db
 from app.models.event import EventTemplate, EventSpotTemplate
 from app.models.qualification import Qualification
 from app.models.equipment import EquipmentCategory, EquipmentType, EventTemplateEquipmentPlan
-from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.constants import RECORD_MODIFIED_MSG
+from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 templates_bp = Blueprint("templates", __name__, url_prefix="/templates")
 
