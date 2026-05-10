@@ -60,6 +60,9 @@ def _can_view(event: Event) -> bool:
     return current_user.has_permission("event.view")
 
 
+_PER_PAGE = 75
+
+
 # ── List ──────────────────────────────────────────────────────────────────────
 
 @events_bp.get("/")
@@ -68,6 +71,8 @@ def index() -> str:
     require_permission("event.view", "event.view_draft")
 
     show_archived = request.args.get("archived") == "1"
+    page = request.args.get("page", 1, type=int)
+
     query = db.select(Event).order_by(Event.start_datetime.desc())
 
     if not current_user.has_permission("event.view_draft"):
@@ -75,7 +80,8 @@ def index() -> str:
     if not show_archived:
         query = query.where(Event.archived.is_(False))
 
-    events = db.session.scalars(query).all()
+    pagination = db.paginate(query, page=page, per_page=_PER_PAGE, error_out=False)
+    events = pagination.items
 
     active_named_mes = db.session.scalars(
         db.select(MasterEvent)
@@ -90,6 +96,7 @@ def index() -> str:
         ).all())
 
     # Map event_id → list of (spot_id, description) for eligible unfilled spots
+    # Only computed for the current page — this is the main perf win of pagination.
     eligible_spot_map: dict[int, list[tuple[int, str | None]]] = {}
     if current_user.has_permission("event.assign_own"):
         user_assigned_spot_ids = set(db.session.scalars(
@@ -111,6 +118,7 @@ def index() -> str:
     return render_template(
         "events/index.html",
         events=events,
+        pagination=pagination,
         show_archived=show_archived,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),

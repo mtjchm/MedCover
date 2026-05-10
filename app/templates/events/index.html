@@ -208,6 +208,35 @@
     </table>
   </div>
   <p class="text-muted small d-none" id="table-empty-msg">Žádné akce neodpovídají aktivním filtrům.</p>
+
+  {# ── Pagination ─────────────────────────────────────────────────────────── #}
+  {% if pagination.pages > 1 %}
+  <nav aria-label="Stránkování akcí" class="mt-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.prev_num, archived=1 if show_archived else None) }}">‹</a>
+        </li>
+        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if p %}
+            <li class="page-item {{ 'active' if p == pagination.page }}">
+              <a class="page-link" href="{{ url_for('events.index', page=p, archived=1 if show_archived else None) }}">{{ p }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.next_num, archived=1 if show_archived else None) }}">›</a>
+        </li>
+      </ul>
+      <small class="text-muted">
+        {{ (pagination.page - 1) * pagination.per_page + 1 }}–{{ [pagination.page * pagination.per_page, pagination.total] | min }}
+        z celkem {{ pagination.total }} akcí
+      </small>
+    </div>
+  </nav>
+  {% endif %}
   {% else %}
   <p class="text-muted">Žádné akce nenalezeny.</p>
   {% endif %}
