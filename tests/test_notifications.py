@@ -88,6 +88,7 @@ class TestNotificationsToggle:
                 "csrf_token": csrf,
                 "notify_event_lifecycle": "on",
                 "notify_event_cancelled": "on",
+                "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
                 "notify_debriefing": "on",
                 # notify_assignment intentionally omitted
@@ -109,6 +110,7 @@ class TestNotificationsToggle:
                 "notify_assignment": "on",
                 "notify_event_lifecycle": "on",
                 "notify_event_cancelled": "on",
+                "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
                 "notify_debriefing": "on",
             },
