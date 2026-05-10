@@ -13,7 +13,7 @@
       <td>Poslední záloha</td>
       <td>
         {% if last_backup_at %}
-          <strong>{{ last_backup_at.strftime("%d.%m.%Y %H:%M") }} UTC</strong>
+          <strong>{{ last_backup_at | localdt }}</strong>
           (před {{ last_backup_age_hours }}h)
           {% if backup_overdue %}
             <span class="badge badge-err">Zpožděna</span>
