@@ -585,7 +585,29 @@ Both are available in `app.config` and in Jinja2 templates as `config.APP_VERSIO
 
 ### Keeping changelogs in sync
 
-Both the English `CHANGELOG.md` and the Czech `changelog.html` must be updated together on every release. The Czech template is the user-facing version; the English file is for developers and GitHub release notes.
+Both the English `CHANGELOG.md` and the Czech `changelog.html` must be updated together on every release.
+
+**Different audiences, different content:**
+
+| File | Audience | What to include |
+|---|---|---|
+| `CHANGELOG.md` | Developers, GitHub | Everything: features, bug fixes, security changes, infra, refactors, migrations |
+| `changelog.html` | End users (Czech) | **Only changes that affect the user's workflow or are visible in the UI** |
+
+**Czech changelog rules** — include only if the user would notice or care:
+- New features and screens they can interact with
+- Changes to existing workflows (e.g. a form field added/removed, a step changed)
+- Bug fixes that were visibly wrong to the user
+- New or changed automatic emails they receive
+
+**Never include** in the Czech changelog:
+- Security hardening (CSRF, CSP, TLS, encryption algorithms) — implement silently
+- Performance optimisations, caching, query improvements
+- Refactors, code cleanup, constant extractions
+- Database migrations, Alembic, infrastructure changes
+- Developer tooling, CI, test additions
+- Internal admin features invisible to regular members (audit log internals, outbox traceability)
+- Version bumps, changelog metadata itself
 
 ---
 

@@ -148,6 +148,9 @@ When implementing a release (bumping the version number), always do all of the f
 
 `APP_VERSION` (from `VERSION` file) is the canonical displayed version. `GIT_COMMIT` (Docker build arg) is kept separately for static file cache-busting — do not replace one with the other.
 
+**Czech changelog (`changelog.html`) — user-facing only.**
+Include only changes the user would notice or care about: new features/screens, workflow changes, visible bug fixes, new automatic emails. **Never include:** security hardening, performance optimisations, refactors, migrations, developer tooling, CI, or internal technical details. The English `CHANGELOG.md` captures everything; the Czech template is for end users only.
+
 ### Notification Catalog — mandatory update rule
 `NOTIFICATION_CATALOG` in `app/mail.py` is the authoritative list of all email notification types.
 The admin UI at `/admin/notifications/` renders this list.
