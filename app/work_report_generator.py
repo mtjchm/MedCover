@@ -42,7 +42,8 @@ CZ_WEEKDAY_ABBR = ["PO", "ÚT", "ST", "ČT", "PÁ", "SO", "NE"]  # Mon=0 … Sun
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 
-_BLUE_FILL = PatternFill("solid", fgColor="FF99CCFF")   # header row
+_BLUE_FILL = PatternFill("solid", fgColor="FF99CCFF")   # column header row
+_CYAN_FILL = PatternFill("solid", fgColor="FFCCFFFF")   # info block labels
 _YELLOW_FILL = PatternFill("solid", fgColor="FFFFFF00")  # public holiday
 _WHITE_FILL = PatternFill("solid", fgColor="FFFFFFFF")  # normal day
 _RED_FONT = Font(name="Calibri", size=10, color="FFFF0000")   # weekend day name
@@ -114,6 +115,54 @@ _TOTAL_BORDER_D = Border(
 )
 _TOTAL_BORDER_E = Border(
     right=_side("medium"), top=_side("medium"), bottom=_side("medium"),
+)
+
+# Info block (rows 3-8) borders — matched to sample vykaz.xlsx
+# Row 3: title, all-medium box
+_INFO_TITLE_A = Border(
+    left=_side("medium"), right=_side("medium"),
+    top=_side("medium"), bottom=_side("medium"),
+)
+_INFO_TITLE_MID = Border(top=_side("medium"), bottom=_side("medium"))
+_INFO_TITLE_E = Border(right=_side("medium"), top=_side("medium"), bottom=_side("medium"))
+# Rows 4-6: label | spacer-B | spacer-C | value | right-edge
+_INFO_LABEL = Border(
+    left=_side("medium"), right=_side("thin"),
+    top=_side("thin"), bottom=_side("thin"),
+)
+_INFO_MID_B = Border(top=_side("thin"), bottom=_side("thin"))
+_INFO_MID_C = Border(right=_side("thin"), top=_side("thin"), bottom=_side("thin"))
+_INFO_VALUE_D = Border(
+    left=_side("thin"), right=_side("medium"),
+    top=_side("thin"), bottom=_side("thin"),
+)
+_INFO_VALUE_E = Border(right=_side("medium"), top=_side("thin"), bottom=_side("thin"))
+# Row 7: empty spacer
+_INFO_SPACER_A = Border(left=_side("medium"), top=_side("thin"))
+_INFO_SPACER_B = Border(top=_side("thin"))
+_INFO_SPACER_C = Border(right=_side("thin"), top=_side("thin"))
+_INFO_SPACER_D = Border(
+    left=_side("thin"), right=_side("medium"),
+    top=_side("thin"), bottom=_side("thin"),
+)
+_INFO_SPACER_E = Border(right=_side("medium"), top=_side("thin"), bottom=_side("thin"))
+# Row 8: month / year — bottom=medium acts as separator before column headers
+_INFO_MONTH_A = Border(
+    left=_side("medium"), right=_side("thin"),
+    top=_side("thin"), bottom=_side("medium"),
+)
+_INFO_MONTH_B = Border(right=_side("thin"), top=_side("thin"), bottom=_side("medium"))
+_INFO_MONTH_C = Border(
+    left=_side("thin"), right=_side("thin"),
+    top=_side("thin"), bottom=_side("medium"),
+)
+_INFO_MONTH_D = Border(
+    left=_side("thin"), right=_side("thin"),
+    top=_side("thin"), bottom=_side("medium"),
+)
+_INFO_MONTH_E = Border(
+    left=_side("thin"), right=_side("medium"),
+    top=_side("thin"), bottom=_side("medium"),
 )
 
 # ── Layout constants ──────────────────────────────────────────────────────────
@@ -240,35 +289,48 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     for r in range(1, 9):
         _apply_row_height(ws, r)
 
-    # Row 3: title (merged A3:E3)
+    # Row 3: title (merged A3:E3) — medium border all round, cyan fill
     ws.merge_cells("A3:E3")
     _write_cell(ws, 3, 1, "Výkaz práce / odpracovaných hodin",
-                font=_BOLD_FONT, alignment=Alignment(horizontal="center"))
+                font=_BOLD_FONT, fill=_CYAN_FILL,
+                alignment=Alignment(horizontal="center"),
+                border=_INFO_TITLE_A)
+    for col in (2, 3, 4):
+        _write_cell(ws, 3, col, None, border=_INFO_TITLE_MID)
+    _write_cell(ws, 3, 5, None, border=_INFO_TITLE_E)
 
-    # Row 4: worker name
-    ws.merge_cells("A4:C4")
-    ws.merge_cells("D4:E4")
-    _write_cell(ws, 4, 1, "Jméno pracovníka:", font=_STD_FONT)
-    _write_cell(ws, 4, 4, user.name, font=_STD_FONT)
+    # Rows 4-6: label (A, cyan) | B | C | value (D:E)
+    for row_num, label, value in (
+        (4, "Jméno pracovníka:", user.name),
+        (5, "Pracovní úvazek:", "DPP"),
+        (6, "pozice:", "zdravotní dozory"),
+    ):
+        ws.merge_cells(f"A{row_num}:C{row_num}")
+        ws.merge_cells(f"D{row_num}:E{row_num}")
+        _write_cell(ws, row_num, 1, label, font=_STD_FONT,
+                    fill=_CYAN_FILL, border=_INFO_LABEL)
+        _write_cell(ws, row_num, 2, None, border=_INFO_MID_B)
+        _write_cell(ws, row_num, 3, None, border=_INFO_MID_C)
+        _write_cell(ws, row_num, 4, value, font=_STD_FONT, border=_INFO_VALUE_D)
+        _write_cell(ws, row_num, 5, None, border=_INFO_VALUE_E)
 
-    # Row 5: úvazek
-    ws.merge_cells("A5:C5")
-    ws.merge_cells("D5:E5")
-    _write_cell(ws, 5, 1, "Pracovní úvazek:", font=_STD_FONT)
-    _write_cell(ws, 5, 4, "DPP", font=_STD_FONT)
+    # Row 7: empty spacer with side borders
+    _write_cell(ws, 7, 1, None, border=_INFO_SPACER_A)
+    _write_cell(ws, 7, 2, None, border=_INFO_SPACER_B)
+    _write_cell(ws, 7, 3, None, border=_INFO_SPACER_C)
+    _write_cell(ws, 7, 4, None, border=_INFO_SPACER_D)
+    _write_cell(ws, 7, 5, None, border=_INFO_SPACER_E)
 
-    # Row 6: pozice
-    ws.merge_cells("A6:C6")
-    ws.merge_cells("D6:E6")
-    _write_cell(ws, 6, 1, "pozice:", font=_STD_FONT)
-    _write_cell(ws, 6, 4, "zdravotní dozory", font=_STD_FONT)
-
-    # Row 8: month + year
-    _write_cell(ws, 8, 1, "Měsíc:", font=_STD_FONT)
+    # Row 8: month + year — bottom=medium separator before column headers
+    _write_cell(ws, 8, 1, "Měsíc:", font=_STD_FONT,
+                fill=_CYAN_FILL, border=_INFO_MONTH_A)
+    _write_cell(ws, 8, 2, None, fill=_CYAN_FILL, border=_INFO_MONTH_B)
     _write_cell(ws, 8, 3, month_name, font=_STD_FONT,
-                alignment=Alignment(horizontal="left"))
-    _write_cell(ws, 8, 4, "Rok:", font=_STD_FONT)
-    _write_cell(ws, 8, 5, year, font=_STD_FONT)
+                alignment=Alignment(horizontal="left"), border=_INFO_MONTH_C)
+    _write_cell(ws, 8, 4, "Rok:", font=_STD_FONT,
+                fill=_CYAN_FILL, border=_INFO_MONTH_D)
+    _write_cell(ws, 8, 5, year, font=_STD_FONT,
+                alignment=Alignment(horizontal="left"), border=_INFO_MONTH_E)
 
     # ── Column headers (row 9) ────────────────────────────────────────────────
     _apply_row_height(ws, _HEADER_ROW)
