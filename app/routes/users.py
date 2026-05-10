@@ -6,14 +6,13 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from flask import (
-    Blueprint, Response, current_app, flash,
+    Blueprint, Response, flash,
     redirect, render_template, request, url_for,
 )
 from flask_login import current_user, login_required
-from flask_mail import Message
 from sqlalchemy.orm import selectinload
 
-from app.extensions import db, mail
+from app.extensions import db
 from app.models.user import UserAccount, CalendarView
 from app.models.role import Role
 from app.models.invite import RegistrationInvite
@@ -589,14 +588,5 @@ def cancel_invite(invite_id: int) -> Response:
 
 
 def _send_activation_email(user: UserAccount) -> None:
-    login_url = external_url_for("auth.login")
-    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
-    msg = Message(
-        subject="MedCover — váš účet byl aktivován",
-        recipients=[user.email],
-        body=body,
-    )
-    try:
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
+    from app.mail import send_account_activated  # noqa: PLC0415
+    send_account_activated(user)

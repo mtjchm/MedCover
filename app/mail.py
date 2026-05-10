@@ -279,3 +279,13 @@ def send_debriefing_invitation(assignment: Assignment, event: Event) -> None:
         debriefing_url=debriefing_url,
     )
     _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", body)
+
+
+# ── Account activation ────────────────────────────────────────────────────────
+
+def send_account_activated(user: UserAccount) -> None:
+    """Enqueue an account-activation notification to the newly activated user."""
+    from app.utils import external_url_for  # noqa: PLC0415
+    login_url = external_url_for("auth.login")
+    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
+    _enqueue(user.email, "MedCover — váš účet byl aktivován", body)
