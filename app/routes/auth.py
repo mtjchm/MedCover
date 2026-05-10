@@ -230,6 +230,8 @@ def register(token: str) -> str | Response:
                 changes_json={},
             ))
             db.session.commit()
+            from app.mail import send_account_activated  # noqa: PLC0415
+            send_account_activated(user)
             flash("Registrace dokončena. Nyní se můžete přihlásit.", "success")
             return redirect(url_for("auth.login"))
 

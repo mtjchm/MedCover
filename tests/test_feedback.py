@@ -161,8 +161,8 @@ class TestCommitHash:
     def test_admin_dashboard_shows_version(self, app, admin_client):
         rv = admin_client.get("/admin/")
         assert rv.status_code == 200
-        # In test env APP_VERSION is read from VERSION file ("0.9.0")
-        assert b"0.9.0" in rv.data
+        # In test env APP_VERSION is read from VERSION file ("0.10.0")
+        assert b"0.10.0" in rv.data
         # GIT_COMMIT still present in config for static cache-busting
         assert b"dev" in rv.data
 
@@ -174,7 +174,7 @@ class TestCommitHash:
     def test_app_version_config(self, app):
         with app.app_context():
             from flask import current_app
-            assert current_app.config["APP_VERSION"] == "0.9.0"
+            assert current_app.config["APP_VERSION"] == "0.10.0"
 
 
 # ── app_version stored in feedback ────────────────────────────────────────────
@@ -186,13 +186,13 @@ class TestFeedbackAppVersion:
         with app.app_context():
             entry = db.session.scalar(db.select(UserFeedback))
             # app_version now stores APP_VERSION (semantic), not GIT_COMMIT
-            assert entry.app_version == "0.9.0"
+            assert entry.app_version == "0.10.0"
 
     def test_app_version_shown_in_admin_list(self, app, admin_client, member_client):
         _post_feedback(member_client, "Version visible")
         rv = admin_client.get("/admin/feedback/")
         assert rv.status_code == 200
-        assert b"0.9.0" in rv.data
+        assert b"0.10.0" in rv.data
 
 
 # ── feedback_enabled toggle ───────────────────────────────────────────────────

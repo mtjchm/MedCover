@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-05-10
+
+### Added
+- Notification catalog: admin page (`/admin/notifications/`) listing all 10 email notification types with trigger, recipient scope, and email template names
+- Per-type notification toggles: admins can enable/disable 5 operational notification groups (assignment, event lifecycle, event cancelled, unfilled spots reminder, debriefing invitation) directly from the catalog page
+- `OutboxEmail.notification_type` field: every enqueued email now records which `send_*` function created it, enabling outbox filtering by notification type
+- Welcome email on registration: `send_account_activated` is now called automatically when a user completes invite-link registration (previously only sent on manual admin activation)
+- Catalog rule: added documentation requiring the notification catalog to be updated whenever any email notification is added, changed, or removed (DEVOPS.md + copilot-instructions)
+
 ## [0.9.0] - 2026-05-10
 
 ### Added

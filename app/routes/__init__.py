@@ -20,6 +20,7 @@ from .feedback import feedback_bp
 from .admin_digest import bp as admin_digest_bp
 from .backup import backup_bp
 from .work_report import work_report_bp
+from .notifications import notifications_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -42,6 +43,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(admin_digest_bp)
     app.register_blueprint(backup_bp)
     app.register_blueprint(work_report_bp)
+    app.register_blueprint(notifications_bp)
 
     if app.config.get("DEV_LOGIN_ENABLED"):
         from .dev import dev_bp

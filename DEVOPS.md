@@ -589,6 +589,46 @@ Both the English `CHANGELOG.md` and the Czech `changelog.html` must be updated t
 
 ---
 
+## Notification Catalog
+
+The app sends 10 types of email notifications.  The **authoritative source of truth** is
+`NOTIFICATION_CATALOG` in `app/mail.py`.  The admin UI at `/admin/notifications/` renders
+this list and exposes per-type toggles stored in `AppSettings`.
+
+### Rule: always update the catalog when changing notifications
+
+**Whenever you add, rename, remove, or change the recipients/trigger of any `send_*`
+function in `app/mail.py`, you MUST:**
+
+1. Update or add the corresponding entry in `NOTIFICATION_CATALOG` (same file).
+2. If the new notification should be togglable: add a `notify_<code>` boolean column
+   to `AppSettings` (model + Alembic migration, default `True`) and set `settings_field`
+   in the catalog entry accordingly.
+3. Call `_is_notify_enabled("notify_<code>")` at the top of the new `send_*` function.
+4. Pass `notification_type="<code>"` to `_enqueue()`.
+5. Update `CHANGELOG.md` and `app/templates/main/changelog.html`.
+
+Failure to update the catalog means the admin page will be out of sync with the actual
+behaviour of the application.
+
+### Notification toggles
+
+Five toggle groups are stored in `AppSettings`:
+
+| Field | Controls |
+|---|---|
+| `notify_assignment` | `send_assignment_confirmed`, `send_assignment_released` |
+| `notify_event_lifecycle` | `send_event_published`, `send_assignments_opened` |
+| `notify_event_cancelled` | `send_event_cancelled` |
+| `notify_unfilled_reminder` | `send_unfilled_spots_reminder` (scheduler) |
+| `notify_debriefing` | `send_debriefing_invitation` |
+
+Auth-related notifications (`account_activated`, invite, password reset, admin digest)
+are always-on and cannot be toggled.
+
+---
+
+
 ## Database Migrations
 
 This project uses **Flask-Migrate** (Alembic wrapper for Flask-SQLAlchemy).

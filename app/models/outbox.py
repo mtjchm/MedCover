@@ -16,6 +16,8 @@ class OutboxEmail(db.Model):  # type: ignore[misc]
     body = db.Column(db.Text, nullable=False)
     # When set, the email is sent as HTML (html=html_body) with body as plain-text fallback.
     html_body = db.Column(db.Text, nullable=True)
+    # Identifies which send_* function enqueued this email — e.g. "assignment_confirmed".
+    notification_type = db.Column(db.String(64), nullable=True, index=True)
 
     # 'pending' → being picked up by scheduler
     # 'sent'    → successfully delivered to SMTP relay
