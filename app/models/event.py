@@ -184,12 +184,23 @@ class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
         return [s for s in self.spots if not s.is_optional and s.assignment is None]
 
     @property
+    def scheduled_hours(self) -> Decimal:
+        """Planned duration in hours derived from start_datetime / end_datetime."""
+        delta = self.end_datetime - self.start_datetime
+        return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+
+    @property
     def actual_hours(self) -> Decimal | None:
         """Actual duration in hours derived from RP-submitted actual start/end times."""
         if self.actual_start_datetime and self.actual_end_datetime:
             delta = self.actual_end_datetime - self.actual_start_datetime
             return Decimal(str(round(delta.total_seconds() / 3600, 2)))
         return None
+
+    @property
+    def billable_hours(self) -> Decimal:
+        """Hours to use for reporting: actual if debriefed, otherwise scheduled."""
+        return self.actual_hours if self.actual_hours is not None else self.scheduled_hours
 
     @property
     def is_unfilled(self) -> bool:

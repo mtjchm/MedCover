@@ -188,12 +188,7 @@ def _fetch_events_for_month(
 
     result: dict[int, tuple[Decimal, list[str]]] = {}
     for ev in rows:
-        if ev.actual_hours is not None:
-            hours = ev.actual_hours
-        else:
-            # Fall back to scheduled duration (end - start)
-            delta = ev.end_datetime - ev.start_datetime
-            hours = Decimal(str(round(delta.total_seconds() / 3600, 2)))
+        hours = ev.billable_hours
         day = ev.start_datetime.day
         if day in result:
             prev_hours, prev_names = result[day]
