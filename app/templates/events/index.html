@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Akce — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h2 class="mb-0">Akce</h2>
+  <h2 class="mb-0">Akce {{ help_icon("Akce procházejí těmito fázemi:\n• Koncept — vidí jen koordinátoři, nelze se přihlásit\n• Zveřejněná — viditelná, přihlášky zatím uzavřeny\n• Přihlášky otevřeny — členové se mohou přihlašovat (manuálně nebo automaticky dle data otevření)\n• Přihlášky uzavřeny — obsazování uzavřeno, akce probíhá\n• Dokončena — automaticky po skončení akce (scheduler)\n• Zrušena — lze nastavit kdykoli\nFáze Koncept → Zveřejněná a Zveřejněná → Přihlášky otevřeny jsou manuální (nebo automatické dle data). Fáze Dokončena se nastaví automaticky po uplynutí data ukončení.", "Fáze akce") }}</h2>
   <div class="d-flex gap-2 flex-wrap align-items-center">
     {# View toggle #}
     <div class="btn-group btn-group-sm" role="group" aria-label="Zobrazení">
@@ -49,19 +50,19 @@
 {# ── Status filter bar ──────────────────────────────────────────────────── #}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT"
-          data-bs-toggle="tooltip" title="Akce ve fázi přípravy">Koncept</button>
-  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED"
-          data-bs-toggle="tooltip" title="Zveřejněná, přihlašování nezačalo">Zveřejněná</button>
-  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN"
-          data-bs-toggle="tooltip" title="Přihlašování je otevřeno">Přihlášky otevřeny</button>
-  <button type="button" class="btn btn-sm filter-btn" data-status="ASSIGNMENTS_CLOSED"
-          style="color:#000;border-color:#ffc107"
-          data-bs-toggle="tooltip" title="Přihlašování bylo uzavřeno">Přihlášky uzavřeny</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn filter-btn-neutral" data-status="COMPLETED"
-          data-bs-toggle="tooltip" title="Proběhlé a uzavřené akce">Dokončena</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED"
-          data-bs-toggle="tooltip" title="Zrušené akce">Zrušena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT">Koncept</button>
+  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED">Zveřejněná</button>
+  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-warning filter-btn" data-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-dark filter-btn" data-status="COMPLETED">Dokončena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
+  {% if current_user.has_permission('event.assign_own') %}
+  <button type="button" class="btn btn-sm btn-outline-info filter-btn ms-2" id="btn-elig-filter">Pro mě</button>
+  {% endif %}
+  <select id="me-filter-select" class="form-select form-select-sm ms-2 maxw-250 d-none"
+          title="Filtrovat podle nadřazené akce" onchange="setMeFilter(this.value)">
+    <option value="">Všechny nadřazené akce</option>
+  </select>
   <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
           onclick="resetFilters()">Výchozí</button>
 </div>
@@ -114,21 +115,21 @@
     <table class="table table-hover align-middle" id="events-table">
       <thead class="table-light">
         <tr>
-          <th style="width:2rem;" class="px-2">
+          <th class="col-2r px-2">
             <input type="checkbox" class="form-check-input" id="check-all-events"
                    title="Vybrat / odebrat vše viditelné">
           </th>
-          <th class="sortable" data-col="name" style="cursor:pointer;white-space:nowrap;min-width:12rem">
+          <th class="sortable cursor-pointer text-nowrap minw-12r" data-col="name">
             Název <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="me_name" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="me_name">
             Nadřazená<br>akce <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="start" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="start">
             Začátek <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="status" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="status">
             Stav <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="total" style="cursor:pointer;white-space:nowrap">
+          <th class="sortable cursor-pointer text-nowrap" data-col="total">
             Obsazení <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable" data-col="rp" style="cursor:pointer;white-space:normal;min-width:7rem;max-width:9rem">
+          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="rp">
             Zodpovědný<br>zdravotník <span class="sort-icon text-muted">↕</span></th>
           <th></th>
         </tr>
@@ -141,6 +142,8 @@
         {% set staffing_ratio = (mand_filled / mand_total) if mand_total > 0 else 0 %}
         <tr class="{{ 'text-muted' if event.status == EventStatus.CANCELLED or event.archived }}"
             data-status="{{ event.status.name }}"
+            data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
+            data-me="{{ '' if event.master_event.is_general else event.master_event.name }}"
             data-event-id="{{ event.id }}"
             data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td class="px-2">
@@ -156,7 +159,7 @@
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
           <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
           <td>
-            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }}" style="white-space:normal;max-width:5.5rem">
+            <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
             </span>
           </td>
@@ -165,7 +168,7 @@
             {% else %}
               {{ mand_filled }}/{{ mand_total }}
               {% if opt_total > 0 %}
-                <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">+{{ opt_total }}&nbsp;vol.</span>
+                <span class="badge bg-info text-dark ms-1 font-65">+{{ opt_total }}&nbsp;vol.</span>
               {% endif %}
             {% endif %}
           </td>
@@ -204,7 +207,36 @@
       </tbody>
     </table>
   </div>
-  <p class="text-muted small" id="table-empty-msg" style="display:none">Žádné akce neodpovídají aktivním filtrům.</p>
+  <p class="text-muted small d-none" id="table-empty-msg">Žádné akce neodpovídají aktivním filtrům.</p>
+
+  {# ── Pagination ─────────────────────────────────────────────────────────── #}
+  {% if pagination.pages > 1 %}
+  <nav aria-label="Stránkování akcí" class="mt-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.prev_num, archived=1 if show_archived else None) }}">‹</a>
+        </li>
+        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if p %}
+            <li class="page-item {{ 'active' if p == pagination.page }}">
+              <a class="page-link" href="{{ url_for('events.index', page=p, archived=1 if show_archived else None) }}">{{ p }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.next_num, archived=1 if show_archived else None) }}">›</a>
+        </li>
+      </ul>
+      <small class="text-muted">
+        {{ (pagination.page - 1) * pagination.per_page + 1 }}–{{ [pagination.page * pagination.per_page, pagination.total] | min }}
+        z celkem {{ pagination.total }} akcí
+      </small>
+    </div>
+  </nav>
+  {% endif %}
   {% else %}
   <p class="text-muted">Žádné akce nenalezeny.</p>
   {% endif %}
@@ -224,7 +256,7 @@
 </div>
 
 {# ── Calendar view ──────────────────────────────────────────────────────── #}
-<div id="view-calendar" style="display:none">
+<div id="view-calendar" class="d-none">
   <div id="fullcalendar"></div>
 </div>
 {% endblock %}
@@ -250,6 +282,6 @@
   }
 </style>
 
-<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}"}</script>
-<script src="{{ url_for('static', filename='js/events-index.js') }}"></script>
+<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
+<script src="{{ url_for('static', filename='js/events-index.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

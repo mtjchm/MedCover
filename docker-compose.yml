@@ -5,6 +5,7 @@ services:
       args:
         GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: flask run --host=0.0.0.0 --debug
+    restart: unless-stopped
     volumes:
       - .:/app
     env_file: .env
@@ -30,6 +31,7 @@ services:
       args:
         GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: python scheduler/main.py
+    restart: unless-stopped
     volumes:
       - .:/app
     env_file: .env
@@ -50,6 +52,7 @@ services:
 
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     # Give PostgreSQL up to 60 s to finish its final checkpoint before Docker
     # sends SIGKILL on 'docker compose down/stop'.  Default is 10 s which is
     # often too short for a clean shutdown.

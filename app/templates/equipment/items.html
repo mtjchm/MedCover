@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Položky vybavení — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Položky vybavení</h2>
+  <h2 class="mb-0">Položky vybavení {{ help_icon("Konkrétní kusy vybavení (např. defibrilátor SN-001, lékárnička č. 3). Každá položka patří do některého Typu vybavení. Položky lze přiřadit k akci a sledovat jejich umístění a dostupnost.") }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('equipment.index') }}" class="btn btn-outline-secondary btn-sm">Typy vybavení</a>
     {% if current_user.has_permission('equipment_item.create') %}
@@ -40,11 +41,11 @@
   <table class="table table-hover align-middle" id="itemsTable">
     <thead class="table-light">
       <tr>
-        <th class="sortable" data-col="name" style="cursor:pointer">Název <span class="sort-icon text-muted">↕</span></th>
-        <th class="sortable" data-col="type" style="cursor:pointer">Typ <span class="sort-icon text-muted">↕</span></th>
+        <th class="sortable" data-col="name" class="cursor-pointer">Název <span class="sort-icon text-muted">↕</span></th>
+        <th class="sortable" data-col="type" class="cursor-pointer">Typ <span class="sort-icon text-muted">↕</span></th>
         <th>Sériové číslo</th>
         <th>Umístění</th>
-        <th class="sortable" data-col="issued" style="cursor:pointer">Vydáno <span class="sort-icon text-muted">↕</span></th>
+        <th class="sortable" data-col="issued" class="cursor-pointer">Vydáno <span class="sort-icon text-muted">↕</span></th>
         <th></th>
       </tr>
     </thead>
@@ -52,7 +53,7 @@
       {% for item in equipment_items %}
       <tr data-sv='{"name":{{ item.name | lower | tojson }},"type":{{ item.equipment_type.name | lower | tojson }},"issued":{{ (item.issued_to.name | lower if item.issued_to else "") | tojson }}}'
           {% if current_user.has_permission('equipment_item.edit') %}
-          style="cursor:pointer"
+          class="cursor-pointer"
           onclick="window.location='{{ url_for('equipment.item_edit', item_id=item.id) }}'"
           {% endif %}>
         <td class="fw-semibold">{{ item.name }}</td>
@@ -121,5 +122,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/table-sort.js') }}"></script>
+<script src="{{ url_for('static', filename='js/table-sort.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

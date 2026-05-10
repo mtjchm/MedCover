@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
+{% block title %}Správa debriefingů — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Debriefing
+    {{ help_icon("Přehled všech debriefingů ze dokončených akcí. Tato stránka je přísně důvěrná — přístup mají pouze uživatelé s rolí Debriefing Manager. Administrátoři systému tuto stránku nevidí.") }}
+  </h2>
+</div>
+
+{% if not events %}
+<div class="text-muted">Žádné dokončené akce.</div>
+{% else %}
+{% for event in events %}
+{% set assignments = event.spots | map(attribute='assignment') | select | list %}
+{% set submitted = assignments | selectattr('debriefing') | list %}
+{% set pending = assignments | rejectattr('debriefing') | list %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center py-2">
+    <div>
+      <strong>{{ event.name }}</strong>
+      <span class="text-muted small ms-2">{{ event.start_datetime | localdt }}</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      {% if pending %}
+      <span class="badge bg-warning text-dark">{{ pending|length }} čekají</span>
+      {% endif %}
+      <span class="badge bg-success">{{ submitted|length }} odevzdáno</span>
+      {% if event.actual_start_datetime %}
+      <span class="badge bg-primary">Časy uloženy</span>
+      {% else %}
+      <span class="badge bg-secondary">Časy neuloženy</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if event.actual_start_datetime %}
+  <div class="card-body border-bottom py-2 bg-light">
+    <div class="row g-2 small">
+      <div class="col-auto"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</div>
+      <div class="col-auto"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</div>
+      <div class="col-auto"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if submitted %}
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Účastník</th>
+          <th class="text-center">Hodnocení</th>
+          <th>Průběh akce</th>
+          <th>Objednatel</th>
+          <th>Kolegové</th>
+          <th class="text-muted small">Odevzdáno</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in submitted %}
+        {% set r = a.debriefing %}
+        <tr>
+          <td>{{ a.user.name }}</td>
+          <td class="text-center">
+            <span class="badge bg-{{ 'success' if r.grade <= 2 else 'warning' if r.grade == 3 else 'danger' }} text-{{ 'dark' if r.grade == 3 else 'white' }}">
+              {{ r.grade }}/5
+            </span>
+          </td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_event or '—' }}</td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_customer or '—' }}</td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_colleagues or '—' }}</td>
+          <td class="text-muted small">{{ r.submitted_at | localdt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if pending %}
+  <div class="card-footer text-muted small py-2">
+    Čekají na odevzdání: {{ pending | map(attribute='user.name') | join(', ') }}
+  </div>
+  {% endif %}
+
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

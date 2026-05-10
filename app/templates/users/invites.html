@@ -78,7 +78,7 @@
           {% elif inv.outbox_email.status == 'failed' %}
             <span class="badge bg-danger">Chyba</span>
             {% if inv.outbox_email.last_error %}
-            <br><small class="text-danger" style="font-size:0.7rem" title="{{ inv.outbox_email.last_error }}">
+            <br><small class="text-danger font-70" title="{{ inv.outbox_email.last_error }}">
               {{ inv.outbox_email.last_error | truncate(80) }}
             </small>
             {% endif %}
@@ -146,5 +146,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/invites.js') }}"></script>
+<script src="{{ url_for('static', filename='js/invites.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

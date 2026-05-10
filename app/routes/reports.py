@@ -3,6 +3,7 @@ Reports & Statistics blueprint.
 
 Routes:
   GET /reports/                          — index (three report cards)
+  GET /reports/user                      — own per-user report (shortcut)
   GET /reports/user/<user_id>            — per-user report
   GET /reports/master-event/<me_id>      — per-master-event report
   GET /reports/date-range                — date-range report (form + results)
@@ -16,21 +17,101 @@ from __future__ import annotations
 import csv
 import io
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import cast
 
-from flask import Blueprint, Response, abort, make_response, render_template, request
+from flask import Blueprint, Response, abort, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
+from app.utils import require_permission
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
+
+# ── Statistics helpers ────────────────────────────────────────────────────────
+
+_FUTURE_STATUSES = {
+    EventStatus.PUBLISHED,
+    EventStatus.ASSIGNMENTS_OPEN,
+    EventStatus.ASSIGNMENTS_CLOSED,
+}
+
+
+@dataclass
+class UserStats:
+    """Aggregated participation statistics for one user."""
+
+    shifts_served: int = 0
+    shifts_planned: int = 0
+    hours_served: Decimal = field(default_factory=lambda: Decimal("0"))
+    hours_planned: Decimal = field(default_factory=lambda: Decimal("0"))
+    hours_free: Decimal = field(default_factory=lambda: Decimal("0"))
+    last_shift: datetime | None = None
+    next_shift: datetime | None = None
+
+    @property
+    def shifts_total(self) -> int:
+        return self.shifts_served + self.shifts_planned
+
+    @property
+    def hours_total(self) -> Decimal:
+        return self.hours_served + self.hours_planned
+
+
+def _event_planned_hours(ev: Event) -> Decimal:
+    return Decimal(str((ev.end_datetime - ev.start_datetime).total_seconds() / 3600))
+
+
+def _compute_user_stats(pairs: list[tuple[Assignment, Event]], now: datetime) -> UserStats:
+    """Compute UserStats from a list of (assignment, event) pairs for a single user."""
+    stats = UserStats()
+    for _, ev in pairs:
+        if ev.status == EventStatus.CANCELLED:
+            continue
+        planned_h = _event_planned_hours(ev)
+        if ev.status == EventStatus.COMPLETED:
+            stats.shifts_served += 1
+            # Use actual hours when available, fall back to planned hours.
+            served_h = ev.actual_hours if ev.actual_hours is not None else planned_h
+            stats.hours_served += served_h
+            if not ev.paid:
+                stats.hours_free += served_h
+            if stats.last_shift is None or ev.start_datetime > stats.last_shift:
+                stats.last_shift = ev.start_datetime
+        elif ev.status in _FUTURE_STATUSES and ev.start_datetime > now:
+            stats.shifts_planned += 1
+            stats.hours_planned += planned_h
+            if stats.next_shift is None or ev.start_datetime < stats.next_shift:
+                stats.next_shift = ev.start_datetime
+    return stats
+
+
+def _build_user_stat_rows(
+    pairs: list[tuple[Assignment, Event]], now: datetime
+) -> list[tuple[UserAccount, UserStats]]:
+    """Group (assignment, event) pairs by user and compute per-user stats."""
+    user_pairs: dict[uuid.UUID, list[tuple[Assignment, Event]]] = {}
+    users: dict[uuid.UUID, UserAccount] = {}
+    for asgn, ev in pairs:
+        uid = asgn.user_id
+        if uid not in user_pairs:
+            user_pairs[uid] = []
+            users[uid] = asgn.user
+        user_pairs[uid].append((asgn, ev))
+    result = [(users[uid], _compute_user_stats(up, now)) for uid, up in user_pairs.items()]
+    result.sort(key=lambda x: x[0].name)
+    return result
+
+
+# ── CSV helper ────────────────────────────────────────────────────────────────
 
 
 def _csv_response(rows: list[list[str]], filename: str) -> Response:
@@ -49,12 +130,19 @@ def _csv_response(rows: list[list[str]], filename: str) -> Response:
 @reports_bp.get("/")
 @login_required
 def index() -> str:
-    if not current_user.has_permission("report.view"):
-        abort(403)
-    return render_template("reports/index.html")
+    require_permission("report.view")
+    from app.queries import active_master_events_list
+    master_events = active_master_events_list()
+    return render_template("reports/index.html", master_events=master_events)
 
 
 # ── Per-user report ───────────────────────────────────────────────────────────
+
+@reports_bp.get("/user")
+@login_required
+def own_report() -> Response:
+    return redirect(url_for("reports.user_report", user_id=current_user.id))
+
 
 @reports_bp.get("/user/<uuid:user_id>")
 @login_required
@@ -67,58 +155,51 @@ def user_report(user_id: uuid.UUID) -> str | Response:
     if user is None:
         abort(404)
 
-    # Load all assignments for this user with eager-loaded spot → event and debriefing
+    now = datetime.now(timezone.utc)
+
+    # Load all assignments for this user with eager-loaded spot → event
     assignments = list(db.session.scalars(
         db.select(Assignment)
         .where(Assignment.user_id == user_id)
         .options(
             selectinload(Assignment.spot).selectinload(EventSpot.event),  # type: ignore[arg-type]
-            selectinload(Assignment.debriefing),
         )
         .order_by(Assignment.assigned_at)
     ).unique().all())
 
-    # Build per-event rows
+    pairs = [(a, a.spot.event) for a in assignments if a.spot and a.spot.event]
+    stats = _compute_user_stats(pairs, now)
+
+    # Build per-event rows for the detail table
     rows = []
-    total_planned_seconds = 0
-    total_actual_hours = Decimal("0")
     total_patients = 0
-    completed_count = 0
-
-    for asgn in assignments:
-        spot = asgn.spot
-        if spot is None:
-            continue
-        event = spot.event
-        if event is None:
-            continue
-
-        planned_seconds = int((event.end_datetime - event.start_datetime).total_seconds())
-        planned_hours = planned_seconds / 3600
-
-        debrief = asgn.debriefing
-        actual_h = debrief.actual_hours if debrief else None
-        patients = debrief.patients_treated if debrief else None
-
+    for _, ev in pairs:
+        planned_h = _event_planned_hours(ev)
+        patients = ev.patients_count if ev.actual_hours is not None else None
         rows.append({
-            "event": event,
-            "planned_hours": planned_hours,
-            "actual_hours": actual_h,
-            "patients_treated": patients,
+            "event": ev,
+            "planned_hours": planned_h,
+            "actual_hours": ev.actual_hours,
+            "patients": patients,
         })
-
-        if event.status == EventStatus.COMPLETED:
-            completed_count += 1
-            total_planned_seconds += planned_seconds
-            if actual_h is not None:
-                total_actual_hours += actual_h
-            if patients is not None:
-                total_patients += patients
-
-    total_planned_hours = total_planned_seconds / 3600
+        if ev.status == EventStatus.COMPLETED and patients is not None:
+            total_patients += patients
 
     if request.args.get("format") == "csv":
-        csv_rows = [["Akce", "Začátek", "Konec", "Stav", "Plán (h)", "Skutečnost (h)", "Ošetřených"]]
+        csv_rows: list[list[str]] = [
+            ["Statistiky"],
+            ["Směny odsloužené", str(stats.shifts_served)],
+            ["Směny plánované", str(stats.shifts_planned)],
+            ["Směny celkem", str(stats.shifts_total)],
+            ["Hodiny odsloužené", f"{stats.hours_served:.2f}"],
+            ["Hodiny plánované", f"{stats.hours_planned:.2f}"],
+            ["Hodiny celkem", f"{stats.hours_total:.2f}"],
+            ["Hodiny celkem zdarma", f"{stats.hours_free:.2f}"],
+            ["Poslední směna", stats.last_shift.strftime("%Y-%m-%d") if stats.last_shift else ""],
+            ["Příští směna", stats.next_shift.strftime("%Y-%m-%d") if stats.next_shift else ""],
+            [],
+            ["Akce", "Začátek", "Konec", "Stav", "Plán (h)", "Skutečnost (h)", "Ošetřených"],
+        ]
         for r in rows:
             ev = r["event"]
             csv_rows.append([
@@ -128,7 +209,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
                 ev.status.value,
                 f"{r['planned_hours']:.2f}",
                 f"{r['actual_hours']:.2f}" if r["actual_hours"] is not None else "",
-                r["patients_treated"] if r["patients_treated"] is not None else "",
+                r["patients"] if r["patients"] is not None else "",
             ])
         safe_name = user.name.replace(" ", "_")
         return _csv_response(csv_rows, f"prehled_{safe_name}.csv")
@@ -137,10 +218,8 @@ def user_report(user_id: uuid.UUID) -> str | Response:
         "reports/user_report.html",
         report_user=user,
         rows=rows,
-        total_planned_hours=total_planned_hours,
-        total_actual_hours=total_actual_hours,
+        stats=stats,
         total_patients=total_patients,
-        completed_count=completed_count,
         is_own=is_own,
     )
 
@@ -150,21 +229,47 @@ def user_report(user_id: uuid.UUID) -> str | Response:
 @reports_bp.get("/master-event/<int:me_id>")
 @login_required
 def me_report(me_id: int) -> str | Response:
-    if not current_user.has_permission("report.view"):
-        abort(403)
+    require_permission("report.view")
 
     master_event: MasterEvent | None = db.session.get(MasterEvent, me_id)
     if master_event is None:
         abort(404)
 
+    now = datetime.now(timezone.utc)
+
+    # Query 1: events (no spots relationship — counts come from SQL aggregation below)
     events: list[Event] = list(db.session.scalars(
         db.select(Event)
         .where(Event.master_event_id == me_id)
-        .options(
-            selectinload(Event.spots).selectinload(EventSpot.assignment).selectinload(Assignment.debriefing)  # type: ignore[arg-type]
-        )
         .order_by(Event.start_datetime)
     ).all())
+
+    event_ids = [ev.id for ev in events]
+
+    # Query 2: spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
+    spot_agg = db.session.execute(
+        db.select(
+            EventSpot.event_id,
+            func.count(EventSpot.id).label("total_spots"),
+            func.count(Assignment.id).label("filled_spots"),
+        )
+        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+        .group_by(EventSpot.event_id)
+    ).all()
+    spot_map: dict[int, tuple[int, int]] = {
+        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
+    }
+
+    # Query 3: assignments joined to event_spot to get (assignment, event_id) pairs
+    # Assignment.user is loaded automatically via lazy="selectin"
+    asgn_rows = db.session.execute(
+        db.select(Assignment, EventSpot.event_id)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+    ).all()
+    event_map = {ev.id: ev for ev in events}
+    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
 
     # Count events by status
     status_counts: dict[str, int] = {}
@@ -172,7 +277,7 @@ def me_report(me_id: int) -> str | Response:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
 
-    # Build per-event rows
+    # Build per-event rows using pre-computed SQL spot counts
     rows = []
     grand_total_spots = 0
     grand_filled_spots = 0
@@ -180,14 +285,9 @@ def me_report(me_id: int) -> str | Response:
     grand_patients = 0
 
     for ev in events:
-        total_spots = len(ev.spots)
-        filled_spots = sum(1 for s in ev.spots if s.assignment is not None)
-        worked_hours = Decimal("0")
-        patients = 0
-        for spot in ev.spots:
-            if spot.assignment and spot.assignment.debriefing:
-                worked_hours += spot.assignment.debriefing.actual_hours
-                patients += spot.assignment.debriefing.patients_treated
+        total_spots, filled_spots = spot_map.get(ev.id, (0, 0))
+        worked_hours = ev.actual_hours or Decimal("0")
+        patients = ev.patients_count or 0
 
         rows.append({
             "event": ev,
@@ -201,6 +301,9 @@ def me_report(me_id: int) -> str | Response:
         grand_filled_spots += filled_spots
         grand_worked_hours += worked_hours
         grand_patients += patients
+
+    # Per-user statistics
+    user_stat_rows = _build_user_stat_rows(pairs, now)
 
     if request.args.get("format") == "csv":
         csv_rows: list[list[str]] = [["Akce", "Začátek", "Konec", "Stav", "Místa celkem", "Obsazená místa", "Odprac. hodin", "Ošetřených"]]
@@ -216,6 +319,20 @@ def me_report(me_id: int) -> str | Response:
                 f"{r['worked_hours']:.2f}",
                 str(r["patients"]),
             ])
+        csv_rows.append([])
+        csv_rows.append(["Účastník", "Směny odsloužené", "Směny plánované", "Hodiny odsloužené", "Hodiny plánované", "Hodiny celkem", "Hodiny zdarma", "Poslední směna", "Příští směna"])
+        for u, s in user_stat_rows:
+            csv_rows.append([
+                u.name,
+                str(s.shifts_served),
+                str(s.shifts_planned),
+                f"{s.hours_served:.2f}",
+                f"{s.hours_planned:.2f}",
+                f"{s.hours_total:.2f}",
+                f"{s.hours_free:.2f}",
+                s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
+                s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
+            ])
         safe_name = master_event.name.replace(" ", "_")
         return _csv_response(csv_rows, f"prehled_ME_{safe_name}.csv")
 
@@ -229,6 +346,7 @@ def me_report(me_id: int) -> str | Response:
         grand_filled_spots=grand_filled_spots,
         grand_worked_hours=grand_worked_hours,
         grand_patients=grand_patients,
+        user_stat_rows=user_stat_rows,
     )
 
 
@@ -237,8 +355,7 @@ def me_report(me_id: int) -> str | Response:
 @reports_bp.get("/date-range")
 @login_required
 def date_range_report() -> str | Response:
-    if not current_user.has_permission("report.view"):
-        abort(403)
+    require_permission("report.view")
 
     from_date_str = request.args.get("from_date", "").strip()
     to_date_str = request.args.get("to_date", "").strip()
@@ -258,10 +375,35 @@ def date_range_report() -> str | Response:
         .where(Event.start_datetime < to_dt)
         .options(
             selectinload(Event.master_event),  # type: ignore[arg-type]
-            selectinload(Event.spots).selectinload(EventSpot.assignment).selectinload(Assignment.debriefing),  # type: ignore[arg-type]
         )
         .order_by(Event.start_datetime)
     ).unique().all())
+
+    event_ids = [ev.id for ev in events]
+
+    # Spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
+    spot_agg = db.session.execute(
+        db.select(
+            EventSpot.event_id,
+            func.count(EventSpot.id).label("total_spots"),
+            func.count(Assignment.id).label("filled_spots"),
+        )
+        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+        .group_by(EventSpot.event_id)
+    ).all()
+    spot_map: dict[int, tuple[int, int]] = {
+        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
+    }
+
+    # Assignments for per-user stats (Assignment.user auto-loaded via selectin)
+    asgn_rows = db.session.execute(
+        db.select(Assignment, EventSpot.event_id)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+    ).all()
+    event_map = {ev.id: ev for ev in events}
+    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
 
     # Group by master event
     me_map: dict[int, dict] = {}
@@ -284,12 +426,15 @@ def date_range_report() -> str | Response:
     for ev in events:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
-        total_spots += len(ev.spots)
-        filled_spots += sum(1 for s in ev.spots if s.assignment is not None)
-        for spot in ev.spots:
-            if spot.assignment and spot.assignment.debriefing:
-                total_worked_hours += spot.assignment.debriefing.actual_hours
-                total_patients += spot.assignment.debriefing.patients_treated
+        t, f = spot_map.get(ev.id, (0, 0))
+        total_spots += t
+        filled_spots += f
+        total_worked_hours += ev.actual_hours or Decimal("0")
+        total_patients += ev.patients_count or 0
+
+    # Per-user statistics across the date range
+    now = datetime.now(timezone.utc)
+    user_stat_rows = _build_user_stat_rows(pairs, now)
 
     results = {
         "me_groups": list(me_map.values()),
@@ -299,6 +444,7 @@ def date_range_report() -> str | Response:
         "filled_spots": filled_spots,
         "total_worked_hours": total_worked_hours,
         "total_patients": total_patients,
+        "user_stat_rows": user_stat_rows,
     }
 
     if request.args.get("format") == "csv":
@@ -307,12 +453,8 @@ def date_range_report() -> str | Response:
             me_name = ev.master_event.name if ev.master_event else ""
             total_s = len(ev.spots)
             filled_s = sum(1 for s in ev.spots if s.assignment is not None)
-            worked_h = Decimal("0")
-            patients = 0
-            for spot in ev.spots:
-                if spot.assignment and spot.assignment.debriefing:
-                    worked_h += spot.assignment.debriefing.actual_hours
-                    patients += spot.assignment.debriefing.patients_treated
+            worked_h = ev.actual_hours or Decimal("0")
+            patients = ev.patients_count or 0
             csv_rows.append([
                 me_name,
                 ev.name,
@@ -323,6 +465,20 @@ def date_range_report() -> str | Response:
                 str(filled_s),
                 f"{worked_h:.2f}",
                 str(patients),
+            ])
+        csv_rows.append([])
+        csv_rows.append(["Účastník", "Směny odsloužené", "Směny plánované", "Hodiny odsloužené", "Hodiny plánované", "Hodiny celkem", "Hodiny zdarma", "Poslední směna", "Příští směna"])
+        for u, s in user_stat_rows:
+            csv_rows.append([
+                u.name,
+                str(s.shifts_served),
+                str(s.shifts_planned),
+                f"{s.hours_served:.2f}",
+                f"{s.hours_planned:.2f}",
+                f"{s.hours_total:.2f}",
+                f"{s.hours_free:.2f}",
+                s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
+                s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
             ])
         return _csv_response(csv_rows, f"prehled_{from_date_str}_{to_date_str}.csv")
 

@@ -29,9 +29,15 @@ def process_email_queue() -> None:
     Called every MAIL_QUEUE_INTERVAL_SECONDS (default 6 s).  Delegates to
     app.mail.drain_one_outbox_email which contains the actual logic and can
     also be called directly in tests without importing the scheduler.
+
+    Re-applies SMTP settings from the DB on every run so changes made via
+    the admin settings page take effect without a container restart.
     """
     with app.app_context():
+        from app.models.settings import get_settings
         from app.mail import drain_one_outbox_email
+        s = get_settings()
+        s.apply_to_app(app)
         drain_one_outbox_email()
 
 
@@ -122,6 +128,14 @@ def send_admin_digest_task() -> None:
         run_admin_digest(db.session)
 
 
+def scheduled_backup_task() -> None:
+    """Create a daily backup if backup_schedule_enabled is True in AppSettings."""
+    with app.app_context():
+        from app.extensions import db
+        from app.scheduler_tasks import run_scheduled_backup
+        run_scheduled_backup(db.session)
+
+
 def record_metrics() -> None:
     """Record outbox queue depth snapshot every 15 minutes."""
     with app.app_context():
@@ -130,12 +144,21 @@ def record_metrics() -> None:
         run_record_metrics(db.session)
 
 
+def cleanup_work_report() -> None:
+    """Remove employee work report xlsx files older than 1 day."""
+    with app.app_context():
+        from app.scheduler_tasks import cleanup_work_report_files
+        cleanup_work_report_files(app.instance_path)
+
+
 schedule.every(MAIL_QUEUE_INTERVAL_SECONDS).seconds.do(process_email_queue)
 schedule.every(1).minutes.do(open_assignments)
 schedule.every(1).minutes.do(close_completed_events)
 schedule.every(5).minutes.do(send_reminders)
-schedule.every(1).minutes.do(send_admin_digest_task)
+schedule.every(30).minutes.do(send_admin_digest_task)
+schedule.every(1).hours.do(scheduled_backup_task)
 schedule.every(15).minutes.do(record_metrics)
+schedule.every(1).hours.do(cleanup_work_report)
 
 log.info("Scheduler started (mail queue interval: %ds)", MAIL_QUEUE_INTERVAL_SECONDS)
 

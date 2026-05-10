@@ -242,7 +242,7 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
             vehicle=row[3],
             event_type=row[4],
             contact=row[5],
-            signups=signup_gs_names,  # keep original GS names in description for reference
+            signups=signup_gs_names,
             time_missing=time_missing,
         )
 
@@ -317,7 +317,7 @@ def extract_users(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
     """Extract unique users from Dozory who appear as RP (col M) or signups (cols N+).
 
     Cross-references with the Lidi sheet to get email, phone, and zdravotník flag.
-    Names are converted from "Lastname Firstname" to "Firstname Lastname".
+    Names are kept as-is from GS ("Surname Firstname"), matching MedCover convention.
 
     Args:
         wb:     Opened openpyxl workbook.

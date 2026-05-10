@@ -13,7 +13,7 @@
   function updateToolbar() {
     var total = allRows().length;
     var n     = checkedRows().length;
-    toolbar.style.display       = n > 0 ? 'flex' : 'none';
+    toolbar.classList.toggle('d-none', n === 0);
     selCount.textContent        = n + ' vybráno';
     selectAll.indeterminate     = n > 0 && n < total;
     selectAll.checked           = total > 0 && n === total;

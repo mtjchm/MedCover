@@ -70,6 +70,7 @@ Legend: ✅ Done · 🔲 To do · ⏳ In progress
 - ✅ Test isolation: per-test `TRUNCATE CASCADE` against `medcover_test` DB
 - ✅ Coverage reporting (59% — HTML report at `htmlcov/`)
 - ✅ CI: lint job (pre-commit) + test job (pytest + coverage artifact)
+- ✅ tox: multi-Python-version test runner (py314 baseline; add py315+ as releases arrive)
 
 ---
 

@@ -15,12 +15,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models.assignment import Assignment
-from app.models.audit import AuditLogEntry
+from app.utils import audit, require_permission
+from app.models.assignment import Assignment, DebriefingRecord
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
@@ -36,8 +36,7 @@ _PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 def _require_import_permission() -> None:
     """Abort 403 unless the current user may import events."""
-    if not current_user.has_permission("event.create"):
-        abort(403)
+    require_permission("event.create")
 
 
 def _match_responsible_person(
@@ -69,7 +68,7 @@ def _match_responsible_person(
     if name_str.lower() in by_name_lower:
         return by_name_lower[name_str.lower()], "iexact"
 
-    # 3. Reversed — GS may store "Firstname Lastname"; DB now stores "Lastname Firstname"
+    # 3. Reversed — safety net for any name that arrives in the wrong order
     parts = name_str.split()
     if len(parts) == 2:
         reversed_name = f"{parts[1]} {parts[0]}"
@@ -193,7 +192,7 @@ def events_preview() -> str | Response:
         db.select(MasterEvent).order_by(MasterEvent.name)
     ).all())
     qualifications = list(db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted == False).order_by(Qualification.name)  # noqa: E712
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
     ).all())
 
     # ── Process users for preview ────────────────────────────────────────────
@@ -206,7 +205,7 @@ def events_preview() -> str | Response:
             continue
         gs_name = str(pu.get("gs_name", "")).strip()
         name = str(pu.get("name", "")).strip()
-        email = str(pu.get("email") or "").strip() or None
+        email = str(pu.get("email") or "").strip().lower() or None
         phone = str(pu.get("phone") or "").strip() or None
         is_zdravotnik = bool(pu.get("is_zdravotnik", False))
 
@@ -375,7 +374,7 @@ def events_confirm() -> Response:
         kw = keyword.lower()
         return db.session.scalars(
             db.select(Qualification).where(
-                Qualification.is_deleted == False,  # noqa: E712
+                Qualification.is_deleted.is_(False),
                 db.func.lower(Qualification.name).contains(kw),
             )
         ).first()
@@ -412,7 +411,7 @@ def events_confirm() -> Response:
                 continue
 
             name = form.get(f"{uprefix}name", "").strip()
-            email = form.get(f"{uprefix}email", "").strip()
+            email = form.get(f"{uprefix}email", "").strip().lower()
             phone = form.get(f"{uprefix}phone", "").strip() or None
             is_zdravotnik = form.get(f"{uprefix}is_zdravotnik") == "1"
 
@@ -441,14 +440,7 @@ def events_confirm() -> Response:
             if email:
                 existing_by_email[email.lower()] = new_user
 
-            db.session.add(AuditLogEntry(
-                actor_id=current_user.id,
-                action_type="import",
-                entity_type="UserAccount",
-                entity_id=str(new_user.id),
-                summary=f"Uživatel importován z Google Sheets: {name}",
-                changes_json=None,
-            ))
+            audit("import", "UserAccount", new_user.id, f"Uživatel importován z Google Sheets: {name}", None)
             created_users += 1
 
         # Build comprehensive name→user map (all DB users incl. newly created)
@@ -458,6 +450,11 @@ def events_confirm() -> Response:
         # ── Step 2: Process events ──────────────────────────────────────────
         created = 0
         skipped = 0
+        auto_debriefings = 0
+        _IMPORT_DEBRIEFING_NOTE = (
+            "importovaný historický dozor - tento debriefing byl "
+            "vygenerován aplikací během importu"
+        )
 
         for i in range(event_count):
             prefix = f"ev_{i}_"
@@ -487,7 +484,13 @@ def events_confirm() -> Response:
 
             # Responsible person
             rp_id_str = form.get(f"{prefix}responsible_person_id", "").strip()
-            responsible_person_id: str | None = rp_id_str or None
+            if rp_id_str.startswith("name:"):
+                # New user imported in same batch — resolve by name after user creation
+                rp_name_lookup = rp_id_str[5:].strip()
+                rp_from_name = name_to_user.get(rp_name_lookup.lower())
+                responsible_person_id: str | None = str(rp_from_name.id) if rp_from_name else None
+            else:
+                responsible_person_id = rp_id_str or None
 
             # Datetimes (Prague → UTC)
             start_dt = _parse_datetime(date_str, start_time_str, _PRAGUE_TZ)
@@ -498,12 +501,15 @@ def events_confirm() -> Response:
             else:
                 end_dt = start_dt + timedelta(hours=2)
 
+            is_past = end_dt < datetime.now(timezone.utc)
             event = Event(
                 name=name,
                 master_event_id=master_event.id,
-                status=EventStatus.COMPLETED if end_dt < datetime.now(timezone.utc) else EventStatus.DRAFT,
+                status=EventStatus.COMPLETED if is_past else EventStatus.DRAFT,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
+                actual_start_datetime=start_dt if is_past else None,
+                actual_end_datetime=end_dt if is_past else None,
                 address=location,
                 contact_person=contact_person,
                 paid=paid,
@@ -568,14 +574,24 @@ def events_confirm() -> Response:
                 if responsible_person_id and zdravotnik_spot:
                     rp_user_obj = db.session.get(UserAccount, responsible_person_id)
                     if rp_user_obj:
-                        db.session.add(Assignment(
+                        rp_assignment = Assignment(
                             spot_id=zdravotnik_spot.id,
                             user_id=rp_user_obj.id,
                             assigned_by_id=current_user.id,
-                        ))
+                        )
+                        db.session.add(rp_assignment)
                         # Set RP on event if user is RP-eligible
                         if rp_user_obj.is_rp_eligible():
                             event.responsible_person_id = rp_user_obj.id
+                        if is_past:
+                            db.session.flush()
+                            db.session.add(DebriefingRecord(
+                                assignment_id=rp_assignment.id,
+                                submitted_by_id=current_user.id,
+                                grade=3,
+                                feedback_event=_IMPORT_DEBRIEFING_NOTE,
+                            ))
+                            auto_debriefings += 1
 
                 # Each signup → Zelenáč spots in order
                 for j, signup_name in enumerate(signup_names):
@@ -583,21 +599,24 @@ def events_confirm() -> Response:
                         break
                     signup_user = name_to_user.get(signup_name.lower())
                     if signup_user:
-                        db.session.add(Assignment(
+                        signup_assignment = Assignment(
                             spot_id=zelenac_spots[j].id,
                             user_id=signup_user.id,
                             assigned_by_id=current_user.id,
-                        ))
+                        )
+                        db.session.add(signup_assignment)
+                        if is_past:
+                            db.session.flush()
+                            db.session.add(DebriefingRecord(
+                                assignment_id=signup_assignment.id,
+                                submitted_by_id=current_user.id,
+                                grade=3,
+                                feedback_event=_IMPORT_DEBRIEFING_NOTE,
+                            ))
+                            auto_debriefings += 1
 
             # ── Audit log ─────────────────────────────────────────────────
-            db.session.add(AuditLogEntry(
-                actor_id=current_user.id,
-                action_type="import",
-                entity_type="Event",
-                entity_id=str(event.id),
-                summary=f"Akce importována z Google Sheets: {name}",
-                changes_json=None,
-            ))
+            audit("import", "Event", event.id, f"Akce importována z Google Sheets: {name}", None)
 
             created += 1
 
@@ -615,5 +634,7 @@ def events_confirm() -> Response:
         parts.append(f"vytvořeno {created_users} uživatelů")
     if skipped_users:
         parts.append(f"přeskočeno {skipped_users} uživatelů (existovali)")
+    if auto_debriefings:
+        parts.append(f"automaticky vytvořeno {auto_debriefings} debriefingů pro historické akce")
     flash(f"Import dokončen: {', '.join(parts)}.", "success")
     return redirect(url_for("events.index"))

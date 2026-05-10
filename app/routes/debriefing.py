@@ -1,18 +1,23 @@
 """
-Debriefing blueprint — post-event reports submitted per assignment.
+Debriefing blueprint — post-event feedback submitted per assignment.
 
-A debriefing record captures actual hours worked, patients treated,
-materials used, and optional feedback. It can be submitted by the
-assigned user or a coordinator/admin after the event is Completed.
+A debriefing record captures confidential feedback from each participant
+after an event is completed. Only users with debriefing.view_all
+(Debriefing Manager role) may read confidential responses.
+
+The responsible person (RP) additionally updates the event with actual
+start/end times and the count of patients treated (počet ošetřených).
+
+Submission is final — records cannot be edited once submitted.
 
 Routes:
-  GET/POST /debriefing/<assignment_id>   — submit or view a debrief
-  GET      /debriefing/event/<event_id>  — list all debriefs for an event (coordinator)
+  GET/POST /debriefing/<assignment_id>  — submit debriefing (own only)
+  GET      /debriefing/manage           — list all records (Debriefing Manager)
 """
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
@@ -20,120 +25,195 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.event import Event, EventStatus
 from app.models.assignment import Assignment, DebriefingRecord
-from app.models.audit import AuditLogEntry
-from app.utils import diff_changes
+from app.utils import audit, diff_changes, get_or_404, require_permission
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 
 
-def _audit(action: str, record: DebriefingRecord, summary: str, changes: dict | None = None) -> None:
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type=action,
-        entity_type="DebriefingRecord",
-        entity_id=str(record.id),
-        summary=summary,
-        changes_json=changes,
-    ))
+# ── Submit a debriefing ───────────────────────────────────────────────────────
+
+def _parse_grade(raw: str) -> tuple[int, str | None]:
+    """Validate the 1–5 grade. Return (grade, error_message)."""
+    try:
+        grade = int(raw)
+    except ValueError:
+        return 0, "Hodnocení musí být číslo od 1 do 5."
+    if grade not in range(1, 6):
+        return 0, "Hodnocení musí být číslo od 1 do 5."
+    return grade, None
 
 
-# ── Submit / view a single debriefing ─────────────────────────────────────────
+def _parse_rp_actuals(form: dict) -> tuple[datetime | None, datetime | None, int | None, list[str]]:
+    """Parse and validate the RP-only actual start/end and patients count.
+
+    Returns (actual_start_utc, actual_end_utc, patients_count, errors).
+    """
+    from zoneinfo import ZoneInfo
+    from app.models.settings import get_settings
+
+    settings = get_settings()
+    tz_name = settings.timezone if settings else "Europe/Prague"
+    tz = ZoneInfo(tz_name)
+
+    errors: list[str] = []
+    actual_start: datetime | None = None
+    actual_end: datetime | None = None
+    patients_count: int | None = None
+
+    try:
+        actual_start = datetime.fromisoformat(
+            form.get("actual_start_datetime", "").strip()
+        ).replace(tzinfo=tz).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        errors.append("Zadejte platný skutečný čas začátku.")
+
+    try:
+        actual_end = datetime.fromisoformat(
+            form.get("actual_end_datetime", "").strip()
+        ).replace(tzinfo=tz).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        errors.append("Zadejte platný skutečný čas konce.")
+
+    if actual_start and actual_end and actual_end <= actual_start:
+        errors.append("Čas konce musí být po čase začátku.")
+
+    try:
+        patients_count = int(form.get("patients_count", "").strip())
+        if patients_count < 0 or patients_count > 999:
+            raise ValueError
+    except ValueError:
+        errors.append("Počet ošetřených musí být celé číslo (0 nebo více).")
+
+    return actual_start, actual_end, patients_count, errors
+
+
+def _apply_rp_actuals_to_event(
+    event: Event, actual_start: datetime, actual_end: datetime, patients_count: int,
+) -> None:
+    """Update event with RP-supplied actuals and write an audit entry."""
+    before = {
+        "actual_start_datetime": str(event.actual_start_datetime),
+        "actual_end_datetime": str(event.actual_end_datetime),
+        "patients_count": event.patients_count,
+    }
+    event.actual_start_datetime = actual_start
+    event.actual_end_datetime = actual_end
+    event.patients_count = patients_count
+    event.version += 1
+    audit("edit", "Event", str(event.id),
+          f"Aktuální časy a počet ošetřených aktualizovány pro akci '{event.name}'",
+          diff_changes(before, {
+              "actual_start_datetime": str(actual_start),
+              "actual_end_datetime": str(actual_end),
+              "patients_count": patients_count,
+          }))
+
 
 @debriefing_bp.route("/<int:assignment_id>", methods=["GET", "POST"])
 @login_required
 def submit(assignment_id: int) -> str | Response:
-    assignment = db.session.get(Assignment, assignment_id)
-    if assignment is None:
-        abort(404)
+    assignment = get_or_404(Assignment, assignment_id)
+    event: Event = assignment.spot.event
 
-    event = db.session.get(Event, assignment.spot.event_id)
-
-    # Access: own assignment OR coordinator/admin
-    is_own = assignment.user_id == current_user.id
-    is_coordinator = current_user.has_any_permission("event.edit", "event.assign_other")
-    if not (is_own or is_coordinator):
+    # Only the assigned user may submit their own debriefing
+    if assignment.user_id != current_user.id:
         abort(403)
 
     # Debriefing only allowed after event is Completed
     if event.status != EventStatus.COMPLETED:
-        flash("Hlášení lze vyplnit až po dokončení akce.", "warning")
+        flash("Debriefing lze vyplnit až po dokončení akce.", "warning")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    existing = assignment.debriefing
+    # Submission is final — show read-only view if already submitted
+    if assignment.debriefing is not None:
+        return render_template(
+            "debriefing/submitted.html",
+            assignment=assignment,
+            event=event,
+            record=assignment.debriefing,
+        )
 
-    if request.method == "POST":
-        hours_raw = request.form.get("actual_hours", "").strip()
-        patients_raw = request.form.get("patients_treated", "0").strip()
-        materials = request.form.get("materials_used", "").strip() or None
-        feedback = request.form.get("feedback", "").strip() or None
+    is_rp = event.responsible_person_id == current_user.id
 
-        try:
-            actual_hours = Decimal(hours_raw)
-            if actual_hours < 0:
-                raise ValueError
-        except (InvalidOperation, ValueError):
-            flash("Zadejte platný počet hodin (kladné číslo).", "danger")
-            return render_template("debriefing/submit.html", assignment=assignment, event=event, existing=existing)
+    if request.method != "POST":
+        return render_template(
+            "debriefing/submit.html", assignment=assignment, event=event, is_rp=is_rp,
+        )
 
-        try:
-            patients_treated = int(patients_raw)
-            if patients_treated < 0:
-                raise ValueError
-        except (ValueError):
-            patients_treated = 0
+    # ── Validate ──────────────────────────────────────────────────────────────
+    errors: list[str] = []
+    grade, grade_err = _parse_grade(request.form.get("grade", "").strip())
+    if grade_err:
+        errors.append(grade_err)
 
-        if existing:
-            before = {
-                "actual_hours": str(existing.actual_hours),
-                "patients_treated": existing.patients_treated,
-                "materials_used": existing.materials_used,
-                "feedback": existing.feedback,
-            }
-            existing.actual_hours = actual_hours
-            existing.patients_treated = patients_treated
-            existing.materials_used = materials
-            existing.feedback = feedback
-            existing.submitted_by_id = current_user.id
-            _audit("edit", existing, f"Hlášení aktualizováno pro akci '{event.name}'", diff_changes(
-                before,
-                {
-                    "actual_hours": str(actual_hours),
-                    "patients_treated": patients_treated,
-                    "materials_used": materials,
-                    "feedback": feedback,
-                },
-            ))
-        else:
-            record = DebriefingRecord(
-                assignment_id=assignment_id,
-                submitted_by_id=current_user.id,
-                actual_hours=actual_hours,
-                patients_treated=patients_treated,
-                materials_used=materials,
-                feedback=feedback,
-            )
-            db.session.add(record)
-            db.session.flush()
-            _audit("create", record, f"Hlášení odevzdáno pro akci '{event.name}'")
+    feedback_event = request.form.get("feedback_event", "").strip() or None
+    feedback_customer = request.form.get("feedback_customer", "").strip() or None
+    feedback_colleagues = request.form.get("feedback_colleagues", "").strip() or None
 
-        db.session.commit()
-        flash("Hlášení bylo úspěšně uloženo.", "success")
-        return redirect(url_for("events.detail", event_id=event.id))
+    actual_start: datetime | None = None
+    actual_end: datetime | None = None
+    patients_count: int | None = None
+    if is_rp:
+        actual_start, actual_end, patients_count, rp_errors = _parse_rp_actuals(request.form)
+        errors.extend(rp_errors)
 
-    return render_template("debriefing/submit.html", assignment=assignment, event=event, existing=existing)
+    if errors:
+        for e in errors:
+            flash(e, "danger")
+        return render_template(
+            "debriefing/submit.html", assignment=assignment, event=event, is_rp=is_rp,
+        )
+
+    # ── Persist confidential record ───────────────────────────────────────────
+    record = DebriefingRecord(
+        assignment_id=assignment_id,
+        submitted_by_id=current_user.id,
+        grade=grade,
+        feedback_event=feedback_event,
+        feedback_customer=feedback_customer,
+        feedback_colleagues=feedback_colleagues,
+    )
+    db.session.add(record)
+    db.session.flush()
+    audit("create", "DebriefingRecord", str(record.id),
+          f"Debriefing odevzdán pro akci '{event.name}'")
+
+    if is_rp and actual_start and actual_end and patients_count is not None:
+        _apply_rp_actuals_to_event(event, actual_start, actual_end, patients_count)
+
+    db.session.commit()
+    flash("Debriefing byl úspěšně odevzdán. Děkujeme.", "success")
+    return redirect(url_for("events.detail", event_id=event.id))
 
 
-# ── Event debriefing overview (coordinator) ───────────────────────────────────
+# ── Debriefing management (Debriefing Manager only) ───────────────────────────
+
+@debriefing_bp.get("/manage")
+@login_required
+def manage() -> str:
+    require_permission("debriefing.view_all")
+
+    # Load all completed events that have at least one assignment
+    events_with_debriefings = db.session.scalars(
+        db.select(Event)
+        .where(Event.status == EventStatus.COMPLETED)
+        .order_by(Event.start_datetime.desc())
+    ).all()
+
+    return render_template(
+        "debriefing/manage.html",
+        events=events_with_debriefings,
+    )
+
+
+# ── Event debriefing detail (Debriefing Manager only) ─────────────────────────
 
 @debriefing_bp.get("/event/<int:event_id>")
 @login_required
 def event_overview(event_id: int) -> str:
-    if not current_user.has_any_permission("event.edit", "event.assign_other"):
-        abort(403)
+    require_permission("debriefing.view_all")
 
-    event = db.session.get(Event, event_id)
-    if event is None:
-        abort(404)
+    event = get_or_404(Event, event_id)
 
     assignments = [s.assignment for s in event.spots if s.assignment is not None]
     return render_template("debriefing/event_overview.html", event=event, assignments=assignments)

@@ -6,7 +6,7 @@
   <h2 class="mb-0">Přehled oprávnění rolí</h2>
   <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
 </div>
-<p class="text-muted small">Přehled všech 4 rolí a jejich oprávnění. Oprávnění jsou pevně nastavená v kódu (AD01, AD02).</p>
+<p class="text-muted small">Přehled všech {{ role_names|length }} rolí a jejich oprávnění. Oprávnění jsou pevně nastavená v kódu (AD01, AD02).</p>
 
 {% set groups = namespace(current=None) %}
 {% set group_labels = {
@@ -19,19 +19,20 @@
   'equipment': 'Vybavení',
   'equipment_type': 'Typy vybavení',
   'equipment_item': 'Položky vybavení',
-  'debriefing': 'Výjezdové zprávy',
+  'debriefing': 'Debriefing',
   'report': 'Přehledy',
   'audit': 'Audit log',
+  'backup': 'Zálohy',
   'admin': 'Administrace'
 } %}
 
 <div class="table-responsive">
-  <table class="table table-sm table-bordered align-middle" style="font-size:0.85rem">
+  <table class="table table-sm table-bordered align-middle font-85">
     <thead class="table-dark">
       <tr>
-        <th style="min-width:260px">Oprávnění</th>
+        <th class="minw-260">Oprávnění</th>
         {% for role in role_names %}
-          <th class="text-center" style="min-width:110px">{{ role }}</th>
+          <th class="text-center minw-110">{{ role }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -48,7 +49,7 @@
         {% endif %}
         <tr>
           <td>
-            <code class="text-muted" style="font-size:0.78rem">{{ perm.code }}</code>
+            <code class="text-muted font-78">{{ perm.code }}</code>
             <span class="ms-2 text-body-secondary">{{ perm.description }}</span>
           </td>
           {% for role in role_names %}

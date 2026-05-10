@@ -232,21 +232,24 @@ class TestResetPassword:
     """Password reset via signed token."""
 
     def _make_reset_token(self, app) -> str:
+        import secrets
         from app.models.role import Role
         from tests.conftest import _make_user
 
         with app.app_context():
             _make_user("reset@example.com", "Reset User", Role.MEMBER)
             user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "reset@example.com"))
-            # Import the internal helper
             from app.routes.auth import _make_signed_token, _RESET_SALT
-            from app.config import RESET_TOKEN_HOURS
-            return _make_signed_token(str(user.id), _RESET_SALT, RESET_TOKEN_HOURS)
+            from app.config import RESET_TOKEN_MINUTES
+            nonce = secrets.token_hex(16)
+            user.password_reset_nonce = nonce
+            _db.session.commit()
+            return _make_signed_token(f"{user.id}:{nonce}", _RESET_SALT, RESET_TOKEN_MINUTES * 60)
 
-    def test_invalid_token_redirects_to_forgot(self, client):
-        response = client.get("/auth/reset-password/badtoken", follow_redirects=True)
-        assert response.status_code == 200
-        assert "neplatný nebo vypršel".encode() in response.data
+    def test_invalid_token_shows_error_page(self, client):
+        response = client.get("/auth/reset-password/badtoken")
+        assert response.status_code == 400
+        assert "Neplatný odkaz".encode() in response.data
 
     def test_valid_token_shows_form(self, app, client):
         token = self._make_reset_token(app)
@@ -265,6 +268,20 @@ class TestResetPassword:
         with app.app_context():
             user = _db.session.scalar(_db.select(UserAccount).where(UserAccount.email == "reset@example.com"))
             assert user.check_password("NewPassword99") is True
+            assert user.password_reset_nonce is None  # link invalidated
+
+    def test_reset_link_single_use(self, app, client):
+        """After a successful reset, the same token must be rejected."""
+        token = self._make_reset_token(app)
+        client.post(
+            f"/auth/reset-password/{token}",
+            data={"password": "NewPassword99", "password2": "NewPassword99"},
+            follow_redirects=True,
+        )
+        # Second use of the same token
+        response = client.get(f"/auth/reset-password/{token}")
+        assert response.status_code == 400
+        assert "Neplatný odkaz".encode() in response.data
 
     def test_reset_short_password_rejected(self, app, client):
         token = self._make_reset_token(app)

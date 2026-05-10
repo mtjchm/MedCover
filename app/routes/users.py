@@ -6,20 +6,19 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from flask import (
-    Blueprint, Response, abort, current_app, flash,
+    Blueprint, Response, flash,
     redirect, render_template, request, url_for,
 )
 from flask_login import current_user, login_required
-from flask_mail import Message
 from sqlalchemy.orm import selectinload
 
-from app.extensions import db, mail
+from app.extensions import db
 from app.models.user import UserAccount, CalendarView
 from app.models.role import Role
 from app.models.invite import RegistrationInvite
 from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
-from app.utils import diff_changes, external_url_for
+from app.utils import audit, diff_changes, external_url_for, get_or_404, require_permission
 from app.config import INVITE_TOKEN_HOURS
 
 users_bp = Blueprint("users", __name__, url_prefix="/users")
@@ -28,17 +27,14 @@ _PAGE_SIZE = 30
 
 # Phone: 9 bare digits, OR +/00 followed by 10-15 digits (spaces stripped before check)
 _PHONE_RE = re.compile(r"^\d{9}$|^(\+|00)\d{10,15}$")
+# Email: basic structural check — local@domain.tld
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _validate_phone(raw: str) -> bool:
     """Return True if raw phone is empty (optional) or matches allowed formats."""
     stripped = raw.strip().replace(" ", "")
     return stripped == "" or bool(_PHONE_RE.match(stripped))
-
-
-def _require_permission(code: str) -> None:
-    if not current_user.has_permission(code):
-        abort(403)
 
 
 # ── Own profile ───────────────────────────────────────────────────────────────
@@ -165,7 +161,7 @@ def _change_password(user: UserAccount) -> Response:
 @users_bp.route("/")
 @login_required
 def index() -> str:
-    _require_permission("user.view")
+    require_permission("user.view")
     page = request.args.get("page", 1, type=int)
     q = request.args.get("q", "").strip()
     sort = request.args.get("sort", "name")
@@ -224,10 +220,8 @@ def index() -> str:
 @users_bp.route("/<uuid:user_id>")
 @login_required
 def detail(user_id: uuid.UUID) -> str:
-    _require_permission("user.view")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    require_permission("user.view")
+    user = get_or_404(UserAccount, user_id)
     roles = db.session.scalars(db.select(Role).order_by(Role.name)).all()
     from app.models.qualification import Qualification
     qualifications = db.session.scalars(
@@ -236,14 +230,37 @@ def detail(user_id: uuid.UUID) -> str:
     return render_template("users/detail.html", user=user, all_roles=roles, all_qualifications=qualifications)
 
 
+def _apply_role_update(user: UserAccount, role_ids: list[int]) -> None:
+    """Assign *role_ids* to *user* and audit the change. Caller is responsible for version bump."""
+    before_roles = sorted(r.name for r in user.roles)
+    new_roles = db.session.scalars(
+        db.select(Role).where(Role.id.in_(role_ids))
+    ).all() if role_ids else []
+    user.roles = list(new_roles)
+    after_roles = sorted(r.name for r in user.roles)
+    audit("edit", "UserAccount", user.id, f"Role uživatele {user.name} aktualizovány",
+          diff_changes({"roles": before_roles}, {"roles": after_roles}))
+
+
+def _apply_qualification_update(user: UserAccount, qual_ids: list[int]) -> None:
+    """Assign *qual_ids* to *user* and audit the change. Caller is responsible for version bump."""
+    from app.models.qualification import Qualification
+    before_quals = sorted(c.name for c in user.qualifications)
+    new_creds = db.session.scalars(
+        db.select(Qualification).where(Qualification.id.in_(qual_ids))
+    ).all() if qual_ids else []
+    user.qualifications = list(new_creds)
+    after_quals = sorted(c.name for c in user.qualifications)
+    audit("edit", "UserAccount", user.id, f"Kvalifikace uživatele {user.name} aktualizovány",
+          diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}))
+
+
 @users_bp.route("/<uuid:user_id>/save", methods=["POST"])
 @login_required
 def save_user(user_id: uuid.UUID) -> Response:
     """Unified save: info + roles + qualifications + optional admin password set."""
-    _require_permission("user.edit_any")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    require_permission("user.edit_any")
+    user = get_or_404(UserAccount, user_id)
 
     # ── Basic info ──────────────────────────────────────────────────────────
     name = request.form.get("name", "").strip()
@@ -273,51 +290,17 @@ def save_user(user_id: uuid.UUID) -> Response:
     user.phone = phone_raw or None
     info_after: dict[str, Any] = {"name": user.name, "email": user.email, "phone": user.phone}
     user.version += 1
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="UserAccount",
-        entity_id=str(user.id),
-        summary=f"Admin upravil údaje uživatele {user.name}",
-        changes_json=diff_changes(info_before, info_after),
-    ))
+    audit("edit", "UserAccount", user.id, f"Admin upravil údaje uživatele {user.name}", diff_changes(info_before, info_after))
 
     # ── Roles ───────────────────────────────────────────────────────────────
     if current_user.has_permission("user.assign_role"):
         role_ids = [int(r) for r in request.form.getlist("role_ids")]
-        before_roles = sorted(r.name for r in user.roles)
-        new_roles = db.session.scalars(
-            db.select(Role).where(Role.id.in_(role_ids))
-        ).all() if role_ids else []
-        user.roles = list(new_roles)
-        after_roles = sorted(r.name for r in user.roles)
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="UserAccount",
-            entity_id=str(user.id),
-            summary=f"Role uživatele {user.name} aktualizovány",
-            changes_json=diff_changes({"roles": before_roles}, {"roles": after_roles}),
-        ))
+        _apply_role_update(user, role_ids)
 
     # ── Qualifications ──────────────────────────────────────────────────────
     if current_user.has_permission("user.assign_qualification"):
-        from app.models.qualification import Qualification
         cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
-        before_quals = sorted(c.name for c in user.qualifications)
-        new_creds = db.session.scalars(
-            db.select(Qualification).where(Qualification.id.in_(cred_ids))
-        ).all() if cred_ids else []
-        user.qualifications = list(new_creds)
-        after_quals = sorted(c.name for c in user.qualifications)
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="UserAccount",
-            entity_id=str(user.id),
-            summary=f"Kvalifikace uživatele {user.name} aktualizovány",
-            changes_json=diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}),
-        ))
+        _apply_qualification_update(user, cred_ids)
 
     # ── Admin password set (optional) ───────────────────────────────────────
     new_password = request.form.get("new_password", "").strip()
@@ -326,14 +309,7 @@ def save_user(user_id: uuid.UUID) -> Response:
             flash("Heslo musí mít alespoň 8 znaků.", "danger")
             return redirect(url_for("users.detail", user_id=user_id))
         user.set_password(new_password)
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="UserAccount",
-            entity_id=str(user.id),
-            summary=f"Admin nastavil heslo pro uživatele {user.name}",
-            changes_json={},
-        ))
+        audit("edit", "UserAccount", user.id, f"Admin nastavil heslo pro uživatele {user.name}", {})
 
     db.session.commit()
     flash("Uživatel byl uložen.", "success")
@@ -343,20 +319,11 @@ def save_user(user_id: uuid.UUID) -> Response:
 @users_bp.route("/<uuid:user_id>/activate", methods=["POST"])
 @login_required
 def activate(user_id: uuid.UUID) -> Response:
-    _require_permission("user.activate")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    require_permission("user.activate")
+    user = get_or_404(UserAccount, user_id)
     user.is_active = True
     user.version += 1
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="UserAccount",
-        entity_id=str(user.id),
-        summary=f"Účet {user.name} ({user.email}) byl aktivován",
-        changes_json={"is_active": [False, True]},
-    ))
+    audit("edit", "UserAccount", user.id, f"Účet {user.name} ({user.email}) byl aktivován", {"is_active": [False, True]})
     db.session.commit()
     _send_activation_email(user)
     flash(f"Účet {user.name} byl aktivován.", "success")
@@ -366,23 +333,14 @@ def activate(user_id: uuid.UUID) -> Response:
 @users_bp.route("/<uuid:user_id>/deactivate", methods=["POST"])
 @login_required
 def deactivate(user_id: uuid.UUID) -> Response:
-    _require_permission("user.deactivate")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    require_permission("user.deactivate")
+    user = get_or_404(UserAccount, user_id)
     if str(user.id) == str(current_user.id):
         flash("Nelze deaktivovat vlastní účet.", "danger")
         return redirect(url_for("users.detail", user_id=user_id))
     user.is_active = False
     user.version += 1
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="UserAccount",
-        entity_id=str(user.id),
-        summary=f"Účet {user.name} ({user.email}) byl deaktivován",
-        changes_json={"is_active": [True, False]},
-    ))
+    audit("edit", "UserAccount", user.id, f"Účet {user.name} ({user.email}) byl deaktivován", {"is_active": [True, False]})
     db.session.commit()
     flash(f"Účet {user.name} byl deaktivován.", "warning")
     return redirect(url_for("users.detail", user_id=user_id))
@@ -391,26 +349,11 @@ def deactivate(user_id: uuid.UUID) -> Response:
 @users_bp.route("/<uuid:user_id>/roles", methods=["POST"])
 @login_required
 def update_roles(user_id: uuid.UUID) -> Response:
-    _require_permission("user.assign_role")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
+    require_permission("user.assign_role")
+    user = get_or_404(UserAccount, user_id)
     role_ids = [int(r) for r in request.form.getlist("role_ids")]
-    before_roles = sorted(r.name for r in user.roles)
-    new_roles = db.session.scalars(
-        db.select(Role).where(Role.id.in_(role_ids))
-    ).all() if role_ids else []
-    user.roles = list(new_roles)
+    _apply_role_update(user, role_ids)
     user.version += 1
-    after_roles = sorted(r.name for r in user.roles)
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="UserAccount",
-        entity_id=str(user.id),
-        summary=f"Role uživatele {user.name} aktualizovány",
-        changes_json=diff_changes({"roles": before_roles}, {"roles": after_roles}),
-    ))
     db.session.commit()
     flash("Role byly aktualizovány.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
@@ -419,27 +362,11 @@ def update_roles(user_id: uuid.UUID) -> Response:
 @users_bp.route("/<uuid:user_id>/qualifications", methods=["POST"])
 @login_required
 def update_qualifications(user_id: uuid.UUID) -> Response:
-    _require_permission("user.assign_qualification")
-    user = db.session.get(UserAccount, user_id)
-    if not user:
-        abort(404)
-    from app.models.qualification import Qualification
+    require_permission("user.assign_qualification")
+    user = get_or_404(UserAccount, user_id)
     cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
-    before_quals = sorted(c.name for c in user.qualifications)
-    new_creds = db.session.scalars(
-        db.select(Qualification).where(Qualification.id.in_(cred_ids))
-    ).all() if cred_ids else []
-    user.qualifications = list(new_creds)
+    _apply_qualification_update(user, cred_ids)
     user.version += 1
-    after_quals = sorted(c.name for c in user.qualifications)
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="edit",
-        entity_type="UserAccount",
-        entity_id=str(user.id),
-        summary=f"Kvalifikace uživatele {user.name} aktualizovány",
-        changes_json=diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}),
-    ))
     db.session.commit()
     flash("Kvalifikace byly aktualizovány.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
@@ -459,7 +386,7 @@ def batch_action() -> Response:
 
     Requires user.assign_role permission.
     """
-    _require_permission("user.assign_role")
+    require_permission("user.assign_role")
 
     raw_ids: list[str] = request.form.getlist("user_ids")
     action = request.form.get("action", "").strip()
@@ -517,17 +444,10 @@ def batch_action() -> Response:
             user.version += 1
 
         after = sorted(r.name for r in user.roles)
-        db.session.add(AuditLogEntry(
-            actor_id=current_user.id,
-            action_type="edit",
-            entity_type="UserAccount",
-            entity_id=str(user.id),
-            summary=(
+        audit("edit", "UserAccount", user.id, (
                 f"Hromadná akce: {'přidána' if action == 'add_role' else 'odebrána'} "
                 f"role '{role.name}' uživateli {user.name}"
-            ),
-            changes_json=diff_changes({"roles": before}, {"roles": after}),
-        ))
+            ), diff_changes({"roles": before}, {"roles": after}))
         changed += 1
 
     db.session.commit()
@@ -546,7 +466,7 @@ def batch_action() -> Response:
 @users_bp.route("/invites")
 @login_required
 def invites() -> str:
-    _require_permission("invite.create")
+    require_permission("invite.create")
     items = db.session.scalars(
         db.select(RegistrationInvite)
         .options(selectinload(RegistrationInvite.outbox_email))  # type: ignore[arg-type]
@@ -565,9 +485,9 @@ def invites() -> str:
 @users_bp.route("/invites/create", methods=["POST"])
 @login_required
 def create_invite() -> Response:
-    _require_permission("invite.create")
+    require_permission("invite.create")
     email = request.form.get("email", "").strip().lower()
-    if not email or "@" not in email:
+    if not email or not _EMAIL_RE.match(email):
         flash("Zadejte platnou e-mailovou adresu.", "danger")
         return redirect(url_for("users.invites"))
 
@@ -603,14 +523,7 @@ def create_invite() -> Response:
 
     _queue_invite_email(invite)
 
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="create",
-        entity_type="RegistrationInvite",
-        entity_id=str(invite.id),
-        summary=f"Pozvánka vytvořena a zařazena do fronty pro {email}",
-        changes_json={},
-    ))
+    audit("create", "RegistrationInvite", invite.id, f"Pozvánka vytvořena a zařazena do fronty pro {email}", {})
     db.session.commit()
 
     flash(f"Pozvánka zařazena do fronty odchozích zpráv pro {email}.", "success")
@@ -641,23 +554,14 @@ def _queue_invite_email(invite: RegistrationInvite) -> None:
 @users_bp.route("/invites/<int:invite_id>/resend", methods=["POST"])
 @login_required
 def resend_invite(invite_id: int) -> Response:
-    _require_permission("invite.create")
-    invite = db.session.get(RegistrationInvite, invite_id)
-    if not invite:
-        abort(404)
+    require_permission("invite.create")
+    invite = get_or_404(RegistrationInvite, invite_id)
     if invite.is_used:
         flash("Tato pozvánka již byla použita.", "warning")
         return redirect(url_for("users.invites"))
 
     _queue_invite_email(invite)
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="resend",
-        entity_type="RegistrationInvite",
-        entity_id=str(invite.id),
-        summary=f"Pozvánka pro {invite.email} znovu zařazena do fronty",
-        changes_json={},
-    ))
+    audit("resend", "RegistrationInvite", invite.id, f"Pozvánka pro {invite.email} znovu zařazena do fronty", {})
     db.session.commit()
 
     flash(f"Pozvánka pro {invite.email} byla znovu zařazena do fronty.", "success")
@@ -667,10 +571,8 @@ def resend_invite(invite_id: int) -> Response:
 @users_bp.route("/invites/<int:invite_id>/cancel", methods=["POST"])
 @login_required
 def cancel_invite(invite_id: int) -> Response:
-    _require_permission("invite.create")
-    invite = db.session.get(RegistrationInvite, invite_id)
-    if not invite:
-        abort(404)
+    require_permission("invite.create")
+    invite = get_or_404(RegistrationInvite, invite_id)
     if invite.is_used:
         flash("Tato pozvánka již byla použita — nelze zrušit.", "warning")
         return redirect(url_for("users.invites"))
@@ -679,14 +581,7 @@ def cancel_invite(invite_id: int) -> Response:
         return redirect(url_for("users.invites"))
 
     invite.cancelled_at = datetime.now(timezone.utc)
-    db.session.add(AuditLogEntry(
-        actor_id=current_user.id,
-        action_type="cancel",
-        entity_type="RegistrationInvite",
-        entity_id=str(invite.id),
-        summary=f"Pozvánka pro {invite.email} zrušena",
-        changes_json={},
-    ))
+    audit("cancel", "RegistrationInvite", invite.id, f"Pozvánka pro {invite.email} zrušena", {})
     db.session.commit()
 
     flash(f"Pozvánka pro {invite.email} byla zrušena.", "success")
@@ -694,14 +589,5 @@ def cancel_invite(invite_id: int) -> Response:
 
 
 def _send_activation_email(user: UserAccount) -> None:
-    login_url = external_url_for("auth.login")
-    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
-    msg = Message(
-        subject="MedCover — váš účet byl aktivován",
-        recipients=[user.email],
-        body=body,
-    )
-    try:
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
+    from app.mail import send_account_activated  # noqa: PLC0415
+    send_account_activated(user)

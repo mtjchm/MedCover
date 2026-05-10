@@ -117,7 +117,7 @@
       {% if current_user.has_permission('user.assign_qualification') %}
       <div class="card mb-4">
         <div class="card-header fw-semibold">Kvalifikace
-          {{ help_icon("Kvalifikace určují, na jaké pozice může uživatel nastoupit. Přiřazení zde ovlivňuje, které místa si může uživatel vybrat při přihlašování na akci.") }}
+          {{ help_icon("Kvalifikace určují, na jaké pozice může uživatel nastoupit. Přiřazení zde ovlivňuje, které pozice si může uživatel vybrat při přihlašování na akci.") }}
         </div>
         <div class="card-body">
           <div class="row g-2">
@@ -150,5 +150,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/user-form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/user-form.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

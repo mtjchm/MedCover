@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Debriefing odevzdán — {{ event.name }} — MedCover{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-7">
+
+    <h2 class="mb-1">Debriefing</h2>
+    <p class="text-muted mb-4">
+      <strong>{{ event.name }}</strong> —
+      {{ event.start_datetime | localdt }}
+    </p>
+
+    <div class="alert alert-success py-2">
+      <i class="bi bi-check-circle-fill me-1"></i>
+      Debriefing byl odevzdán {{ record.submitted_at | localdt }}. Děkujeme.
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-lock-fill text-danger"></i>
+        <strong>Důvěrná část — vaše odpovědi</strong>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Hodnocení akce</dt>
+          <dd class="col-sm-8">{{ record.grade }} / 5</dd>
+
+          <dt class="col-sm-4">Průběh akce</dt>
+          <dd class="col-sm-8">{{ record.feedback_event or '—' }}</dd>
+
+          <dt class="col-sm-4">Objednatel / organizátor</dt>
+          <dd class="col-sm-8">{{ record.feedback_customer or '—' }}</dd>
+
+          <dt class="col-sm-4">Kolegové</dt>
+          <dd class="col-sm-8">{{ record.feedback_colleagues or '—' }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    {% if event.actual_start_datetime %}
+    <div class="card mb-3 border-primary">
+      <div class="card-header bg-primary bg-opacity-10">
+        <i class="bi bi-clipboard2-pulse-fill text-primary me-1"></i>
+        <strong>Část vedoucího zdravotníka — uložené hodnoty</strong>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Skutečný začátek</dt>
+          <dd class="col-sm-8">{{ event.actual_start_datetime | localdt }}</dd>
+
+          <dt class="col-sm-4">Skutečný konec</dt>
+          <dd class="col-sm-8">{{ event.actual_end_datetime | localdt }}</dd>
+
+          <dt class="col-sm-4">Počet ošetřených</dt>
+          <dd class="col-sm-8">{{ event.patients_count }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('events.detail', event_id=event.id) }}" class="btn btn-outline-secondary">← Zpět na akci</a>
+
+  </div>
+</div>
+{% endblock %}

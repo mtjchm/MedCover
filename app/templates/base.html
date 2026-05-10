@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}MedCover{% endblock %}</title>
 
+  <!-- Favicon -->
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" sizes="16x16 32x32 48x48" type="image/x-icon">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+
   <!-- Bootstrap 5.3.8 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -12,7 +16,7 @@
         crossorigin="anonymous">
 
   <!-- Custom styles -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v={{ static_ver }}">
 
   <!-- Flatpickr (24h datetime picker) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -23,7 +27,28 @@
 
   <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/">MedCover</a>
+      <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+        <img src="{{ url_for('static', filename='img/logo_nav.webp') }}"
+             alt="MedCover logo" height="36" width="40">
+        MedCover
+      </a>
+
+      {# ── Mobile-only quick links (outside collapse, always visible) ── #}
+      {% if current_user.is_authenticated %}
+      <div class="d-flex d-lg-none ms-auto me-2 gap-1 align-items-center">
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('events.index') }}">Akce</a>
+        {% if current_user.has_permission('equipment.view') %}
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('equipment.items') }}">Vybavení</a>
+        {% endif %}
+        {% if feedback_enabled %}
+        <a class="btn btn-outline-light btn-sm py-0 px-2"
+           href="{{ url_for('feedback.feedback_form', **{'from': request.full_path.rstrip('?')}) }}">💬</a>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -35,29 +60,34 @@
           {% if current_user.has_permission('event_template.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('templates.index') }}">Šablony akcí</a></li>
           {% endif %}
+          {% if current_user.has_permission('qualification.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
+          {% endif %}
           {% if current_user.has_permission('equipment.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('equipment.items') }}">Vybavení</a></li>
           {% endif %}
           {% if current_user.has_permission('report.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reports.index') }}">Přehledy</a></li>
           {% endif %}
-          {% if current_user.has_permission('admin.view') %}
+          {% if current_user.has_permission('debriefing.manage') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('debriefing.manage') }}">Debriefing</a></li>
+          {% endif %}
+          {% if current_user.has_any_permission('admin.view', 'user.view', 'event.create') %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Administrace</a>
             <ul class="dropdown-menu">
+              {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('admin.index') }}">Dashboard</a></li>
+              {% endif %}
               {% if current_user.has_permission('user.view') %}
               <li><a class="dropdown-item" href="{{ url_for('users.index') }}">Uživatelé</a></li>
               {% endif %}
-              {% if current_user.has_permission('invite.create') %}
+              {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('users.invites') }}">Pozvánky</a></li>
-              {% endif %}
               <li><a class="dropdown-item" href="{{ url_for('admin.audit_log_list') }}">Audit log</a></li>
+              {% endif %}
               {% if current_user.has_permission('event.create') %}
               <li><a class="dropdown-item" href="{{ url_for('import_events.events_paste') }}">Import akcí</a></li>
-              {% endif %}
-              {% if current_user.has_permission('qualification.view') %}
-              <li><a class="dropdown-item" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
               {% endif %}
               {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">Přehled oprávnění</a></li>
@@ -111,10 +141,10 @@
   <!-- Flatpickr JS + global init for all .flatpickr-dt inputs -->
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/cs.js"></script>
-  <script src="{{ url_for('static', filename='js/app-init.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app-init.js') }}?v={{ static_ver }}"></script>
 
   <!-- Client-side validation -->
-  <script src="{{ url_for('static', filename='js/validate.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/validate.js') }}?v={{ static_ver }}"></script>
 
   {% block extra_scripts %}{% endblock %}
 </body>

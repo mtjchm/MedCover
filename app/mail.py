@@ -25,6 +25,7 @@ from app.extensions import db
 from app.models.outbox import OutboxEmail
 
 if TYPE_CHECKING:
+    from app.models.assignment import Assignment
     from app.models.event import Event
     from app.models.user import UserAccount
 
@@ -154,7 +155,7 @@ def send_unfilled_spots_reminder(
         "email/unfilled_spots_reminder.txt",
         coordinator_name=user.name,
         event=event,
-        unfilled=len(unfilled) if isinstance(unfilled, list) else unfilled,
+        unfilled=len(unfilled),
     )
     _enqueue(
         user.email,
@@ -256,3 +257,35 @@ def drain_one_outbox_email() -> bool:
 
     db.session.commit()
     return True
+
+
+# ── Debriefing invitation ─────────────────────────────────────────────────────
+
+def send_debriefing_invitation(assignment: Assignment, event: Event) -> None:
+    """Send a debriefing invitation email to the assigned user."""
+    user = assignment.user
+    if not user_can_receive_notification(user, "assignment"):
+        return
+    from flask import url_for
+    debriefing_url = url_for(
+        "debriefing.submit",
+        assignment_id=assignment.id,
+        _external=True,
+    )
+    body = render_template(
+        "email/debriefing_invitation.txt",
+        user_name=user.name,
+        event=event,
+        debriefing_url=debriefing_url,
+    )
+    _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", body)
+
+
+# ── Account activation ────────────────────────────────────────────────────────
+
+def send_account_activated(user: UserAccount) -> None:
+    """Enqueue an account-activation notification to the newly activated user."""
+    from app.utils import external_url_for  # noqa: PLC0415
+    login_url = external_url_for("auth.login")
+    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
+    _enqueue(user.email, "MedCover — váš účet byl aktivován", body)

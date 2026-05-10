@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time as _time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,8 @@ from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
 
 _PRAGUE_TZ = ZoneInfo("Europe/Prague")
+# Computed once at import/startup; used as a cache-busting version for static files.
+_STARTUP_TS: str = str(int(_time.time()))
 
 
 def create_app(
@@ -62,7 +65,11 @@ def create_app(
             feedback_enabled = _s.feedback_enabled
         except Exception:
             feedback_enabled = True
-        return {"config": app.config, "feedback_enabled": feedback_enabled}
+        # Cache-busting version for static files: git commit hash in production,
+        # process start time in dev (changes on every container/server restart).
+        _git = app.config.get("GIT_COMMIT", "dev")
+        static_ver: str = _git if (_git and _git != "dev") else _STARTUP_TS
+        return {"config": app.config, "feedback_enabled": feedback_enabled, "static_ver": static_ver}
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
@@ -72,6 +79,15 @@ def create_app(
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
+
+    @app.template_filter("cznum")
+    def cznum_filter(value: object, decimals: int = 1) -> str:
+        """Format a number using Czech locale: comma as decimal separator."""
+        try:
+            formatted = f"{float(value):.{decimals}f}"  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return "—"
+        return formatted.replace(".", ",")
 
     @app.template_global()
     def audit_entity_url(entity_type: str, entity_id: str) -> str | None:
@@ -108,9 +124,18 @@ def create_app(
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self' cdn.jsdelivr.net; "
-                "style-src 'self' cdn.jsdelivr.net 'unsafe-inline'; "
+                "style-src 'self' cdn.jsdelivr.net; "
                 "font-src 'self' cdn.jsdelivr.net; "
                 "img-src 'self' data:;"
+            )
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+            response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+            response.headers.setdefault(
+                "Permissions-Policy",
+                "geolocation=(), microphone=(), camera=()",
             )
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
@@ -142,8 +167,14 @@ def create_app(
         if not settings.setup_complete:
             return redirect(url_for("setup.step1"))
 
-        # Keep Flask-Mail config in sync with DB on every request (cheap dict write)
-        settings.apply_to_app(app)
+        # Keep Flask-Mail config in sync with DB — skip reinit when SMTP settings unchanged.
+        fingerprint = (
+            settings.smtp_server, settings.smtp_port, settings.smtp_use_tls,
+            settings.smtp_username, settings.smtp_password_enc, settings.smtp_default_sender,
+        )
+        if app.config.get("_SMTP_FINGERPRINT") != fingerprint:
+            settings.apply_to_app(app)
+            app.config["_SMTP_FINGERPRINT"] = fingerprint
         return None
 
     return app

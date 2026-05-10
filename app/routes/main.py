@@ -10,6 +10,7 @@ from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
+from app.queries import user_fillable_qual_ids
 
 main_bp = Blueprint("main", __name__)
 
@@ -86,8 +87,9 @@ def dashboard() -> str:
             .order_by(Event.start_datetime)
         ).all()
 
+        fillable_ids = user_fillable_qual_ids(current_user)
         for e in candidates:
-            has_free = any(s.assignment is None and s.is_eligible(current_user) for s in e.spots)
+            has_free = any(s.assignment is None and s.is_eligible_for(fillable_ids) for s in e.spots)
             if has_free:
                 open_events.append(e)
 
@@ -102,7 +104,7 @@ def dashboard() -> str:
         attention_events = list(db.session.scalars(
             db.select(Event)
             .where(
-                Event.archived == False,  # noqa: E712
+                Event.archived.is_(False),
                 Event.status.in_([EventStatus.DRAFT, EventStatus.PUBLISHED, EventStatus.ASSIGNMENTS_OPEN]),
                 Event.start_datetime <= horizon,
                 Event.end_datetime >= now,
@@ -122,7 +124,7 @@ def dashboard() -> str:
     if current_user.has_permission("user.activate"):
         pending_activations = list(db.session.scalars(
             db.select(UserAccount)
-            .where(UserAccount.is_active == False)  # noqa: E712
+            .where(UserAccount.is_active.is_(False))
             .order_by(UserAccount.created_at)
         ).all())
 
@@ -133,13 +135,30 @@ def dashboard() -> str:
         missing_rp_events = list(db.session.scalars(
             db.select(Event)
             .where(
-                Event.archived == False,  # noqa: E712
+                Event.archived.is_(False),
                 Event.status.notin_([EventStatus.DRAFT, EventStatus.CANCELLED]),
                 Event.responsible_person_id == None,  # noqa: E711
                 Event.start_datetime >= now,
                 Event.start_datetime <= rp_horizon,
             )
             .order_by(Event.start_datetime)
+        ).all())
+
+    # ── Pending debriefings (user has completed event, not yet submitted) ────
+    pending_debriefings: list[Assignment] = []
+    if current_user.has_permission("debriefing.submit_own"):
+        from app.models.assignment import DebriefingRecord
+        pending_debriefings = list(db.session.scalars(
+            db.select(Assignment)
+            .join(EventSpot, Assignment.spot_id == EventSpot.id)
+            .join(Event, EventSpot.event_id == Event.id)
+            .outerjoin(DebriefingRecord, DebriefingRecord.assignment_id == Assignment.id)
+            .where(
+                Assignment.user_id == current_user.id,
+                Event.status == EventStatus.COMPLETED,
+                DebriefingRecord.id == None,  # noqa: E711
+            )
+            .order_by(Event.start_datetime.desc())
         ).all())
 
     return render_template(
@@ -150,6 +169,7 @@ def dashboard() -> str:
         attention_events=attention_events,
         pending_activations=pending_activations,
         missing_rp_events=missing_rp_events,
+        pending_debriefings=pending_debriefings,
         horizon_days=current_user.dashboard_horizon_days,
         EventStatus=EventStatus,
     )

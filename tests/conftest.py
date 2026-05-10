@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -10,6 +11,9 @@ from app.extensions import db as _db
 from app.models.role import ALL_PERMISSIONS, ROLE_PERMISSIONS, Permission, Role
 from app.models.settings import AppSettings
 from app.models.user import UserAccount
+
+if TYPE_CHECKING:
+    pass
 
 # All mutable tables — reference data (role, permission, role_permissions,
 # app_settings, alembic_version) is preserved across the suite.
@@ -41,11 +45,71 @@ _MUTABLE_TABLES = " ,".join([
     "user_account",
 ])
 
-# Base test DB URL (set by pytest-env via pyproject.toml)
-_BASE_TEST_DB_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    "postgresql://medcover:devpassword@localhost:5432/medcover_test",
-)
+# ── Testcontainers: automatic Postgres container lifecycle ─────────────────────
+# The controller starts one container; xdist workers receive the URL via
+# workerinput.  If TEST_DATABASE_URL is already set (CI service, local Postgres)
+# the container is skipped entirely.
+
+_tc_postgres: object | None = None
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Start a Postgres container when TEST_DATABASE_URL is not pre-set."""
+    global _tc_postgres
+    worker_input = getattr(config, "workerinput", None)
+    if worker_input is not None:
+        # We are an xdist worker — pick up the URL from the controller.
+        if "test_db_url" in worker_input:
+            os.environ["TEST_DATABASE_URL"] = worker_input["test_db_url"]
+        return
+
+    # We are the controller (or a plain single-process run).
+    if os.environ.get("TEST_DATABASE_URL"):
+        # User or CI already provided a DB — respect it, skip the container.
+        return
+
+    from testcontainers.postgres import PostgresContainer  # type: ignore[import-untyped]
+
+    container = PostgresContainer(
+        image="postgres:17",
+        username="medcover",
+        password="devpassword",
+        dbname="medcover_test",
+        driver="psycopg2",
+    )
+    container.start()
+    url = container.get_connection_url()
+    os.environ["TEST_DATABASE_URL"] = url
+    _tc_postgres = container
+    config._testcontainer_url = url  # type: ignore[attr-defined]
+
+
+def pytest_configure_node(node: object) -> None:  # type: ignore[type-arg]
+    """Pass the container URL to each xdist worker (controller side)."""
+    url = getattr(node.config, "_testcontainer_url", None) or os.environ.get(  # type: ignore[attr-defined]
+        "TEST_DATABASE_URL"
+    )
+    if url:
+        node.workerinput["test_db_url"] = url  # type: ignore[attr-defined]
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Stop the Postgres container once all tests have finished."""
+    global _tc_postgres
+    if _tc_postgres is not None:
+        _tc_postgres.stop()  # type: ignore[attr-defined]
+        _tc_postgres = None
+
+
+# ── DB URL helpers ─────────────────────────────────────────────────────────────
+# Read lazily (via function) so that pytest_configure can set os.environ
+# before the URL is consumed by the app fixture.
+
+def _base_test_db_url() -> str:
+    return os.environ.get(
+        "TEST_DATABASE_URL",
+        "postgresql://medcover:devpassword@localhost:5432/medcover_test",
+    )
 
 
 def _worker_db_url(worker_id: str) -> str:
@@ -55,10 +119,11 @@ def _worker_db_url(worker_id: str) -> str:
     concurrent TRUNCATE operations never conflict.  Non-parallel runs
     (worker_id == 'master') use the base URL unchanged.
     """
+    base_url = _base_test_db_url()
     if worker_id == "master":
-        return _BASE_TEST_DB_URL
+        return base_url
     # e.g. medcover_test → medcover_test_gw0
-    base, db_name = _BASE_TEST_DB_URL.rsplit("/", 1)
+    base, db_name = base_url.rsplit("/", 1)
     return f"{base}/{db_name}_{worker_id}"
 
 
@@ -142,12 +207,15 @@ def _seed_reference_data() -> None:
             role = Role(name=role_name)
             _db.session.add(role)
             _db.session.flush()
+        target_codes = set(perm_codes)
         existing_codes = {p.code for p in role.permissions}
-        for code in perm_codes:
-            if code not in existing_codes:
-                perm = _db.session.scalar(_db.select(Permission).where(Permission.code == code))
-                if perm:
-                    role.permissions.append(perm)
+        for code in target_codes - existing_codes:
+            perm = _db.session.scalar(_db.select(Permission).where(Permission.code == code))
+            if perm:
+                role.permissions.append(perm)
+        for perm in list(role.permissions):
+            if perm.code not in target_codes:
+                role.permissions.remove(perm)
 
     _db.session.commit()
 

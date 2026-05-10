@@ -68,12 +68,12 @@
         <table class="table table-sm table-hover mb-0 align-middle">
           <thead class="table-secondary">
             <tr>
-              <th style="width:2.5rem;">Zahrnout</th>
-              <th style="min-width:160px;">Jméno</th>
-              <th style="min-width:180px;">E-mail</th>
-              <th style="min-width:120px;">Telefon</th>
-              <th style="width:110px;">Kvalifikace</th>
-              <th style="width:130px;">Stav</th>
+              <th class="col-2p5r">Zahrnout</th>
+              <th class="minw-160">Jméno</th>
+              <th class="minw-180">E-mail</th>
+              <th class="minw-120">Telefon</th>
+              <th class="col-110">Kvalifikace</th>
+              <th class="col-130">Stav</th>
             </tr>
           </thead>
           <tbody>
@@ -108,7 +108,7 @@
                        name="user_{{ j }}_email" value="{{ urow.email or '' }}"
                        {% if not urow.email %}
                        placeholder="Doplňte e-mail!"
-                       style="border-color:var(--bs-warning);"
+                       class="border border-warning"
                        {% endif %}>
                 {% endif %}
               </td>
@@ -208,7 +208,7 @@
           </select>
         </div>
       </div>
-      <div class="mt-3 text-muted" style="font-size:.85rem;">
+      <div class="mt-3 text-muted" class="font-85">
         <strong>Pozice:</strong>
         Akce s ≤3 přihlášenými → 1× <em>Zdravotník (povinná)</em>, 1× <em>Zelenáč (povinná)</em>, 1× <em>Zelenáč (volitelná)</em>.
         Akce s více přihlášenými → počet pozic odpovídá počtu přihlášených.
@@ -219,28 +219,28 @@
 
   {# ── Preview table ──────────────────────────────────────────────────── #}
   <div class="import-scroll mb-4">
-    <table class="table table-sm table-hover import-table align-middle" style="min-width:1200px;">
+    <table class="table table-sm table-hover import-table align-middle" class="minw-1200">
       <thead class="table-secondary">
         <tr>
-          <th style="width:2.5rem;">
+          <th class="col-2p5r">
             <input type="checkbox" class="form-check-input" id="checkAll" checked
                    title="Zaškrtnout / odznačit vše">
           </th>
-          <th style="min-width:200px;">Název</th>
-          <th style="width:100px;">Datum</th>
-          <th style="width:90px;">Začátek</th>
-          <th style="width:90px;">Konec</th>
-          <th style="min-width:140px;">Místo konání</th>
-          <th style="width:80px;">Placená</th>
-          <th style="min-width:180px;">
+          <th class="minw-200">Název</th>
+          <th class="col-100">Datum</th>
+          <th class="col-90">Začátek</th>
+          <th class="col-90">Konec</th>
+          <th class="minw-140">Místo konání</th>
+          <th class="col-80">Placená</th>
+          <th class="minw-180">
             Nadřazená akce
             {{ help_icon("Přepíše výchozí hodnotu jen pro tuto akci.") }}
           </th>
-          <th style="min-width:180px;">
+          <th class="minw-180">
             Zodpovědný zdravotník
             {{ help_icon("Zdravotník spárovaný z GS. Upravte pokud shoda není správná.") }}
           </th>
-          <th style="width:60px;">Varování</th>
+          <th class="col-60">Varování</th>
         </tr>
       </thead>
       <tbody>
@@ -259,7 +259,7 @@
             <input type="text" class="form-control form-control-sm"
                    name="ev_{{ i }}_name" value="{{ row.name }}" required>
             {% if row.signups %}
-            <div class="text-muted mt-1" style="font-size:.75rem;"
+            <div class="text-muted mt-1" class="font-75"
                  title="{{ row.signups | join(', ') }}">
               👥 {{ row.signups | length }}× přihlášeni
             </div>
@@ -327,6 +327,13 @@
                 {{ u.name }}
               </option>
               {% endfor %}
+              {# New users being imported in this batch (no DB id yet) #}
+              {% for new_u in users_preview_rows if not new_u.existing %}
+              <option value="name:{{ new_u.name }}"
+                {% if not row.rp_user and row.responsible_person and new_u.name|lower == row.responsible_person|lower %}selected{% endif %}>
+                {{ new_u.name }} ✨
+              </option>
+              {% endfor %}
             </select>
           </td>
 
@@ -367,5 +374,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/import-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/import-preview.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

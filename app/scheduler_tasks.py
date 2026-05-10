@@ -36,7 +36,7 @@ def run_send_reminders(db_session: Any, now: datetime | None = None) -> int:
     events = db_session.scalars(
         sa.select(Event).where(
             Event.status == EventStatus.ASSIGNMENTS_OPEN,
-            Event.archived == False,  # noqa: E712
+            Event.archived.is_(False),
             Event.start_datetime > now,
         )
     ).all()
@@ -118,8 +118,9 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     """
     from app.models.digest import get_digest_schedule
     from app.digest.renderer import render_digest
-    from app.mail import send_admin_digest, user_can_receive_notification
+    from app.mail import send_admin_digest
     from app.models.user import UserAccount
+    from app.models.role import Role
 
     if now is None:
         now = datetime.now(timezone.utc)
@@ -129,7 +130,10 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     if not schedule.enabled:
         return False
 
-    if now.hour != schedule.preferred_hour_utc:
+    # For daily-or-longer frequencies, only fire at the preferred UTC hour.
+    # Sub-daily frequencies (e.g. every 6 h) ignore the hour gate and rely
+    # solely on the elapsed-time check below.
+    if schedule.frequency_hours >= 24 and now.hour != schedule.preferred_hour_utc:
         return False
 
     if schedule.last_sent_at is not None:
@@ -137,10 +141,11 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
         if elapsed < schedule.frequency_hours * 3600:
             return False
 
-    recipients = db_session.scalars(
-        sa.select(UserAccount).where(UserAccount.is_active == True)  # noqa: E712
+    eligible = db_session.scalars(
+        sa.select(UserAccount)
+        .join(UserAccount.roles)
+        .where(UserAccount.is_active.is_(True), Role.name == "Admin")
     ).all()
-    eligible = [u for u in recipients if user_can_receive_notification(u, "admin_digest")]
 
     if not eligible:
         log.info("Admin digest: no eligible recipients, skipping.")
@@ -156,3 +161,99 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     schedule.last_sent_at = now
     db_session.commit()
     return True
+
+
+def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
+    """Run an automatic backup if scheduled backups are enabled and it is the right hour.
+
+    The task is designed to be called every hour by the scheduler.  It only
+    creates a backup if:
+      1. backup_schedule_enabled is True in AppSettings.
+      2. The current UTC hour matches backup_schedule_hour.
+      3. No backup file already exists for today (prevents double-runs on
+         scheduler restarts).
+
+    Args:
+        db_session: An active SQLAlchemy session bound to the current app context.
+        now:        Reference timestamp (default: utcnow). Override in tests.
+
+    Returns:
+        True if a backup was created, False otherwise.
+    """
+    from app.models.settings import get_settings
+    from app.models.audit import AuditLogEntry
+    from app.backup import export_to_zip, prune_old_backups, list_backups
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    settings = get_settings()
+    if not settings.backup_schedule_enabled:
+        return False
+
+    if now.hour != settings.backup_schedule_hour:
+        return False
+
+    # Skip if a backup was already created today (UTC date) to avoid duplicates.
+    today_prefix = f"medcover_backup_{now.strftime('%Y%m%d')}_"
+    existing = list_backups(settings.backup_dir)
+    if any(b["name"].startswith(today_prefix) for b in existing):
+        log.debug("Scheduled backup: already have a backup for today, skipping.")
+        return False
+
+    try:
+        zip_path = export_to_zip(settings.backup_dir, now=now)
+        pruned = prune_old_backups(settings.backup_dir, settings.backup_keep_count)
+        log.info("Scheduled backup created: %s (pruned %d old files)", zip_path.name, len(pruned))
+
+        db_session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="create",
+            entity_type="Backup",
+            entity_id=zip_path.name,
+            summary=f"Automatická záloha vytvořena: {zip_path.name}",
+            changes_json={"file": zip_path.name, "pruned": [p.name for p in pruned]},
+        ))
+        db_session.commit()
+        return True
+    except Exception as exc:
+        log.error("Scheduled backup failed: %s", exc, exc_info=True)
+        db_session.add(AuditLogEntry(
+            actor_id=None,
+            action_type="error",
+            entity_type="Backup",
+            entity_id="error",
+            changes_json={"error": str(exc)},
+        ))
+        db_session.commit()
+        return False
+
+
+def cleanup_work_report_files(instance_path: str, now: datetime | None = None) -> int:
+    """Delete generated employee work report xlsx files older than 1 day.
+
+    Files are stored under  <instance_path>/work_report/<user_id>/<year>-<MM>.xlsx.
+    Returns the number of files removed.
+    """
+    from pathlib import Path
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=1)
+    work_report_root = Path(instance_path) / "work_report"
+    if not work_report_root.exists():
+        return 0
+
+    removed = 0
+    for xlsx_file in work_report_root.rglob("*.xlsx"):
+        mtime = datetime.fromtimestamp(xlsx_file.stat().st_mtime, tz=timezone.utc)
+        if mtime < cutoff:
+            try:
+                xlsx_file.unlink()
+                removed += 1
+            except OSError as exc:  # pragma: no cover
+                log.warning("Could not remove old work report file %s: %s", xlsx_file, exc)
+
+    if removed:
+        log.info("Cleaned up %d old work report file(s).", removed)
+    return removed

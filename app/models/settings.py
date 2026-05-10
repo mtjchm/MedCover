@@ -49,6 +49,16 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # Example: "admin@example.com, tester@example.com"
     dev_email_allowlist = db.Column(db.Text, nullable=True)
 
+    # --- Backup ---
+    # Directory (relative to project root or absolute) where backup .zip files are stored.
+    backup_dir = db.Column(db.String(512), default="backups", nullable=False, server_default="backups")
+    # Maximum number of backup files to keep; oldest are pruned automatically.
+    backup_keep_count = db.Column(db.Integer, default=7, nullable=False, server_default="7")
+    # When True, the scheduler will create an automatic daily backup.
+    backup_schedule_enabled = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
+    # Hour of day (0–23, server local time) at which the scheduled backup runs.
+    backup_schedule_hour = db.Column(db.Integer, default=2, nullable=False, server_default="2")
+
     # --- Lifecycle ---
     setup_complete = db.Column(db.Boolean, default=False, nullable=False)
     feedback_enabled = db.Column(db.Boolean, default=True, nullable=False)
@@ -130,10 +140,25 @@ class AppSettings(db.Model):  # type: ignore[misc]
 # ------------------------------------------------------------------ #
 
 def get_settings() -> AppSettings:
-    """Return the single AppSettings row, creating it if it doesn't exist yet."""
-    row = db.session.get(AppSettings, 1)
-    if row is None:
-        row = AppSettings(id=1)
-        db.session.add(row)
-        db.session.commit()
-    return row
+    """Return the single AppSettings row, creating it if it doesn't exist yet.
+
+    The result is cached on ``flask.g`` for the duration of the request so that
+    multiple callers within the same request share a single DB hit.  Outside a
+    request context (e.g. the scheduler) the row is fetched directly each time.
+    """
+    def _fetch() -> AppSettings:
+        row = db.session.get(AppSettings, 1)
+        if row is None:
+            row = AppSettings(id=1)
+            db.session.add(row)
+            db.session.commit()
+        return row
+
+    try:
+        from flask import g  # noqa: PLC0415
+        if not hasattr(g, "_medcover_settings"):
+            g._medcover_settings = _fetch()
+        return g._medcover_settings
+    except RuntimeError:
+        # No active request context (scheduler, CLI) — fetch directly.
+        return _fetch()

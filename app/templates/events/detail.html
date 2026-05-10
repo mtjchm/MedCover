@@ -64,14 +64,17 @@
     {% if event.status == EventStatus.COMPLETED %}
       {% set my_assignment = event.spots | selectattr('assignment') | selectattr('assignment.user_id', 'equalto', current_user.id) | map(attribute='assignment') | first | default(none) %}
       {% if my_assignment %}
-        <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
-           class="btn btn-outline-primary btn-sm">
-          {{ 'Upravit hlášení' if my_assignment.debriefing else 'Odevzdat hlášení' }}
-        </a>
+        {% if my_assignment.debriefing %}
+          <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
+             class="btn btn-outline-secondary btn-sm">Zobrazit debriefing</a>
+        {% else %}
+          <a href="{{ url_for('debriefing.submit', assignment_id=my_assignment.id) }}"
+             class="btn btn-outline-primary btn-sm">Vyplnit debriefing</a>
+        {% endif %}
       {% endif %}
-      {% if current_user.has_any_permission('event.edit', 'event.assign_other') %}
+      {% if current_user.has_any_permission('debriefing.view_all', 'debriefing.manage') %}
         <a href="{{ url_for('debriefing.event_overview', event_id=event.id) }}"
-           class="btn btn-outline-secondary btn-sm">Přehled hlášení</a>
+           class="btn btn-outline-secondary btn-sm">Přehled debriefingů</a>
       {% endif %}
     {% endif %}
     {% if event.status == EventStatus.CANCELLED and current_user.has_permission('event.restore') %}
@@ -96,10 +99,15 @@
     <div class="card border-0 h-100">
       <div class="card-body">
         <h6 class="card-subtitle text-muted mb-2">Termín</h6>
-        <p class="mb-1"><strong>Začátek:</strong> {{ event.start_datetime | localdt }}</p>
-        <p class="mb-0"><strong>Konec:</strong> {{ event.end_datetime | localdt }}</p>
+        <p class="mb-1"><strong>Plánovaný začátek:</strong> {{ event.start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Plánovaný konec:</strong> {{ event.end_datetime | localdt }}</p>
         {% if event.assignments_open_datetime %}
           <p class="mb-0 mt-1 small text-muted">Přihlášky se otevřou: {{ event.assignments_open_datetime | localdt }}</p>
+        {% endif %}
+        {% if event.actual_start_datetime %}
+        <p class="mb-1 mt-2"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
+        <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</p>
         {% endif %}
       </div>
     </div>
@@ -125,7 +133,7 @@
           {% if rp_eligible_attendees | length > 1 or (rp_eligible_attendees | length == 1 and event.responsible_person_id != rp_eligible_attendees[0].id) %}
             <form method="post" action="{{ url_for('events.set_rp', event_id=event.id) }}" class="mt-2 d-flex gap-2 align-items-center">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <select name="user_id" class="form-select form-select-sm" style="max-width:220px">
+              <select name="user_id" class="form-select form-select-sm maxw-220">
                 {% for u in rp_eligible_attendees %}
                   <option value="{{ u.id }}" {% if u.id == event.responsible_person_id %}selected{% endif %}>{{ u.name }}</option>
                 {% endfor %}
@@ -175,7 +183,7 @@
         </div>
         <div class="col-auto">
           <label class="form-label small mb-1">Počet</label>
-          <select class="form-select form-select-sm" name="quantity" style="width: 80px">
+          <select class="form-select form-select-sm col-80" name="quantity">
             {% for n in range(1, 11) %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
           </select>
         </div>
@@ -222,18 +230,18 @@
       {% for spot in event.spots %}
       <tr>
         <td class="text-muted small">{{ loop.index }}</td>
-        <td style="white-space: normal; word-break: break-word">
+        <td class="text-break text-wrap">
           {{ spot.description or '—' }}
           {% if spot.is_optional %}
-            <span class="badge bg-info text-dark ms-1" style="font-size:.65rem">volitelná</span>
+            <span class="badge bg-info text-dark ms-1 font-65">volitelná</span>
           {% endif %}
         </td>
-        <td style="white-space: normal; word-break: break-word; max-width: 180px">
+        <td class="text-break text-wrap maxw-180">
           {% if spot.required_qualifications %}
             {% for q in spot.required_qualifications %}
               {% if q.is_deleted %}
                 <span class="text-decoration-line-through text-muted">{{ q.name }}</span>
-                <span class="badge bg-secondary" style="font-size:.65rem">odstraněna</span>{% if not loop.last %}, {% endif %}
+                <span class="badge bg-secondary font-65">odstraněna</span>{% if not loop.last %}, {% endif %}
               {% else %}
                 {{ q.name }}{% if not loop.last %}, {% endif %}
               {% endif %}
@@ -435,13 +443,13 @@
   {% if current_user.has_permission('event.equipment.plan') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_plan_add', event_id=event.id) }}" class="d-flex gap-2 mb-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="type_id" class="form-select form-select-sm" style="max-width: 200px" required>
+    <select name="type_id" class="form-select form-select-sm maxw-200" required>
       <option value="">— typ —</option>
       {% for et in all_equipment_types %}
         <option value="{{ et.id }}">{{ et.name }}</option>
       {% endfor %}
     </select>
-    <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm" style="max-width: 80px">
+    <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm maxw-80">
     <button class="btn btn-outline-danger btn-sm">Přidat</button>
   </form>
   {% endif %}
@@ -486,7 +494,7 @@
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="item_id" class="form-select form-select-sm" style="max-width: 250px" required>
+    <select name="item_id" class="form-select form-select-sm maxw-250" required>
       <option value="">— položka —</option>
       {% for item in available_equipment_items %}
         <option value="{{ item.id }}">{{ item.name }} ({{ item.equipment_type.name }})</option>
@@ -502,5 +510,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/events-detail.js') }}"></script>
+<script src="{{ url_for('static', filename='js/events-detail.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

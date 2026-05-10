@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import Mapped
 from app.extensions import db
@@ -10,6 +11,18 @@ if TYPE_CHECKING:
     from app.models.qualification import Qualification
     from app.models.assignment import Assignment
     from app.models.user import UserAccount
+
+
+class ReminderScheduleMixin:
+    """Shared ``reminder_hours()`` logic for models that carry a ``reminder_schedule`` column."""
+
+    reminder_schedule: str | None  # declared on concrete model
+
+    def reminder_hours(self) -> list[int]:
+        """Parse ``reminder_schedule`` (comma-separated ints) into a list of hour offsets."""
+        if not self.reminder_schedule:
+            return [24]
+        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
 
 
 class EventStatus(str, enum.Enum):
@@ -36,7 +49,7 @@ spot_template_qualifications = db.Table(
 )
 
 
-class EventTemplate(db.Model):  # type: ignore[misc]
+class EventTemplate(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     __tablename__ = "event_template"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -69,11 +82,6 @@ class EventTemplate(db.Model):  # type: ignore[misc]
         lazy="selectin",
     )
 
-    def reminder_hours(self) -> list[int]:
-        if not self.reminder_schedule:
-            return [24]
-        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
-
     def __repr__(self) -> str:
         return f"<EventTemplate {self.name}>"
 
@@ -95,7 +103,7 @@ class EventSpotTemplate(db.Model):  # type: ignore[misc]
         return f"<EventSpotTemplate {self.id} for template {self.template_id}>"
 
 
-class Event(db.Model):  # type: ignore[misc]
+class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     __tablename__ = "event"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -122,6 +130,10 @@ class Event(db.Model):  # type: ignore[misc]
     # Tracks sent reminders: JSON dict mapping hours-offset str → ISO sent_at timestamp.
     # e.g. {"24": "2026-05-28T17:00:00+00:00"} means the 24h reminder was already sent.
     reminder_sent_json = db.Column(db.JSON, nullable=True, default=dict)
+    # ── Post-event actuals (filled during debriefing by responsible person) ───
+    actual_start_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
+    actual_end_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
+    patients_count = db.Column(db.Integer, nullable=True)  # počet ošetřených (0–10+)
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
@@ -139,7 +151,9 @@ class Event(db.Model):  # type: ignore[misc]
     master_event = db.relationship("MasterEvent", back_populates="events")
     responsible_person = db.relationship("UserAccount", foreign_keys=[responsible_person_id])
     created_by = db.relationship("UserAccount", foreign_keys=[created_by_id])
-    spots: Mapped[list[EventSpot]] = db.relationship("EventSpot", back_populates="event", cascade="all, delete-orphan")
+    spots: Mapped[list[EventSpot]] = db.relationship(
+        "EventSpot", back_populates="event", cascade="all, delete-orphan", lazy="selectin"
+    )
     equipment_plans = db.relationship("EventEquipmentPlan", back_populates="event", cascade="all, delete-orphan")
     equipment_assignments = db.relationship("EventEquipmentAssignment", back_populates="event", cascade="all, delete-orphan")
 
@@ -170,9 +184,28 @@ class Event(db.Model):  # type: ignore[misc]
         return [s for s in self.spots if not s.is_optional and s.assignment is None]
 
     @property
+    def scheduled_hours(self) -> Decimal:
+        """Planned duration in hours derived from start_datetime / end_datetime."""
+        delta = self.end_datetime - self.start_datetime
+        return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+
+    @property
+    def actual_hours(self) -> Decimal | None:
+        """Actual duration in hours derived from RP-submitted actual start/end times."""
+        if self.actual_start_datetime and self.actual_end_datetime:
+            delta = self.actual_end_datetime - self.actual_start_datetime
+            return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+        return None
+
+    @property
+    def billable_hours(self) -> Decimal:
+        """Hours to use for reporting: actual if debriefed, otherwise scheduled."""
+        return self.actual_hours if self.actual_hours is not None else self.scheduled_hours
+
+    @property
     def is_unfilled(self) -> bool:
         """True when at least one mandatory spot has no assignment."""
-        return any(s for s in self.spots if not s.is_optional and s.assignment is None)
+        return bool(self.unfilled_spots)
 
     @property
     def staffing_status(self) -> str:
@@ -186,10 +219,20 @@ class Event(db.Model):  # type: ignore[misc]
             return "Částečně obsazeno"
         return "Plně obsazeno"
 
-    def reminder_hours(self) -> list[int]:
-        if not self.reminder_schedule:
-            return [24]
-        return [int(h) for h in self.reminder_schedule.split(",") if h.strip().isdigit()]
+    def eligible_unfilled_spots_for(
+        self, user: UserAccount, excluded_spot_ids: set[int] | None = None,
+    ) -> list[EventSpot]:
+        """Return the spots that are still empty and that *user* may claim.
+
+        A spot is eligible when it has no assignment, the user does not already
+        hold one of *excluded_spot_ids* (typically: their existing assignments),
+        and the user satisfies the spot's qualification requirements.
+        """
+        excluded = excluded_spot_ids or set()
+        return [
+            s for s in self.spots
+            if s.assignment is None and s.id not in excluded and s.is_eligible(user)
+        ]
 
     def __repr__(self) -> str:
         return f"<Event {self.id}: {self.name} [{self.status}]>"
@@ -210,7 +253,8 @@ class EventSpot(db.Model):  # type: ignore[misc]
         "Qualification", secondary=spot_qualifications, lazy="selectin"
     )
     assignment: Mapped[Assignment | None] = db.relationship(
-        "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan"
+        "Assignment", back_populates="spot", uselist=False, cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     def is_eligible(self, user: UserAccount) -> bool:
@@ -223,6 +267,18 @@ class EventSpot(db.Model):  # type: ignore[misc]
             if not any(required.can_be_filled_by(uq) for uq in user_quals):
                 return False
         return True
+
+    def is_eligible_for(self, fillable_qual_ids: set[int]) -> bool:
+        """Fast eligibility check using a pre-computed fillable qualification ID set.
+
+        Prefer this over :meth:`is_eligible` when checking many spots for the same
+        user — call :func:`app.queries.user_fillable_qual_ids` once and pass the
+        result here to avoid repeated recursive hierarchy traversals.
+        """
+        active_reqs = [q for q in self.required_qualifications if not q.is_deleted]
+        if not active_reqs:
+            return True
+        return all(q.id in fillable_qual_ids for q in active_reqs)
 
     def __repr__(self) -> str:
         return f"<EventSpot {self.id} event={self.event_id}>"

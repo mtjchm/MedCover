@@ -20,7 +20,7 @@ jobs:
         run: pip install pre-commit
 
       - name: Run pre-commit hooks
-        run: SKIP=mypy,pytest pre-commit run --all-files
+        run: pre-commit run --all-files
 
   test:
     runs-on: ubuntu-latest
@@ -55,9 +55,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install --require-hashes -r requirements-dev.txt
-
-      - name: Run mypy
-        run: mypy app/ scheduler/
 
       - name: Run tests with coverage
         run: pytest --cov=app --cov-report=term-missing --cov-report=xml

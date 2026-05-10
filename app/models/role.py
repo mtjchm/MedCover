@@ -19,6 +19,12 @@ class Role(db.Model):  # type: ignore[misc]
     COORDINATOR = "Coordinator"
     MEMBER = "Member"
     VIEWER = "Viewer"
+    DEBRIEFING_MANAGER = "Debriefing Manager"
+
+    # Permissions that are intentionally withheld from Admin.
+    # These are reserved for the Debriefing Manager role only — even
+    # system administrators must not access confidential debriefing data.
+    _ADMIN_EXCLUDED_PERMISSIONS: set[str] = {"debriefing.view_all", "debriefing.manage"}
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
@@ -116,24 +122,37 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "event.equipment.assign", "description": "Assign shared equipment items to an event"},
     # Debriefing
     {"code": "debriefing.submit_own", "description": "Submit own debriefing record"},
-    {"code": "debriefing.view_own", "description": "View own debriefing records"},
-    {"code": "debriefing.view_all", "description": "View all debriefing records"},
+    {"code": "debriefing.view_own", "description": "View own submitted debriefing record"},
+    # The two permissions below are reserved for the Debriefing Manager role only.
+    # They are intentionally excluded from Admin to protect participant confidentiality.
+    {"code": "debriefing.view_all", "description": "View all confidential debriefing records (Debriefing Manager only)"},
+    {"code": "debriefing.manage", "description": "Manage debriefing settings and pending requests (Debriefing Manager only)"},
     # Reports
     {"code": "report.view", "description": "View reports"},
+    {"code": "work_report.generate", "description": "Generate own monthly work report (výkaz práce)"},
     # Audit
     {"code": "audit.view", "description": "View audit log"},
     # System / Admin
     {"code": "admin.view", "description": "Access the admin section"},
     {"code": "admin.manage_settings", "description": "View and edit system settings (SMTP, org name, timezone)"},
     {"code": "admin.manage_digest", "description": "View and configure the admin digest email"},
+    # Backup / Restore
+    {"code": "backup.run", "description": "Trigger an ad-hoc backup"},
+    {"code": "backup.download", "description": "Download a backup file"},
+    {"code": "backup.restore", "description": "Restore the application from a backup file"},
+    {"code": "backup.delete", "description": "Delete a stored backup file"},
 ]
 
 # Permissions per role (from RBAC table in architecture.md)
 ROLE_PERMISSIONS: dict[str, list[str]] = {
-    Role.ADMIN: [p["code"] for p in ALL_PERMISSIONS],  # Admin has all permissions
+    # Admin gets all permissions except those intentionally reserved for Debriefing Manager.
+    # Even admins must not access confidential participant debriefing responses.
+    Role.ADMIN: [
+        p["code"] for p in ALL_PERMISSIONS
+        if p["code"] not in Role._ADMIN_EXCLUDED_PERMISSIONS
+    ],
     Role.COORDINATOR: [
         "user.view", "user.edit_own",
-        "invite.create",
         "qualification.view",
         "master_event.view", "master_event.create", "master_event.edit",
         "event.view", "event.view_draft", "event.create", "event.edit",
@@ -142,10 +161,11 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "event.assign_own", "event.assign_other", "event.set_responsible_person",
         "event.notification.send",
         "event_template.view", "event_template.create", "event_template.edit", "event_template.delete",
-        "equipment.view", "equipment_item.report_own",
+        "equipment.view", "equipment_item.issue_personal", "equipment_item.report_own",
         "event.equipment.plan", "event.equipment.assign",
-        "debriefing.submit_own", "debriefing.view_own", "debriefing.view_all",
+        "debriefing.submit_own", "debriefing.view_own",
         "report.view",
+        "work_report.generate",
     ],
     Role.MEMBER: [
         "user.view", "user.edit_own",
@@ -153,9 +173,10 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "master_event.view",
         "event.view", "event.assign_own",
         "event_template.view",
-        "equipment.view", "equipment_item.report_own",
+        "equipment.view", "equipment_item.issue_personal", "equipment_item.report_own",
         "debriefing.submit_own", "debriefing.view_own",
         "report.view",
+        "work_report.generate",
     ],
     Role.VIEWER: [
         "user.view",
@@ -165,5 +186,11 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "event_template.view",
         "equipment.view",
         "report.view",
+    ],
+    Role.DEBRIEFING_MANAGER: [
+        "debriefing.submit_own",
+        "debriefing.view_own",
+        "debriefing.view_all",
+        "debriefing.manage",
     ],
 }

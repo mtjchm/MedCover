@@ -10,10 +10,13 @@
   var FEED_URL_BASE  = cfg.feedUrl  || "";
   var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
   var CLAIM_BASE     = cfg.claimBase || "";
+  var ACTIVE_MES     = cfg.activeMes || [];
 
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_FILT  = "medcover_events_filters";
   var STORAGE_SORT  = "medcover_events_sort";
+  var STORAGE_ELIG  = "medcover_events_elig";
+  var STORAGE_ME    = "medcover_events_me";
 
   var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
 
@@ -21,6 +24,8 @@
   var calendar = null;
   var allCalendarEvents = null;
   var sortState = { col: "start", dir: "asc" };
+  var eligFilter = false;
+  var meFilter = "";
 
   // ── Filter state ──────────────────────────────────────────────────────────
 
@@ -29,6 +34,14 @@
     return DEFAULT_FILTERS.slice();
   }
   function saveFilters(f) { localStorage.setItem(STORAGE_FILT, JSON.stringify(f)); }
+  function loadEligFilter() {
+    try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
+  }
+  function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
+  function loadMeFilter() {
+    try { return localStorage.getItem(STORAGE_ME) || ""; } catch(e) { return ""; }
+  }
+  function saveMeFilter(v) { localStorage.setItem(STORAGE_ME, v || ""); }
   function loadSort() {
     try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
     return { col: "start", dir: "asc" };
@@ -38,15 +51,8 @@
   // ── Filter buttons ────────────────────────────────────────────────────────
 
   function renderFilterButtons(activeFilters) {
-    document.querySelectorAll(".filter-btn").forEach(function (btn) {
-      var key = btn.dataset.status;
-      var on = activeFilters.includes(key);
-      btn.classList.toggle("active", on);
-      if (key === "ASSIGNMENTS_CLOSED") {
-        btn.style.backgroundColor = on ? "#ffc107" : "";
-        btn.style.color = on ? "#000" : "";
-        btn.style.borderColor = "#ffc107";
-      }
+    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
+      btn.classList.toggle("active", activeFilters.includes(btn.dataset.status));
     });
   }
 
@@ -59,10 +65,49 @@
     applyFilters(f);
   }
 
+  function toggleEligFilter() {
+    eligFilter = !eligFilter;
+    saveEligFilter(eligFilter);
+    var btn = document.getElementById("btn-elig-filter");
+    if (btn) btn.classList.toggle("active", eligFilter);
+    applyFilters(loadFilters());
+  }
+
+  function setMeFilter(value) {
+    meFilter = value || "";
+    saveMeFilter(meFilter);
+    var sel = document.getElementById("me-filter-select");
+    if (sel) sel.value = meFilter;
+    applyFilters(loadFilters());
+    if (calendarInitialized && calendar) calendar.refetchEvents();
+  }
+
+  function populateMeSelect() {
+    var sel = document.getElementById("me-filter-select");
+    if (!sel || ACTIVE_MES.length === 0) return;
+    ACTIVE_MES.forEach(function (name) {
+      var opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    sel.value = meFilter;
+    sel.classList.remove("d-none");
+  }
+
   function resetFilters() {
+    eligFilter = false;
+    saveEligFilter(false);
+    var btn = document.getElementById("btn-elig-filter");
+    if (btn) btn.classList.remove("active");
+    meFilter = "";
+    saveMeFilter("");
+    var sel = document.getElementById("me-filter-select");
+    if (sel) sel.value = "";
     saveFilters(DEFAULT_FILTERS.slice());
     renderFilterButtons(DEFAULT_FILTERS.slice());
     applyFilters(DEFAULT_FILTERS.slice());
+    if (calendarInitialized && calendar) calendar.refetchEvents();
   }
 
   // ── Table filter + sort ───────────────────────────────────────────────────
@@ -72,12 +117,15 @@
     if (!tbody) return;
     var visibleCount = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
-      var visible = activeFilters.includes(row.dataset.status);
+      var statusOk = activeFilters.includes(row.dataset.status);
+      var eligOk = !eligFilter || row.dataset.eligible === "1";
+      var meOk = !meFilter || row.dataset.me === meFilter;
+      var visible = statusOk && eligOk && meOk;
       row.style.display = visible ? "" : "none";
       if (visible) visibleCount++;
     });
     var emptyMsg = document.getElementById("table-empty-msg");
-    if (emptyMsg) emptyMsg.style.display = visibleCount === 0 ? "" : "none";
+    if (emptyMsg) emptyMsg.classList.toggle('d-none', visibleCount > 0);
     if (calendarInitialized && calendar) calendar.refetchEvents();
   }
 
@@ -129,8 +177,8 @@
 
   function setView(view) {
     localStorage.setItem(STORAGE_VIEW, view);
-    document.getElementById("view-table").style.display    = view === "table"    ? "" : "none";
-    document.getElementById("view-calendar").style.display = view === "calendar" ? "" : "none";
+    document.getElementById("view-table").classList.toggle('d-none', view !== "table");
+    document.getElementById("view-calendar").classList.toggle('d-none', view !== "calendar");
     document.getElementById("btn-table-view").classList.toggle("active", view === "table");
     document.getElementById("btn-calendar-view").classList.toggle("active", view === "calendar");
     if (view === "calendar" && !calendarInitialized) initCalendar();
@@ -144,6 +192,7 @@
     calendar = new FullCalendar.Calendar(el, {
       initialView: "dayGridMonth",
       locale: "cs",
+      firstDay: 1,
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,listMonth" },
       buttonText: { today: "Dnes", month: "Měsíc", week: "Týden", list: "Seznam" },
       events: async function (fetchInfo, successCallback, failureCallback) {
@@ -153,7 +202,12 @@
             allCalendarEvents = await r.json();
           }
           var active = loadFilters();
-          successCallback(allCalendarEvents.filter(function (e) { return active.includes(e.extendedProps.status_key); }));
+          successCallback(allCalendarEvents.filter(function (e) {
+            var statusOk = active.includes(e.extendedProps.status_key);
+            var eligOk = !eligFilter || e.extendedProps.eligible;
+            var meOk = !meFilter || (e.extendedProps.me_name || "") === meFilter;
+            return statusOk && eligOk && meOk;
+          }));
         } catch (err) { failureCallback(err); }
       },
       eventClick: function (info) {
@@ -243,12 +297,53 @@
     document.querySelectorAll(".sortable").forEach(function (th) {
       th.addEventListener("click", function () { sortTable(th.dataset.col); });
     });
-    document.querySelectorAll(".filter-btn").forEach(function (btn) {
-      btn.addEventListener("click", function () { toggleFilter(btn.dataset.status); });
+    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
+      var touchStartY = 0;
+      var touchFired = false;
+      btn.addEventListener("touchstart", function (e) {
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+      btn.addEventListener("touchend", function (e) {
+        var dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+        if (dy > 10) return; // scroll — ignore
+        touchFired = true;
+        e.preventDefault(); // prevents simulated hover state + synthetic click
+        toggleFilter(btn.dataset.status);
+        setTimeout(function () { touchFired = false; }, 500);
+      }, { passive: false });
+      btn.addEventListener("click", function () {
+        if (touchFired) return; // already handled by touchend
+        toggleFilter(btn.dataset.status);
+      });
     });
+
+    eligFilter = loadEligFilter();
+    meFilter = loadMeFilter();
+    var eligBtn = document.getElementById("btn-elig-filter");
+    if (eligBtn) {
+      eligBtn.classList.toggle("active", eligFilter);
+      var eligTouchStartY = 0;
+      var eligTouchFired = false;
+      eligBtn.addEventListener("touchstart", function (e) {
+        eligTouchStartY = e.touches[0].clientY;
+      }, { passive: true });
+      eligBtn.addEventListener("touchend", function (e) {
+        var dy = Math.abs(e.changedTouches[0].clientY - eligTouchStartY);
+        if (dy > 10) return;
+        eligTouchFired = true;
+        e.preventDefault();
+        toggleEligFilter();
+        setTimeout(function () { eligTouchFired = false; }, 500);
+      }, { passive: false });
+      eligBtn.addEventListener("click", function () {
+        if (eligTouchFired) return;
+        toggleEligFilter();
+      });
+    }
 
     var activeFilters = loadFilters();
     renderFilterButtons(activeFilters);
+    populateMeSelect();
     applyFilters(activeFilters);
 
     var saved = localStorage.getItem(STORAGE_VIEW) || "table";
@@ -293,7 +388,9 @@
 
   // Expose globals used by inline HTML onclick attributes in the template
   window.setView = setView;
+  window.setMeFilter = setMeFilter;
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
   window.resetFilters = resetFilters;
+  window.toggleEligFilter = toggleEligFilter;
 })();

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from 'macros/help.html' import help_icon %}
 {% block title %}Vybavení — MedCover{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Typy vybavení</h2>
+  <h2 class="mb-0">Typy vybavení {{ help_icon("Typy vybavení jsou kategorie (např. Defibrilátory, Lékárničky, Sanitky). Pod každý typ spadají konkrétní Položky vybavení. Přiřazení vybavení k akci probíhá na úrovni položek.") }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('equipment.items') }}" class="btn btn-outline-secondary btn-sm">Přehled položek</a>
     {% if current_user.has_permission('equipment_type.create') %}
@@ -27,7 +28,7 @@
     <tbody>
       {% for et in types %}
       <tr {% if current_user.has_permission('equipment_type.edit') %}
-          style="cursor:pointer"
+          class="cursor-pointer"
           onclick="window.location='{{ url_for('equipment.type_edit', type_id=et.id) }}'"
           {% endif %}>
         <td class="fw-semibold">{{ et.name }}</td>

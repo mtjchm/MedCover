@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Zálohování — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Zálohování a obnovení</h2>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-sm">← Administrace</a>
+</div>
+
+{# ── Backup files list ──────────────────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Uložené zálohy</span>
+    {% if current_user.has_permission("backup.run") %}
+    <form method="post" action="{{ url_for('backup.run_backup') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm">▶ Vytvořit zálohu nyní</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    {% if backups %}
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Soubor</th>
+          <th>Velikost</th>
+          <th>Vytvořeno</th>
+          <th class="text-end">Akce</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td class="font-monospace small">{{ b.name }}</td>
+          <td class="text-muted small">{{ (b.size_bytes / 1024) | cznum }} KB</td>
+          <td class="text-muted small">{{ b.created_at.strftime("%d.%m.%Y %H:%M") }} UTC</td>
+          <td class="text-end">
+            {% if current_user.has_permission("backup.download") %}
+            <a href="{{ url_for('backup.download', filename=b.name) }}"
+               class="btn btn-outline-secondary btn-sm me-1">⬇ Stáhnout</a>
+            {% endif %}
+            {% if current_user.has_permission("backup.restore") %}
+            <button type="button" class="btn btn-outline-danger btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#restoreModal"
+                    data-filename="{{ b.name }}">
+              ↺ Obnovit
+            </button>
+            {% endif %}
+            {% if current_user.has_permission("backup.delete") %}
+            <button type="button" class="btn btn-danger btn-sm ms-1"
+                    data-bs-toggle="modal"
+                    data-bs-target="#deleteModal"
+                    data-filename="{{ b.name }}">
+              🗑 Smazat
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="p-3 text-muted">Žádné zálohy zatím neexistují.</div>
+    {% endif %}
+  </div>
+  <div class="card-footer text-muted small">
+    Adresář záložních souborů: <code>{{ backup_dir }}</code>
+    &nbsp;·&nbsp; Uchováváno max. <strong>{{ settings.backup_keep_count }}</strong> souborů
+  </div>
+</div>
+
+{# ── Upload & restore ───────────────────────────────────────────────────── #}
+{% if current_user.has_permission("backup.restore") %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Nahrát zálohu ze souboru</div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Nahrajte záložní soubor <code>.zip</code> vytvořený touto aplikací.
+      Všechna stávající data budou přepsána.
+    </p>
+    <form method="post" action="{{ url_for('backup.upload_restore') }}"
+          enctype="multipart/form-data"
+          id="uploadRestoreForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label" for="backup_file">Soubor zálohy (.zip)</label>
+        <input type="file" class="form-control" id="backup_file" name="backup_file"
+               accept=".zip" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="upload_confirmation">
+          Pro potvrzení napište <strong>RESTORE</strong>
+        </label>
+        <input type="text" class="form-control" id="upload_confirmation"
+               name="confirmation" placeholder="RESTORE" autocomplete="off" required>
+      </div>
+      <button type="submit" class="btn btn-danger"
+              onclick="return confirm('Opravdu chcete přepsat všechna data? Tato akce je nevratná.')">
+        ↺ Nahrát a obnovit
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ── Backup settings ────────────────────────────────────────────────────── #}
+{% if current_user.has_permission("admin.manage_settings") %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Nastavení zálohování</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('backup.save_settings') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3">
+
+        <div class="col-md-6">
+          <label class="form-label" for="backup_dir">Adresář zálohy</label>
+          <input type="text" class="form-control" id="backup_dir" name="backup_dir"
+                 value="{{ settings.backup_dir }}" required>
+          <div class="form-text">Relativní k adresáři projektu nebo absolutní cesta.</div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label" for="backup_keep_count">Počet uchovávaných záloh</label>
+          <input type="number" class="form-control" id="backup_keep_count"
+                 name="backup_keep_count" min="1" max="365"
+                 value="{{ settings.backup_keep_count }}" required>
+        </div>
+
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check pb-2">
+            <input class="form-check-input" type="checkbox" id="backup_schedule_enabled"
+                   name="backup_schedule_enabled"
+                   {% if settings.backup_schedule_enabled %}checked{% endif %}>
+            <label class="form-check-label" for="backup_schedule_enabled">
+              Automatické denní zálohování
+            </label>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label" for="backup_schedule_hour">
+            Hodina spuštění (0–23, UTC)
+          </label>
+          <input type="number" class="form-control" id="backup_schedule_hour"
+                 name="backup_schedule_hour" min="0" max="23"
+                 value="{{ settings.backup_schedule_hour }}" required>
+        </div>
+
+      </div>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary btn-sm">Uložit nastavení</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ── Restore confirmation modal ──────────────────────────────────────────── #}
+{% if current_user.has_permission("backup.restore") %}
+<div class="modal fade" id="restoreModal" tabindex="-1" aria-labelledby="restoreModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="restoreForm" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-danger">
+          <h5 class="modal-title text-danger" id="restoreModalLabel">⚠ Obnovení zálohy</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Chystáte se obnovit databázi ze zálohy
+            <strong id="restoreFilename" class="font-monospace"></strong>.
+          </p>
+          <p class="text-danger fw-semibold">
+            Všechna stávající data budou nevratně smazána a nahrazena obsahem zálohy.
+          </p>
+          <div class="mb-3">
+            <label class="form-label" for="restore_confirmation">
+              Pro potvrzení napište <strong>RESTORE</strong>
+            </label>
+            <input type="text" class="form-control" id="restore_confirmation"
+                   name="confirmation" placeholder="RESTORE" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-danger">↺ Obnovit databázi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const restoreModal = document.getElementById('restoreModal');
+  restoreModal.addEventListener('show.bs.modal', function (event) {
+    const btn = event.relatedTarget;
+    const filename = btn.getAttribute('data-filename');
+    document.getElementById('restoreFilename').textContent = filename;
+    document.getElementById('restoreForm').action = '/admin/backup/restore/' + encodeURIComponent(filename);
+    document.getElementById('restore_confirmation').value = '';
+  });
+</script>
+{% endif %}
+
+{# ── Delete confirmation modal ────────────────────────────────────────────── #}
+{% if current_user.has_permission("backup.delete") %}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="deleteForm" action="">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-danger">
+          <h5 class="modal-title text-danger" id="deleteModalLabel">🗑 Smazat zálohu</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Chystáte se smazat záložní soubor
+            <strong id="deleteFilename" class="font-monospace"></strong>.
+          </p>
+          <p class="text-danger fw-semibold">Tato akce je nevratná.</p>
+          <div class="mb-3">
+            <label class="form-label" for="delete_confirmation">
+              Pro potvrzení napište <strong>SMAZAT</strong>
+            </label>
+            <input type="text" class="form-control" id="delete_confirmation"
+                   name="confirmation" placeholder="SMAZAT" autocomplete="off" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-danger">🗑 Smazat zálohu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  const deleteModal = document.getElementById('deleteModal');
+  deleteModal.addEventListener('show.bs.modal', function (event) {
+    const btn = event.relatedTarget;
+    const filename = btn.getAttribute('data-filename');
+    document.getElementById('deleteFilename').textContent = filename;
+    document.getElementById('deleteForm').action = '/admin/backup/delete/' + encodeURIComponent(filename);
+    document.getElementById('delete_confirmation').value = '';
+  });
+</script>
+{% endif %}
+
+{% endblock %}
