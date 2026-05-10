@@ -136,6 +136,18 @@ Two modules hold all reusable building blocks. **Always import the existing help
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
+### Versioning & Release Checklist
+When implementing a release (bumping the version number), always do all of the following in a single commit on a feature branch:
+
+1. **`VERSION`** — update the version number (e.g. `0.9.1`)
+2. **`CHANGELOG.md`** (English) — move `[Unreleased]` items into a new `[X.Y.Z] - YYYY-MM-DD` section; keep `[Unreleased]` at the top (empty); update the compare URLs at the bottom
+3. **`app/templates/main/changelog.html`** (Czech) — add a new card for the version above the previous release; keep the "Chystané změny" card at the top (empty)
+4. After the PR is **merged to main**: tag the merge commit — `git tag vX.Y.Z && git push origin vX.Y.Z`
+
+**SemVer rules:** `PATCH` for bug fixes; `MINOR` for new features; `MAJOR` for breaking changes or a major milestone.
+
+`APP_VERSION` (from `VERSION` file) is the canonical displayed version. `GIT_COMMIT` (Docker build arg) is kept separately for static file cache-busting — do not replace one with the other.
+
 ### Working on a GitHub Issue
 When fixing or implementing a GitHub issue:
 1. **Treat the issue as incomplete.** Issues often describe only the symptom. Always investigate the broader context: look for related code paths, similar patterns elsewhere in the codebase, and edge cases the issue does not mention.

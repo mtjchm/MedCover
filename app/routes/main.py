@@ -25,6 +25,13 @@ def health() -> tuple[Response, int]:
         return jsonify({"status": "error", "detail": str(exc)}), 503
 
 
+@main_bp.get("/changelog")
+@login_required
+def changelog() -> str:
+    """Render the application changelog (Czech, visible to all logged-in users)."""
+    return render_template("main/changelog.html")
+
+
 @main_bp.route("/dashboard")
 @login_required
 def dashboard() -> str:

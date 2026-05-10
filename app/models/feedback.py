@@ -20,7 +20,7 @@ class UserFeedback(db.Model):  # type: ignore[misc]
     page_url = db.Column(db.String(2048), nullable=True)
     user_agent = db.Column(db.Text, nullable=True)
     screen_info = db.Column(db.String(255), nullable=True)
-    app_version = db.Column(db.String(64), nullable=True)  # GIT_COMMIT at submission time
+    app_version = db.Column(db.String(64), nullable=True)  # APP_VERSION at submission time
     submitted_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

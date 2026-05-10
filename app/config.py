@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 
 RESET_TOKEN_MINUTES = 10
@@ -7,6 +8,8 @@ INVITE_TOKEN_HOURS = 72
 # Brute-force login protection
 LOGIN_MAX_ATTEMPTS = 5        # consecutive failures before lockout
 LOGIN_LOCKOUT_MINUTES = 15    # how long the account is locked
+
+_VERSION_FILE = pathlib.Path(__file__).parent.parent / "VERSION"
 
 
 class Config:
@@ -21,6 +24,8 @@ class Config:
     # Short git commit hash injected at Docker build time via ARG GIT_COMMIT.
     # Falls back to "dev" when running outside of Docker (local dev, tests).
     GIT_COMMIT: str = os.environ.get("GIT_COMMIT", "dev")
+    # Application version read from the VERSION file at the repo root.
+    APP_VERSION: str = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "unknown"
 
 
 class DevelopmentConfig(Config):

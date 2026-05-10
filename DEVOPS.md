@@ -525,6 +525,70 @@ curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 
 ---
 
+## Versioning & Changelog
+
+This project uses **[Semantic Versioning](https://semver.org/)** (`MAJOR.MINOR.PATCH`).
+
+| Bump | When |
+|---|---|
+| `PATCH` | Bug fixes, small UI tweaks, no new features |
+| `MINOR` | New features, backwards-compatible |
+| `MAJOR` | Breaking changes or a major milestone (e.g. production launch) |
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `VERSION` | Single source of truth — one line, e.g. `0.9.1` |
+| `CHANGELOG.md` | English, [Keep a Changelog](https://keepachangelog.com) format — for developers and GitHub |
+| `app/templates/main/changelog.html` | Czech *Změny ve verzích* — rendered in the app at `/changelog` for all logged-in users |
+
+### APP_VERSION vs GIT_COMMIT
+
+Both are available in `app.config` and in Jinja2 templates as `config.APP_VERSION` / `config.GIT_COMMIT`:
+
+| Key | Value | Purpose |
+|---|---|---|
+| `APP_VERSION` | `0.9.0` (from `VERSION` file) | Human-readable semantic version; shown in admin dashboard; stored in `UserFeedback.app_version` |
+| `GIT_COMMIT` | `abc1234` (from Docker build arg) | Exact commit; used for static file cache-busting in `app/__init__.py`; shown in admin dashboard as a GitHub link |
+
+`GIT_COMMIT` defaults to `"dev"` outside Docker (local dev, tests).
+
+### Release process
+
+```
+1. Create a feature branch (or use the last feature branch for the release)
+
+2. Update VERSION
+   echo "0.9.1" > VERSION
+
+3. Update CHANGELOG.md (English)
+   - Move items from [Unreleased] into a new [0.9.1] - YYYY-MM-DD section
+   - Keep the [Unreleased] section at the top (empty for now)
+   - Update the compare URLs at the bottom
+
+4. Update app/templates/main/changelog.html (Czech)
+   - Add a new card for version 0.9.1 above the previous release card
+   - Keep the "Chystané změny" card at the top (empty)
+
+5. Commit:
+   git add VERSION CHANGELOG.md app/templates/main/changelog.html
+   git commit -m "chore: release v0.9.1"
+
+6. Open PR, merge to main
+
+7. Tag the merge commit on main:
+   git checkout main && git pull
+   git tag v0.9.1
+   git push origin v0.9.1
+```
+
+### Keeping changelogs in sync
+
+Both the English `CHANGELOG.md` and the Czech `changelog.html` must be updated together on every release. The Czech template is the user-facing version; the English file is for developers and GitHub release notes.
+
+---
+
 ## Database Migrations
 
 This project uses **Flask-Migrate** (Alembic wrapper for Flask-SQLAlchemy).
