@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlsplit
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -12,23 +11,12 @@ from app.models.invite import RegistrationInvite
 from app.models.role import Role
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
-from app.utils import external_url_for
+from app.utils import external_url_for, safe_next
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 _RESET_SALT = "pw-reset"
 _INVITE_SALT = "invite"
-
-
-def _safe_next(next_url: str | None) -> str:
-    """Return next_url only if it is same-origin, else fall back to dashboard."""
-    if not next_url:
-        return url_for("main.dashboard")
-    parsed = urlsplit(next_url)
-    # Reject anything with a scheme or netloc (external URL or protocol-relative)
-    if parsed.scheme or parsed.netloc:
-        return url_for("main.dashboard")
-    return next_url
 
 
 def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
@@ -72,7 +60,7 @@ def login() -> str | Response:
                 flash("Váš účet čeká na aktivaci administrátorem.", "warning")
                 return redirect(url_for("auth.login"))
             login_user(user)
-            return redirect(_safe_next(request.args.get("next")))
+            return redirect(safe_next(request.args.get("next")))
 
         flash("Nesprávný e-mail nebo heslo.", "danger")
 
@@ -107,7 +95,7 @@ def forgot_password() -> str | Response:
                 subject="MedCover — obnovení hesla",
                 template="email/reset_password.txt",
                 reset_url=reset_url,
-                hours=RESET_TOKEN_MINUTES,
+                minutes=RESET_TOKEN_MINUTES,
             )
             db.session.add(AuditLogEntry(
                 actor_id=user.id,

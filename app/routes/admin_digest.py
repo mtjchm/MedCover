@@ -24,7 +24,7 @@ _FREQUENCY_OPTIONS = [
 
 
 def _require_digest_perm() -> None:
-    if not current_user.is_authenticated or not current_user.has_permission("admin.manage_digest"):
+    if not current_user.has_permission("admin.manage_digest"):
         abort(403)
 
 
@@ -192,28 +192,28 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
         for key in ("show_user_count", "show_event_count", "show_db_size",
                     "show_scheduler_heartbeat", "show_outbox_pending", "show_outbox_peak"):
             config[key] = bool(form.get(key))
-        config["peak_hours"] = max(1, int(form.get("peak_hours", 24) or 24))
+        config["peak_hours"] = max(1, form.get("peak_hours", type=int) or 24)
 
     elif block_type == "audit_log":
-        config["hours"] = max(1, int(form.get("hours", 24) or 24))
-        config["max_rows"] = max(1, min(200, int(form.get("max_rows", 50) or 50)))
+        config["hours"] = max(1, form.get("hours", type=int) or 24)
+        config["max_rows"] = max(1, min(200, form.get("max_rows", type=int) or 50))
         config["show_actor"] = bool(form.get("show_actor"))
         config["entity_types"] = form.getlist("entity_types")
         config["action_types"] = form.getlist("action_types")
 
     elif block_type == "upcoming_events":
-        config["days_ahead"] = max(1, int(form.get("days_ahead", 7) or 7))
-        config["max_rows"] = max(1, min(100, int(form.get("max_rows", 15) or 15)))
+        config["days_ahead"] = max(1, form.get("days_ahead", type=int) or 7)
+        config["max_rows"] = max(1, min(100, form.get("max_rows", type=int) or 15))
         config["show_unfilled_only"] = bool(form.get("show_unfilled_only"))
 
     elif block_type == "new_users":
-        config["hours"] = max(1, int(form.get("hours", 24) or 24))
-        config["max_rows"] = max(1, min(100, int(form.get("max_rows", 20) or 20)))
+        config["hours"] = max(1, form.get("hours", type=int) or 24)
+        config["max_rows"] = max(1, min(100, form.get("max_rows", type=int) or 20))
         config["show_pending_only"] = bool(form.get("show_pending_only"))
 
     elif block_type == "feedback_summary":
-        config["hours"] = max(1, int(form.get("hours", 24) or 24))
-        config["max_rows"] = max(1, min(100, int(form.get("max_rows", 20) or 20)))
+        config["hours"] = max(1, form.get("hours", type=int) or 24)
+        config["max_rows"] = max(1, min(100, form.get("max_rows", type=int) or 20))
 
     elif block_type == "free_text":
         config["content"] = form.get("content", "")
@@ -256,6 +256,8 @@ def reorder_blocks() -> dict[str, bool]:
     import sqlalchemy as sa
 
     ids: list[int] = request.get_json(silent=True) or []
+    if len(ids) > 50:
+        abort(400)
     for i, block_id in enumerate(ids):
         db.session.execute(
             sa.update(DigestBlock)
@@ -273,9 +275,19 @@ def reorder_blocks() -> dict[str, bool]:
 def preview() -> Response:
     _require_digest_perm()
     from app.digest.renderer import render_digest
+    import html as _html
 
-    html = render_digest(db.session)
-    return Response(html, content_type="text/html; charset=utf-8")
+    digest_html = render_digest(db.session)
+    # Sandbox the digest content in an iframe to prevent XSS from admin-controlled
+    # free_text / header_html / footer_html fields executing in the browser context.
+    escaped = _html.escape(digest_html, quote=True)
+    wrapper = (
+        '<!DOCTYPE html><html><body style="margin:0">'
+        f'<iframe srcdoc="{escaped}"'
+        ' style="width:100%;height:100vh;border:none;" sandbox></iframe>'
+        '</body></html>'
+    )
+    return Response(wrapper, content_type="text/html; charset=utf-8")
 
 
 # ── Send test ─────────────────────────────────────────────────────────────────

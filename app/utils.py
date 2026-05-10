@@ -2,12 +2,29 @@
 from __future__ import annotations
 
 from typing import TypeVar
+from urllib.parse import urlsplit
 
 # Reusable flash message constants (Czech UI).
 RECORD_MODIFIED_MSG = "Záznam byl mezitím změněn, načtěte stránku znovu."
 
 T = TypeVar("T")
 E = TypeVar("E")
+
+
+def safe_next(next_url: str | None) -> str:
+    """Return *next_url* only if same-origin; otherwise fall back to dashboard.
+
+    Prevents open-redirect attacks where an attacker supplies an absolute URL
+    as the ``next`` parameter (e.g. ``?next=https://evil.example``).
+    """
+    from flask import url_for
+
+    if not next_url:
+        return url_for("main.dashboard")
+    parsed = urlsplit(next_url)
+    if parsed.scheme or parsed.netloc:
+        return url_for("main.dashboard")
+    return next_url
 
 
 def external_url_for(endpoint: str, **values: object) -> str:

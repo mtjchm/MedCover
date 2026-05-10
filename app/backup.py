@@ -265,7 +265,8 @@ def restore_from_zip(zip_path: str | Path) -> None:
                         next_id = conn.execute(sa.text(
                             f'SELECT COALESCE(MAX("{pk}"), 0) + 1 FROM "{table_name}"'
                         )).scalar()
-                        conn.execute(sa.text(f"SELECT setval('{seq}', {next_id}, false)"))
+                        if next_id is not None:
+                            conn.execute(sa.text(f"SELECT setval('{seq}', {int(next_id)}, false)"))
                 conn.commit()
             except Exception as exc:
                 conn.rollback()
