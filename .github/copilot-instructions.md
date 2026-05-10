@@ -66,6 +66,13 @@ Race conditions are a first-class concern, especially for spot assignment:
 - SQL boolean comparisons: write `col.is_(True)` / `col.is_(False)`, **not** `col == True` / `col == False`. Never silence E712 with `# noqa`.
 - **Decimal numbers in templates:** always use the `| cznum` Jinja2 filter (registered in `app/__init__.py`). It formats a number to 1 decimal place with a **comma** as the decimal separator (Czech locale). Use `| cznum(2)` for 2 decimal places. Never use `"%.1f"|format(x)` directly in templates — that produces a dot separator.
 
+### Design Principles — avoid anti-patterns
+- **Check before computing:** before calculating a value inline (e.g. duration, totals, status), check whether a model property already provides it. Use the property.
+- **Single source of truth:** business logic that may be needed by multiple parts of the codebase (routes, generators, tasks, templates) belongs on the model or in a shared helper — not duplicated inline. Ask: *could another module need this?* If yes, add a property or helper.
+- **No duplicated arithmetic:** if a computation already exists as a model property (e.g. `Event.scheduled_hours`, `Event.billable_hours`, `Event.actual_hours`), always use the property. Never rewrite the formula at the call site.
+- **Model properties for derived values:** computed fields (hours, durations, statuses, counts) belong as `@property` on the relevant model. Keep route and generator code free of domain arithmetic.
+- **Shared helpers for cross-cutting concerns:** see the *Shared Helpers* section below. If a pattern appears in more than one place, lift it into `app/utils.py` or the appropriate model.
+
 ### Shared Helpers — use these, do not reinvent
 Two modules hold all reusable building blocks. **Always import the existing helper instead of writing the inline pattern.** If a duplication appears in 3+ places, lift it into one of these modules.
 
