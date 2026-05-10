@@ -49,23 +49,35 @@
 </div>
 
 {# ── Status filter bar ──────────────────────────────────────────────────── #}
+{# Build a helper macro to toggle a status in/out of the active set #}
+{% macro status_url(toggle_status) %}
+  {%- set new_statuses = [] -%}
+  {%- if toggle_status in active_statuses -%}
+    {%- set new_statuses = active_statuses | reject('equalto', toggle_status) | list -%}
+  {%- else -%}
+    {%- set new_statuses = active_statuses + [toggle_status] -%}
+  {%- endif -%}
+  {{ url_for('events.index', statuses=new_statuses|join(','), archived=1 if show_archived else None) }}
+{%- endmacro %}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT">Koncept</button>
-  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED">Zveřejněná</button>
-  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
-  <button type="button" class="btn btn-sm btn-outline-warning filter-btn" data-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
-  <button type="button" class="btn btn-sm filter-btn-neutral filter-btn" data-status="COMPLETED">Dokončena</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
+  {% if has_draft_perm %}
+  <a href="{{ status_url('DRAFT') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'DRAFT' in active_statuses }}">Koncept</a>
+  {% endif %}
+  <a href="{{ status_url('PUBLISHED') }}" class="btn btn-sm btn-outline-primary filter-btn {{ 'active' if 'PUBLISHED' in active_statuses }}">Zveřejněná</a>
+  <a href="{{ status_url('ASSIGNMENTS_OPEN') }}" class="btn btn-sm btn-outline-success filter-btn {{ 'active' if 'ASSIGNMENTS_OPEN' in active_statuses }}">Přihlášky otevřeny</a>
+  <a href="{{ status_url('ASSIGNMENTS_CLOSED') }}" class="btn btn-sm btn-outline-warning filter-btn {{ 'active' if 'ASSIGNMENTS_CLOSED' in active_statuses }}">Přihlášky uzavřeny</a>
+  <a href="{{ status_url('COMPLETED') }}" class="btn btn-sm filter-btn-neutral filter-btn {{ 'active' if 'COMPLETED' in active_statuses }}">Dokončena</a>
+  <a href="{{ status_url('CANCELLED') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'CANCELLED' in active_statuses }}">Zrušena</a>
   {% if current_user.has_permission('event.assign_own') %}
-  <button type="button" class="btn btn-sm btn-outline-info filter-btn ms-2" id="btn-elig-filter">Pro mě</button>
+  <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-elig-filter">Pro mě</button>
   {% endif %}
   <select id="me-filter-select" class="form-select form-select-sm ms-2 maxw-250 d-none"
           title="Filtrovat podle nadřazené akce" onchange="setMeFilter(this.value)">
     <option value="">Všechny nadřazené akce</option>
   </select>
-  <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
-          onclick="resetFilters()">Výchozí</button>
+  <a href="{{ url_for('events.index', archived=1 if show_archived else None) }}"
+     class="btn btn-sm btn-link text-muted p-0 ms-2">Výchozí</a>
 </div>
 
 {% set status_colors = {
@@ -283,6 +295,6 @@
   }
 </style>
 
-<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
+<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "activeStatuses": {{ active_statuses | tojson }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
 <script src="{{ url_for('static', filename='js/events-index.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

@@ -44,7 +44,8 @@ class TestEventListPermissions:
     def test_event_row_has_data_me_attribute(self, app, admin_client):
         me_id = _make_master_event(app)
         admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
-        response = admin_client.get("/events/")
+        # DRAFT is excluded by default; request it explicitly
+        response = admin_client.get("/events/?statuses=DRAFT")
         assert b'data-me=' in response.data
 
 

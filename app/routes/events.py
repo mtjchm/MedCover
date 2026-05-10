@@ -74,12 +74,33 @@ def index() -> str:
     show_archived = request.args.get("archived") == "1"
     page = request.args.get("page", 1, type=int)
 
+    # Status filter: comma-separated list of EventStatus names in URL.
+    # Default shows everything except DRAFT (permission-gated) and CANCELLED.
+    _all_statuses = [s.name for s in EventStatus]
+    _default_statuses = [
+        s.name for s in EventStatus
+        if s not in (EventStatus.DRAFT, EventStatus.CANCELLED)
+    ]
+    raw_statuses = request.args.get("statuses", "")
+    if raw_statuses:
+        active_statuses = [s for s in raw_statuses.split(",") if s in _all_statuses]
+    else:
+        active_statuses = _default_statuses
+
     query = db.select(Event).order_by(Event.start_datetime.desc())
 
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
         query = query.where(Event.archived.is_(False))
+
+    # Apply server-side status filter
+    status_values = [EventStatus[s] for s in active_statuses if s in EventStatus.__members__]
+    if status_values:
+        query = query.where(Event.status.in_(status_values))
+    else:
+        # Nothing selected → return empty result
+        query = query.where(db.false())
 
     pagination = db.paginate(query, page=page, per_page=_PER_PAGE, error_out=False)
     events = pagination.items
@@ -121,6 +142,9 @@ def index() -> str:
         events=events,
         pagination=pagination,
         show_archived=show_archived,
+        active_statuses=active_statuses,
+        default_statuses=_default_statuses,
+        all_statuses=_all_statuses,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
