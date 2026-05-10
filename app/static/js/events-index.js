@@ -14,14 +14,12 @@
   var ACTIVE_MES     = cfg.activeMes || [];
 
   var STORAGE_VIEW  = "medcover_events_view";
-  var STORAGE_SORT  = "medcover_events_sort";
   var STORAGE_ELIG  = "medcover_events_elig";
   var STORAGE_ME    = "medcover_events_me";
 
   var calendarInitialized = false;
   var calendar = null;
   var allCalendarEvents = null;
-  var sortState = { col: "start", dir: "asc" };
   var eligFilter = false;
   var meFilter = "";
 
@@ -35,11 +33,6 @@
     try { return localStorage.getItem(STORAGE_ME) || ""; } catch(e) { return ""; }
   }
   function saveMeFilter(v) { localStorage.setItem(STORAGE_ME, v || ""); }
-  function loadSort() {
-    try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
-    return { col: "start", dir: "asc" };
-  }
-  function saveSort(s) { localStorage.setItem(STORAGE_SORT, JSON.stringify(s)); }
 
   // ── Table row visibility (elig + ME only — status filter is server-side) ──
 
@@ -87,52 +80,6 @@
     });
     sel.value = meFilter;
     sel.classList.remove("d-none");
-  }
-
-  // ── Table sort ────────────────────────────────────────────────────────────
-
-  function sortTable(col) {
-    if (sortState.col === col) {
-      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
-    } else {
-      sortState.col = col;
-      sortState.dir = "asc";
-    }
-    saveSort(sortState);
-    renderSortIcons();
-    doSort();
-  }
-
-  function renderSortIcons() {
-    document.querySelectorAll(".sortable").forEach(function (th) {
-      var icon = th.querySelector(".sort-icon");
-      if (!icon) return;
-      if (th.dataset.col === sortState.col) {
-        icon.textContent = sortState.dir === "asc" ? "↑" : "↓";
-        icon.classList.remove("text-muted");
-      } else {
-        icon.textContent = "↕";
-        icon.classList.add("text-muted");
-      }
-    });
-  }
-
-  function doSort() {
-    var tbody = document.querySelector("#events-table tbody");
-    if (!tbody) return;
-    var rows = Array.from(tbody.querySelectorAll("tr"));
-    var col = sortState.col;
-    var dir = sortState.dir === "asc" ? 1 : -1;
-    rows.sort(function (a, b) {
-      var aVals = JSON.parse(a.dataset.sv || "{}");
-      var bVals = JSON.parse(b.dataset.sv || "{}");
-      var av = aVals[col] != null ? String(aVals[col]) : "";
-      var bv = bVals[col] != null ? String(bVals[col]) : "";
-      if (col === "start") return dir * av.localeCompare(bv);
-      if (col === "staffing" || col === "total") return dir * (parseFloat(av) - parseFloat(bv));
-      return dir * av.localeCompare(bv, "cs");
-    });
-    rows.forEach(function (r) { tbody.appendChild(r); });
   }
 
   // ── View toggle ───────────────────────────────────────────────────────────
@@ -251,14 +198,6 @@
   // ── Init ──────────────────────────────────────────────────────────────────
 
   document.addEventListener("DOMContentLoaded", function () {
-    sortState = loadSort();
-    renderSortIcons();
-    doSort();
-
-    document.querySelectorAll(".sortable").forEach(function (th) {
-      th.addEventListener("click", function () { sortTable(th.dataset.col); });
-    });
-
     eligFilter = loadEligFilter();
     meFilter = loadMeFilter();
     var eligBtn = document.getElementById("btn-elig-filter");

@@ -59,6 +59,22 @@
   {%- endif -%}
   {{ url_for('events.index', statuses=new_statuses|join(','), archived=1 if show_archived else None) }}
 {%- endmacro %}
+
+{# Sort URL: preserve statuses + archived, toggle sort col/dir #}
+{% macro sort_url(col) %}
+  {%- set new_dir = 'asc' -%}
+  {%- if sort_col == col -%}
+    {%- set new_dir = 'desc' if sort_dir == 'asc' else 'asc' -%}
+  {%- endif -%}
+  {{ url_for('events.index', sort=col, dir=new_dir, statuses=active_statuses|join(','), archived=1 if show_archived else None) }}
+{%- endmacro %}
+{% macro sort_icon(col) %}
+  {%- if sort_col == col -%}
+    <span class="sort-icon">{{ '↑' if sort_dir == 'asc' else '↓' }}</span>
+  {%- else -%}
+    <span class="sort-icon text-muted">↕</span>
+  {%- endif -%}
+{%- endmacro %}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
   {% if has_draft_perm %}
@@ -132,18 +148,18 @@
             <input type="checkbox" class="form-check-input" id="check-all-events"
                    title="Vybrat / odebrat vše viditelné">
           </th>
-          <th class="sortable cursor-pointer text-nowrap minw-12r" data-col="name">
-            Název <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="me_name">
-            Nadřazená<br>akce <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="start">
-            Začátek <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="status">
-            Stav <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="total">
-            Obsazení <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="rp">
-            Zodpovědný<br>zdravotník <span class="sort-icon text-muted">↕</span></th>
+          <th class="text-nowrap minw-12r">
+            <a href="{{ sort_url('name') }}" class="text-decoration-none text-reset">Název {{ sort_icon('name') }}</a></th>
+          <th class="text-wrap minw-7r maxw-9r">
+            <a href="{{ sort_url('me_name') }}" class="text-decoration-none text-reset">Nadřazená<br>akce {{ sort_icon('me_name') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('start') }}" class="text-decoration-none text-reset">Začátek {{ sort_icon('start') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('status') }}" class="text-decoration-none text-reset">Stav {{ sort_icon('status') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('total') }}" class="text-decoration-none text-reset">Obsazení {{ sort_icon('total') }}</a></th>
+          <th class="text-wrap minw-7r maxw-9r">
+            <a href="{{ sort_url('rp') }}" class="text-decoration-none text-reset">Zodpovědný<br>zdravotník {{ sort_icon('rp') }}</a></th>
           <th></th>
         </tr>
       </thead>
@@ -158,7 +174,6 @@
             data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
             data-me="{{ '' if event.master_event.is_general else event.master_event.name }}"
             data-event-id="{{ event.id }}"
-            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
           <td class="px-2">
             <input type="checkbox" class="form-check-input row-event-check" value="{{ event.id }}"
                    title="Vybrat akci">
@@ -280,7 +295,6 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
 <style>
-  .sortable:hover { background-color: rgba(0,0,0,.04); }
   .sort-icon { font-size: .75em; }
   /* Theme-aware "dark/completed" filter button */
   .filter-btn-neutral {
