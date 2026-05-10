@@ -75,17 +75,18 @@ def index() -> str:
     page = request.args.get("page", 1, type=int)
 
     # Status filter: comma-separated list of EventStatus names in URL.
-    # Default shows everything except DRAFT (permission-gated) and CANCELLED.
+    # If the ?statuses param is absent (first visit / direct link) use defaults.
+    # If it is present but empty, the user explicitly disabled all filters → respect that.
     _all_statuses = [s.name for s in EventStatus]
     _default_statuses = [
         s.name for s in EventStatus
         if s not in (EventStatus.DRAFT, EventStatus.CANCELLED)
     ]
-    raw_statuses = request.args.get("statuses", "")
-    if raw_statuses:
-        active_statuses = [s for s in raw_statuses.split(",") if s in _all_statuses]
-    else:
+    if "statuses" not in request.args:
         active_statuses = _default_statuses
+    else:
+        raw_statuses = request.args.get("statuses", "")
+        active_statuses = [s for s in raw_statuses.split(",") if s in _all_statuses]
 
     query = db.select(Event).order_by(Event.start_datetime.desc())
 
