@@ -20,7 +20,7 @@ from flask_login import current_user, login_required
 
 from app.extensions import db
 from app.utils import audit, require_permission
-from app.models.assignment import Assignment
+from app.models.assignment import Assignment, DebriefingRecord
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
@@ -450,6 +450,11 @@ def events_confirm() -> Response:
         # ── Step 2: Process events ──────────────────────────────────────────
         created = 0
         skipped = 0
+        auto_debriefings = 0
+        _IMPORT_DEBRIEFING_NOTE = (
+            "importovaný historický dozor - tento debriefing byl "
+            "vygenerován aplikací během importu"
+        )
 
         for i in range(event_count):
             prefix = f"ev_{i}_"
@@ -490,12 +495,15 @@ def events_confirm() -> Response:
             else:
                 end_dt = start_dt + timedelta(hours=2)
 
+            is_past = end_dt < datetime.now(timezone.utc)
             event = Event(
                 name=name,
                 master_event_id=master_event.id,
-                status=EventStatus.COMPLETED if end_dt < datetime.now(timezone.utc) else EventStatus.DRAFT,
+                status=EventStatus.COMPLETED if is_past else EventStatus.DRAFT,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
+                actual_start_datetime=start_dt if is_past else None,
+                actual_end_datetime=end_dt if is_past else None,
                 address=location,
                 contact_person=contact_person,
                 paid=paid,
@@ -560,14 +568,24 @@ def events_confirm() -> Response:
                 if responsible_person_id and zdravotnik_spot:
                     rp_user_obj = db.session.get(UserAccount, responsible_person_id)
                     if rp_user_obj:
-                        db.session.add(Assignment(
+                        rp_assignment = Assignment(
                             spot_id=zdravotnik_spot.id,
                             user_id=rp_user_obj.id,
                             assigned_by_id=current_user.id,
-                        ))
+                        )
+                        db.session.add(rp_assignment)
                         # Set RP on event if user is RP-eligible
                         if rp_user_obj.is_rp_eligible():
                             event.responsible_person_id = rp_user_obj.id
+                        if is_past:
+                            db.session.flush()
+                            db.session.add(DebriefingRecord(
+                                assignment_id=rp_assignment.id,
+                                submitted_by_id=current_user.id,
+                                grade=3,
+                                feedback_event=_IMPORT_DEBRIEFING_NOTE,
+                            ))
+                            auto_debriefings += 1
 
                 # Each signup → Zelenáč spots in order
                 for j, signup_name in enumerate(signup_names):
@@ -575,11 +593,21 @@ def events_confirm() -> Response:
                         break
                     signup_user = name_to_user.get(signup_name.lower())
                     if signup_user:
-                        db.session.add(Assignment(
+                        signup_assignment = Assignment(
                             spot_id=zelenac_spots[j].id,
                             user_id=signup_user.id,
                             assigned_by_id=current_user.id,
-                        ))
+                        )
+                        db.session.add(signup_assignment)
+                        if is_past:
+                            db.session.flush()
+                            db.session.add(DebriefingRecord(
+                                assignment_id=signup_assignment.id,
+                                submitted_by_id=current_user.id,
+                                grade=3,
+                                feedback_event=_IMPORT_DEBRIEFING_NOTE,
+                            ))
+                            auto_debriefings += 1
 
             # ── Audit log ─────────────────────────────────────────────────
             audit("import", "Event", event.id, f"Akce importována z Google Sheets: {name}", None)
@@ -600,5 +628,7 @@ def events_confirm() -> Response:
         parts.append(f"vytvořeno {created_users} uživatelů")
     if skipped_users:
         parts.append(f"přeskočeno {skipped_users} uživatelů (existovali)")
+    if auto_debriefings:
+        parts.append(f"automaticky vytvořeno {auto_debriefings} debriefingů pro historické akce")
     flash(f"Import dokončen: {', '.join(parts)}.", "success")
     return redirect(url_for("events.index"))
