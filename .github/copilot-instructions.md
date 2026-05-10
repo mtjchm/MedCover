@@ -151,6 +151,8 @@ When implementing a release (bumping the version number), always do all of the f
 **Czech changelog (`changelog.html`) — user-facing only.**
 Include only changes the user would notice or care about: new features/screens, workflow changes, visible bug fixes, new automatic emails. **Never include:** security hardening, performance optimisations, refactors, migrations, developer tooling, CI, or internal technical details. The English `CHANGELOG.md` captures everything; the Czech template is for end users only.
 
+Each bullet point in `changelog.html` must include a linked PR reference at the end, e.g. `<a href="https://github.com/spidermila/MedCover/pull/NNN" class="text-muted small" target="_blank">#NNN</a>`. When a single item is covered by multiple PRs, link all of them.
+
 ### Notification Catalog — mandatory update rule
 `NOTIFICATION_CATALOG` in `app/mail.py` is the authoritative list of all email notification types.
 The admin UI at `/admin/notifications/` renders this list.

@@ -1,0 +1,19 @@
+Dobrý den, {{ user_name }},
+
+akce, na které jste přihlášeni, byla upravena:
+
+  {{ event.name }}
+{% if event.address %}  Místo:   {{ event.address }}
+{% endif %}
+Odkaz na akci: {{ event_url }}
+
+Změny:
+{% for label, old_val, new_val in changes %}
+  {{ label }}:
+    Před: {{ old_val }}
+    Po:   {{ new_val }}
+{% endfor %}
+V případě dotazů kontaktujte prosím koordinátora.
+
+S pozdravem,
+MedCover

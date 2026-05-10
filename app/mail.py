@@ -111,6 +111,16 @@ NOTIFICATION_CATALOG: list[dict] = [
         "always_on": False,
     },
     {
+        "code": "event_changed",
+        "settings_field": "notify_event_changed",
+        "name_cs": "Změna údajů akce",
+        "description_cs": "Odesílán přihlášeným dobrovolníkům při změně údajů akce (název, čas, místo, popis apod.).",
+        "trigger_cs": "Uložení změny akce (editace existující akce)",
+        "recipient_cs": "Přihlášení dobrovolníci (role: Člen)",
+        "templates": ["email/event_changed.txt"],
+        "always_on": False,
+    },
+    {
         "code": "unfilled_reminder",
         "settings_field": "notify_unfilled_reminder",
         "name_cs": "Připomínka nevyplněných míst",
@@ -174,6 +184,7 @@ _NOTIFICATION_ALLOWED_ROLES: dict[str, set[str]] = {
     "assignment":        {"Member"},                 # confirmed, released
     "unfilled_reminder": {"Coordinator", "Member"},  # reminder to coordinator / RP
     "event_cancelled":   {"Member"},                 # cancelled → notify assigned users
+    "event_changed":     {"Member"},                 # event details changed → notify assigned users
 }
 
 
@@ -306,6 +317,78 @@ def send_event_cancelled(user: UserAccount, event: Event) -> None:
     )
     _enqueue(user.email, f"MedCover — Akce zrušena: {event.name}", body,
              notification_type="event_cancelled")
+
+
+# Human-readable Czech labels for event fields shown in change notifications.
+_EVENT_FIELD_LABELS: dict[str, str] = {
+    "name": "Název akce",
+    "master_event_id": "Nadřazená akce",
+    "start_datetime": "Začátek",
+    "end_datetime": "Konec",
+    "address": "Místo konání",
+    "contact_person": "Kontaktní osoba",
+    "description": "Popis",
+    "paid": "Placená akce",
+    "responsible_person_id": "Zodpovědná osoba",
+    "assignments_open_datetime": "Otevření přihlášek",
+}
+
+
+def _format_event_change_value(field: str, raw: object) -> str:
+    """Return a human-readable Czech string for a single change value."""
+    if raw is None or str(raw) in ("None", ""):
+        return "—"
+    val = str(raw)
+    # Format ISO datetime strings to Czech local time.
+    if "datetime" in field:
+        try:
+            import zoneinfo
+            from datetime import datetime as _dt
+            parsed = _dt.fromisoformat(val)
+            local = parsed.astimezone(zoneinfo.ZoneInfo("Europe/Prague"))
+            return local.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return val
+    # Boolean fields
+    if field == "paid":
+        return "Ano" if val in ("True", "1", "true") else "Ne"
+    return val
+
+
+def send_event_changed(
+    user: UserAccount,
+    event: Event,
+    changes: dict[str, list[object]],
+    event_url: str = "",
+) -> None:
+    """Notify an assigned user that event details have changed.
+
+    *changes* is the dict returned by ``diff_changes(before, after)``
+    — ``{field_name: [old_value, new_value]}``.  Only called when the diff
+    is non-empty.
+    """
+    if not _is_notify_enabled("notify_event_changed"):
+        return
+    if not user_can_receive_notification(user, "event_changed"):
+        return
+
+    formatted: list[tuple[str, str, str]] = [
+        (
+            _EVENT_FIELD_LABELS.get(field, field),
+            _format_event_change_value(field, vals[0]),
+            _format_event_change_value(field, vals[1]),
+        )
+        for field, vals in changes.items()
+    ]
+    body = render_template(
+        "email/event_changed.txt",
+        user_name=user.name,
+        event=event,
+        event_url=event_url,
+        changes=formatted,
+    )
+    _enqueue(user.email, f"MedCover — Změna akce: {event.name}", body,
+             notification_type="event_changed")
 
 
 # ── Reminder (scheduler) ──────────────────────────────────────────────────────

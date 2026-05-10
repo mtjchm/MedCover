@@ -404,6 +404,20 @@ def edit(event_id: int) -> str | Response:
         audit("edit", "Event", event.id, f"Upravena akce '{event.name}'", diff_changes(before, after))
         db.session.commit()
 
+        # Notify assigned users about the change (only if something actually changed).
+        actual_changes = diff_changes(before, after)
+        if actual_changes:
+            from app.utils import external_url_for
+            event_url = external_url_for("events.detail", event_id=event.id)
+            assigned_users = [
+                spot.assignment.user
+                for spot in event.spots
+                if spot.assignment is not None
+            ]
+            for u in assigned_users:
+                mailer.send_event_changed(u, event, actual_changes, event_url=event_url)
+            db.session.commit()  # commit the enqueued outbox rows
+
         flash("Akce byla uložena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 

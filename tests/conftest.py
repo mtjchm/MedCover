@@ -246,6 +246,12 @@ def clean_db(app):
             settings.dev_email_allowlist = None
             settings.feedback_enabled = True
             settings.app_base_url = None
+            settings.notify_assignment = True
+            settings.notify_event_lifecycle = True
+            settings.notify_event_cancelled = True
+            settings.notify_event_changed = True
+            settings.notify_unfilled_reminder = True
+            settings.notify_debriefing = True
             _db.session.commit()
         _db.session.remove()
 

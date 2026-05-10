@@ -646,8 +646,8 @@ class TestCalendarFeedExtended:
 
 class TestEditSpot:
     def _create_event_with_spot(self, app) -> tuple[int, int]:
-        from datetime import datetime, timezone
         from app.models.event import EventSpot
+        from datetime import datetime, timezone
         with app.app_context():
             me = MasterEvent(name="EditSpot ME")
             db.session.add(me)
@@ -698,8 +698,8 @@ class TestEditSpot:
 
 class TestDeleteSpot:
     def _create_event_with_spot(self, app) -> tuple[int, int]:
-        from datetime import datetime, timezone
         from app.models.event import EventSpot
+        from datetime import datetime, timezone
         with app.app_context():
             me = MasterEvent(name="DelSpot ME")
             db.session.add(me)
@@ -865,3 +865,132 @@ class TestEquipmentAssignExtended:
                 )
             )
             assert ea is None
+
+
+class TestEventChangedNotification:
+    """Verify that editing an event enqueues notifications to assigned users."""
+
+    def test_edit_sends_notification_to_assigned_user(self, app, admin_client):
+        from app.models.assignment import Assignment
+        from app.models.event import EventSpot, EventStatus
+        from app.models.outbox import OutboxEmail
+        from app.models.role import Role
+        from app.models.settings import get_settings
+        from app.models.user import UserAccount
+
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+
+        with app.app_context():
+            settings = get_settings()
+            settings.notify_event_changed = True
+            db.session.commit()
+
+            event = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            event_id = event.id
+            version = event.version
+
+            # Publish so spots can be assigned
+            event.status = EventStatus.PUBLISHED
+            db.session.flush()
+
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            member = UserAccount(
+                email="assigned_member_ecn@example.com",
+                name="Assigned Member",
+                is_active=True,
+            )
+            member.set_password("testpass")
+            member.roles = [role]
+            db.session.add(member)
+            db.session.flush()
+
+            spot = EventSpot(event_id=event.id)
+            db.session.add(spot)
+            db.session.flush()
+
+            assignment = Assignment(spot_id=spot.id, user_id=member.id)
+            db.session.add(assignment)
+            db.session.commit()
+
+        before_count = 0
+        with app.app_context():
+            before_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+
+        admin_client.post(
+            f"/events/{event_id}/edit",
+            data={**_event_form_data(me_id, name="Renamed Event"), "version": str(version)},
+            follow_redirects=False,
+        )
+
+        with app.app_context():
+            after_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+        assert after_count == before_count + 1
+
+    def test_edit_without_change_sends_no_notification(self, app, admin_client):
+        from app.models.assignment import Assignment
+        from app.models.event import EventSpot, EventStatus
+        from app.models.outbox import OutboxEmail
+        from app.models.role import Role
+        from app.models.settings import get_settings
+        from app.models.user import UserAccount
+
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+
+        with app.app_context():
+            settings = get_settings()
+            settings.notify_event_changed = True
+            db.session.commit()
+
+            event = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            event_id = event.id
+            version = event.version
+
+            event.status = EventStatus.PUBLISHED
+            db.session.flush()
+
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            member = UserAccount(
+                email="assigned_member_nochg@example.com",
+                name="Assigned Member 2",
+                is_active=True,
+            )
+            member.set_password("testpass")
+            member.roles = [role]
+            db.session.add(member)
+            db.session.flush()
+
+            spot = EventSpot(event_id=event.id)
+            db.session.add(spot)
+            db.session.flush()
+
+            assignment = Assignment(spot_id=spot.id, user_id=member.id)
+            db.session.add(assignment)
+            db.session.commit()
+
+        with app.app_context():
+            before_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+
+        # Submit with identical data — no real change
+        admin_client.post(
+            f"/events/{event_id}/edit",
+            data={**_event_form_data(me_id, name="Test Event"), "version": str(version)},
+            follow_redirects=False,
+        )
+
+        with app.app_context():
+            after_count = db.session.scalar(
+                db.select(db.func.count(OutboxEmail.id))
+                .where(OutboxEmail.notification_type == "event_changed")
+            )
+        assert after_count == before_count  # nothing enqueued
