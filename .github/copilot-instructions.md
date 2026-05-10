@@ -135,6 +135,12 @@ Two modules hold all reusable building blocks. **Always import the existing help
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 
+### GitHub CLI (`gh`)
+- Use the `gh` tool for all GitHub interactions (PRs, issues, etc.).
+- **Opening a PR:** use `gh pr create --web` (the repo uses Enterprise Managed Users; API-based `gh pr create` without `--web` will fail with an Unauthorized GraphQL error).
+- When the user asks to open/create a PR, always include a structured description covering: what the feature/fix does, new permissions or model changes, ops/infra changes, and docs updates.
+- `--web` opens the browser-based PR form pre-filled with title and body; if no browser is available in the environment, print the compare URL for the user to open manually: `https://github.com/spidermila/MedCover/compare/main...<branch>`
+
 ---
 
 ## Key Files
