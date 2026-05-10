@@ -34,3 +34,39 @@ def active_master_events_list() -> Sequence[MasterEvent]:
         .where(MasterEvent.archived.is_(False))
         .order_by(MasterEvent.is_general.desc(), MasterEvent.name)
     ).all()
+
+
+def user_fillable_qual_ids(user: UserAccount) -> set[int]:
+    """Return all qualification IDs the user can fill, respecting the hierarchy.
+
+    A user holding qualification Q can fill any spot that requires Q *or* any
+    qualification for which Q is a valid substitute (i.e. Q is an ancestor of
+    that qualification in the parent chain).
+
+    This loads all non-deleted qualifications once (tiny table) and walks the
+    parent graph in Python — call it once per request and pass the result set to
+    :meth:`EventSpot.is_eligible_for` instead of calling the per-spot recursive
+    :meth:`EventSpot.is_eligible` in a loop.
+    """
+    from app.models.qualification import Qualification
+
+    all_quals: list[Qualification] = list(db.session.scalars(
+        db.select(Qualification).where(Qualification.is_deleted.is_(False))
+    ).all())
+
+    user_qual_ids = {q.id for q in user.qualifications if not q.is_deleted}
+
+    # Build a mapping qual_id → set of parent IDs for fast lookup
+    parents_map: dict[int, list[int]] = {q.id: [p.id for p in q.parents] for q in all_quals}
+
+    def _user_can_fill(qual_id: int, visited: frozenset[int]) -> bool:
+        if qual_id in visited:
+            return False
+        if qual_id in user_qual_ids:
+            return True
+        return any(
+            _user_can_fill(pid, visited | {qual_id})
+            for pid in parents_map.get(qual_id, [])
+        )
+
+    return {q.id for q in all_quals if _user_can_fill(q.id, frozenset())}

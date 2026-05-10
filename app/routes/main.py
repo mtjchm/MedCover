@@ -10,6 +10,7 @@ from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.assignment import Assignment
 from app.models.user import UserAccount
+from app.queries import user_fillable_qual_ids
 
 main_bp = Blueprint("main", __name__)
 
@@ -86,8 +87,9 @@ def dashboard() -> str:
             .order_by(Event.start_datetime)
         ).all()
 
+        fillable_ids = user_fillable_qual_ids(current_user)
         for e in candidates:
-            has_free = any(s.assignment is None and s.is_eligible(current_user) for s in e.spots)
+            has_free = any(s.assignment is None and s.is_eligible_for(fillable_ids) for s in e.spots)
             if has_free:
                 open_events.append(e)
 

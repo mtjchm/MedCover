@@ -268,5 +268,17 @@ class EventSpot(db.Model):  # type: ignore[misc]
                 return False
         return True
 
+    def is_eligible_for(self, fillable_qual_ids: set[int]) -> bool:
+        """Fast eligibility check using a pre-computed fillable qualification ID set.
+
+        Prefer this over :meth:`is_eligible` when checking many spots for the same
+        user — call :func:`app.queries.user_fillable_qual_ids` once and pass the
+        result here to avoid repeated recursive hierarchy traversals.
+        """
+        active_reqs = [q for q in self.required_qualifications if not q.is_deleted]
+        if not active_reqs:
+            return True
+        return all(q.id in fillable_qual_ids for q in active_reqs)
+
     def __repr__(self) -> str:
         return f"<EventSpot {self.id} event={self.event_id}>"
