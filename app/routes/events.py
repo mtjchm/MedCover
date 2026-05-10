@@ -72,7 +72,6 @@ def index() -> str:
     require_permission("event.view", "event.view_draft")
 
     show_archived = request.args.get("archived") == "1"
-    show_completed = request.args.get("completed") == "1"
     page = request.args.get("page", 1, type=int)
 
     query = db.select(Event).order_by(Event.start_datetime.desc())
@@ -81,8 +80,6 @@ def index() -> str:
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
         query = query.where(Event.archived.is_(False))
-    if not show_completed:
-        query = query.where(Event.status != EventStatus.COMPLETED)
 
     pagination = db.paginate(query, page=page, per_page=_PER_PAGE, error_out=False)
     events = pagination.items
@@ -124,7 +121,6 @@ def index() -> str:
         events=events,
         pagination=pagination,
         show_archived=show_archived,
-        show_completed=show_completed,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
@@ -153,15 +149,12 @@ def feed() -> Response:
     require_permission("event.view", "event.view_draft")
 
     show_archived = request.args.get("archived") == "1"
-    show_completed = request.args.get("completed") == "1"
 
     query = db.select(Event)
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
         query = query.where(Event.archived.is_(False))
-    if not show_completed:
-        query = query.where(Event.status != EventStatus.COMPLETED)
 
     events = db.session.scalars(query).all()
 
