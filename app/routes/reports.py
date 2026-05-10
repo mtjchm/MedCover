@@ -24,6 +24,7 @@ from typing import cast
 
 from flask import Blueprint, Response, abort, make_response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
@@ -108,11 +109,6 @@ def _build_user_stat_rows(
     result = [(users[uid], _compute_user_stats(up, now)) for uid, up in user_pairs.items()]
     result.sort(key=lambda x: x[0].name)
     return result
-
-
-def _pairs_from_events(events: list[Event]) -> list[tuple[Assignment, Event]]:
-    """Flatten events → spots → assignment into (assignment, event) pairs."""
-    return [(s.assignment, ev) for ev in events for s in ev.spots if s.assignment is not None]
 
 
 # ── CSV helper ────────────────────────────────────────────────────────────────
@@ -241,14 +237,39 @@ def me_report(me_id: int) -> str | Response:
 
     now = datetime.now(timezone.utc)
 
+    # Query 1: events (no spots relationship — counts come from SQL aggregation below)
     events: list[Event] = list(db.session.scalars(
         db.select(Event)
         .where(Event.master_event_id == me_id)
-        .options(
-            selectinload(Event.spots).selectinload(EventSpot.assignment)  # type: ignore[arg-type]
-        )
         .order_by(Event.start_datetime)
     ).all())
+
+    event_ids = [ev.id for ev in events]
+
+    # Query 2: spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
+    spot_agg = db.session.execute(
+        db.select(
+            EventSpot.event_id,
+            func.count(EventSpot.id).label("total_spots"),
+            func.count(Assignment.id).label("filled_spots"),
+        )
+        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+        .group_by(EventSpot.event_id)
+    ).all()
+    spot_map: dict[int, tuple[int, int]] = {
+        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
+    }
+
+    # Query 3: assignments joined to event_spot to get (assignment, event_id) pairs
+    # Assignment.user is loaded automatically via lazy="selectin"
+    asgn_rows = db.session.execute(
+        db.select(Assignment, EventSpot.event_id)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+    ).all()
+    event_map = {ev.id: ev for ev in events}
+    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
 
     # Count events by status
     status_counts: dict[str, int] = {}
@@ -256,7 +277,7 @@ def me_report(me_id: int) -> str | Response:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
 
-    # Build per-event rows
+    # Build per-event rows using pre-computed SQL spot counts
     rows = []
     grand_total_spots = 0
     grand_filled_spots = 0
@@ -264,8 +285,7 @@ def me_report(me_id: int) -> str | Response:
     grand_patients = 0
 
     for ev in events:
-        total_spots = len(ev.spots)
-        filled_spots = sum(1 for s in ev.spots if s.assignment is not None)
+        total_spots, filled_spots = spot_map.get(ev.id, (0, 0))
         worked_hours = ev.actual_hours or Decimal("0")
         patients = ev.patients_count or 0
 
@@ -283,7 +303,6 @@ def me_report(me_id: int) -> str | Response:
         grand_patients += patients
 
     # Per-user statistics
-    pairs = _pairs_from_events(events)
     user_stat_rows = _build_user_stat_rows(pairs, now)
 
     if request.args.get("format") == "csv":
@@ -356,10 +375,35 @@ def date_range_report() -> str | Response:
         .where(Event.start_datetime < to_dt)
         .options(
             selectinload(Event.master_event),  # type: ignore[arg-type]
-            selectinload(Event.spots).selectinload(EventSpot.assignment),  # type: ignore[arg-type]
         )
         .order_by(Event.start_datetime)
     ).unique().all())
+
+    event_ids = [ev.id for ev in events]
+
+    # Spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
+    spot_agg = db.session.execute(
+        db.select(
+            EventSpot.event_id,
+            func.count(EventSpot.id).label("total_spots"),
+            func.count(Assignment.id).label("filled_spots"),
+        )
+        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+        .group_by(EventSpot.event_id)
+    ).all()
+    spot_map: dict[int, tuple[int, int]] = {
+        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
+    }
+
+    # Assignments for per-user stats (Assignment.user auto-loaded via selectin)
+    asgn_rows = db.session.execute(
+        db.select(Assignment, EventSpot.event_id)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+    ).all()
+    event_map = {ev.id: ev for ev in events}
+    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
 
     # Group by master event
     me_map: dict[int, dict] = {}
@@ -382,14 +426,14 @@ def date_range_report() -> str | Response:
     for ev in events:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
-        total_spots += len(ev.spots)
-        filled_spots += sum(1 for s in ev.spots if s.assignment is not None)
+        t, f = spot_map.get(ev.id, (0, 0))
+        total_spots += t
+        filled_spots += f
         total_worked_hours += ev.actual_hours or Decimal("0")
         total_patients += ev.patients_count or 0
 
     # Per-user statistics across the date range
     now = datetime.now(timezone.utc)
-    pairs = _pairs_from_events(events)
     user_stat_rows = _build_user_stat_rows(pairs, now)
 
     results = {
