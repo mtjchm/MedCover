@@ -30,6 +30,7 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate
+from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
 from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
@@ -75,6 +76,13 @@ def index() -> str:
         query = query.where(Event.archived.is_(False))
 
     events = db.session.scalars(query).all()
+
+    active_named_mes = db.session.scalars(
+        db.select(MasterEvent)
+        .where(MasterEvent.is_general.is_(False), MasterEvent.archived.is_(False))
+        .order_by(MasterEvent.name)
+    ).all()
+
     event_templates: list[EventTemplate] = []
     if current_user.has_permission("event.create"):
         event_templates = list(db.session.scalars(
@@ -105,6 +113,7 @@ def index() -> str:
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
         eligible_spot_map=eligible_spot_map,
+        active_named_mes=active_named_mes,
     )
 
 

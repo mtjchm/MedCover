@@ -10,11 +10,13 @@
   var FEED_URL_BASE  = cfg.feedUrl  || "";
   var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
   var CLAIM_BASE     = cfg.claimBase || "";
+  var ACTIVE_MES     = cfg.activeMes || [];
 
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_FILT  = "medcover_events_filters";
   var STORAGE_SORT  = "medcover_events_sort";
   var STORAGE_ELIG  = "medcover_events_elig";
+  var STORAGE_ME    = "medcover_events_me";
 
   var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
 
@@ -23,6 +25,7 @@
   var allCalendarEvents = null;
   var sortState = { col: "start", dir: "asc" };
   var eligFilter = false;
+  var meFilter = "";
 
   // ── Filter state ──────────────────────────────────────────────────────────
 
@@ -35,6 +38,10 @@
     try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
   }
   function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
+  function loadMeFilter() {
+    try { return localStorage.getItem(STORAGE_ME) || ""; } catch(e) { return ""; }
+  }
+  function saveMeFilter(v) { localStorage.setItem(STORAGE_ME, v || ""); }
   function loadSort() {
     try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
     return { col: "start", dir: "asc" };
@@ -66,14 +73,41 @@
     applyFilters(loadFilters());
   }
 
+  function setMeFilter(value) {
+    meFilter = value || "";
+    saveMeFilter(meFilter);
+    var sel = document.getElementById("me-filter-select");
+    if (sel) sel.value = meFilter;
+    applyFilters(loadFilters());
+    if (calendarInitialized && calendar) calendar.refetchEvents();
+  }
+
+  function populateMeSelect() {
+    var sel = document.getElementById("me-filter-select");
+    if (!sel || ACTIVE_MES.length === 0) return;
+    ACTIVE_MES.forEach(function (name) {
+      var opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    sel.value = meFilter;
+    sel.classList.remove("d-none");
+  }
+
   function resetFilters() {
     eligFilter = false;
     saveEligFilter(false);
     var btn = document.getElementById("btn-elig-filter");
     if (btn) btn.classList.remove("active");
+    meFilter = "";
+    saveMeFilter("");
+    var sel = document.getElementById("me-filter-select");
+    if (sel) sel.value = "";
     saveFilters(DEFAULT_FILTERS.slice());
     renderFilterButtons(DEFAULT_FILTERS.slice());
     applyFilters(DEFAULT_FILTERS.slice());
+    if (calendarInitialized && calendar) calendar.refetchEvents();
   }
 
   // ── Table filter + sort ───────────────────────────────────────────────────
@@ -85,7 +119,8 @@
     tbody.querySelectorAll("tr").forEach(function (row) {
       var statusOk = activeFilters.includes(row.dataset.status);
       var eligOk = !eligFilter || row.dataset.eligible === "1";
-      var visible = statusOk && eligOk;
+      var meOk = !meFilter || row.dataset.me === meFilter;
+      var visible = statusOk && eligOk && meOk;
       row.style.display = visible ? "" : "none";
       if (visible) visibleCount++;
     });
@@ -170,7 +205,8 @@
           successCallback(allCalendarEvents.filter(function (e) {
             var statusOk = active.includes(e.extendedProps.status_key);
             var eligOk = !eligFilter || e.extendedProps.eligible;
-            return statusOk && eligOk;
+            var meOk = !meFilter || (e.extendedProps.me_name || "") === meFilter;
+            return statusOk && eligOk && meOk;
           }));
         } catch (err) { failureCallback(err); }
       },
@@ -282,6 +318,7 @@
     });
 
     eligFilter = loadEligFilter();
+    meFilter = loadMeFilter();
     var eligBtn = document.getElementById("btn-elig-filter");
     if (eligBtn) {
       eligBtn.classList.toggle("active", eligFilter);
@@ -306,6 +343,7 @@
 
     var activeFilters = loadFilters();
     renderFilterButtons(activeFilters);
+    populateMeSelect();
     applyFilters(activeFilters);
 
     var saved = localStorage.getItem(STORAGE_VIEW) || "table";
@@ -350,6 +388,7 @@
 
   // Expose globals used by inline HTML onclick attributes in the template
   window.setView = setView;
+  window.setMeFilter = setMeFilter;
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
   window.resetFilters = resetFilters;
