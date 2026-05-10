@@ -486,3 +486,97 @@ class TestImportConfirmAssignments:
                 if s.assignment is not None
             ]
             assert "Adam Gajda" in assigned_names
+
+    def test_past_event_gets_auto_debriefing(self, app, admin_client):
+        """Past events (end < now) should automatically receive DebriefingRecord rows."""
+        from app.models.assignment import DebriefingRecord
+        me_id = _make_master_event(app)
+        uid = _make_user(app, "Eva Nováková", "eva@test.com")
+        ev = _minimal_event(name="Past Event Debrief", date="2020-01-15")
+        ev["responsible_person_id"] = uid
+        resp = _post_confirm(app, admin_client, events=[ev], master_event_id=me_id)
+        assert resp.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Past Event Debrief"))
+            assert event is not None
+            rp_spot = next((s for s in event.spots if s.assignment is not None), None)
+            assert rp_spot is not None
+            asgn_id = rp_spot.assignment.id
+            debrief = db.session.scalar(
+                db.select(DebriefingRecord).where(DebriefingRecord.assignment_id == asgn_id)
+            )
+            assert debrief is not None
+            assert "importovaný" in debrief.feedback_event.lower()
+
+    def test_duplicate_event_skipped_when_unchecked(self, app, admin_client):
+        """If admin unchecks a duplicate event row, it must not be created."""
+        me_id = _make_master_event(app)
+        ev1 = _minimal_event(name="Dup Event")
+        resp = _post_confirm(app, admin_client, events=[ev1], master_event_id=me_id)
+        assert resp.status_code == 302
+
+        # Re-submit the same event but with include=0 (unchecked by admin)
+        csrf = _get_csrf(admin_client)
+        data = {
+            "csrf_token": csrf,
+            "event_count": "1",
+            "user_count": "0",
+            "global_master_event_id": str(me_id),
+            "ev_0_include": "",  # not checked
+            "ev_0_name": "Dup Event",
+            "ev_0_date": "2030-05-01",
+            "ev_0_start_time": "10:00",
+            "ev_0_end_time": "12:00",
+            "ev_0_location": "",
+            "ev_0_paid": "",
+            "ev_0_contact_person": "",
+            "ev_0_description": "",
+            "ev_0_time_missing": "0",
+            "ev_0_responsible_person_id": "",
+            "ev_0_signup_count": "0",
+        }
+        resp2 = admin_client.post("/import/events/confirm", data=data, follow_redirects=False)
+        assert resp2.status_code == 302
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(Event).where(Event.name == "Dup Event")
+            )
+            assert count == 1  # still only 1, not 2
+
+
+class TestImportIdempotency:
+    def test_rerun_does_not_duplicate_user(self, app, admin_client):
+        """Importing the same user payload twice creates the user only once."""
+        me_id = _make_master_event(app)
+        user_payload = [{"gs_name": "Novák Jan", "name": "Novák Jan",
+                         "email": "jan@test.com", "phone": None, "is_zdravotnik": False}]
+
+        for _ in range(2):
+            _post_confirm(app, admin_client, events=[_minimal_event(name=f"Akce {_}")],
+                          users=user_payload, master_event_id=me_id)
+
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(UserAccount).where(
+                    db.func.lower(UserAccount.name) == "novák jan"
+                )
+            )
+            assert count == 1
+
+    def test_rerun_does_not_duplicate_user_by_email(self, app, admin_client):
+        """If a user already exists with the same email, it must not be re-created."""
+        me_id = _make_master_event(app)
+        _make_user(app, "Petra Horáková", "petra@test.com")
+        user_payload = [{"gs_name": "Horáková Petra", "name": "Petra Horáková NEW",
+                         "email": "petra@test.com", "phone": None, "is_zdravotnik": False}]
+
+        _post_confirm(app, admin_client, events=[_minimal_event()],
+                      users=user_payload, master_event_id=me_id)
+
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(UserAccount).where(
+                    UserAccount.email == "petra@test.com"
+                )
+            )
+            assert count == 1  # not duplicated despite different name in payload
