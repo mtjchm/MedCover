@@ -66,6 +66,13 @@ Race conditions are a first-class concern, especially for spot assignment:
 - SQL boolean comparisons: write `col.is_(True)` / `col.is_(False)`, **not** `col == True` / `col == False`. Never silence E712 with `# noqa`.
 - **Decimal numbers in templates:** always use the `| cznum` Jinja2 filter (registered in `app/__init__.py`). It formats a number to 1 decimal place with a **comma** as the decimal separator (Czech locale). Use `| cznum(2)` for 2 decimal places. Never use `"%.1f"|format(x)` directly in templates — that produces a dot separator.
 
+### Design Principles — avoid anti-patterns
+- **Check before computing:** before calculating a value inline (e.g. duration, totals, status), check whether a model property already provides it. Use the property.
+- **Single source of truth:** business logic that may be needed by multiple parts of the codebase (routes, generators, tasks, templates) belongs on the model or in a shared helper — not duplicated inline. Ask: *could another module need this?* If yes, add a property or helper.
+- **No duplicated arithmetic:** if a computation already exists as a model property (e.g. `Event.scheduled_hours`, `Event.billable_hours`, `Event.actual_hours`), always use the property. Never rewrite the formula at the call site.
+- **Model properties for derived values:** computed fields (hours, durations, statuses, counts) belong as `@property` on the relevant model. Keep route and generator code free of domain arithmetic.
+- **Shared helpers for cross-cutting concerns:** see the *Shared Helpers* section below. If a pattern appears in more than one place, lift it into `app/utils.py` or the appropriate model.
+
 ### Shared Helpers — use these, do not reinvent
 Two modules hold all reusable building blocks. **Always import the existing helper instead of writing the inline pattern.** If a duplication appears in 3+ places, lift it into one of these modules.
 
@@ -127,6 +134,12 @@ Two modules hold all reusable building blocks. **Always import the existing help
 - CI must pass before merging (GitHub Actions: lint-free import, `flask db upgrade`, `pytest`; locally use `tox` for multi-Python validation)
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+
+### GitHub CLI (`gh`)
+- Use the `gh` tool for all GitHub interactions (PRs, issues, etc.).
+- **Opening a PR:** use `gh pr create --web` (the repo uses Enterprise Managed Users; API-based `gh pr create` without `--web` will fail with an Unauthorized GraphQL error).
+- When the user asks to open/create a PR, always include a structured description covering: what the feature/fix does, new permissions or model changes, ops/infra changes, and docs updates.
+- `--web` opens the browser-based PR form pre-filled with title and body; if no browser is available in the environment, print the compare URL for the user to open manually: `https://github.com/spidermila/MedCover/compare/main...<branch>`
 
 ---
 

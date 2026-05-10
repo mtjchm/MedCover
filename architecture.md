@@ -119,6 +119,7 @@ When in doubt about the correct Czech UI label or English code name for a concep
 | Vybavení | Equipment — `equipment.items` | |
 | Přehledy | Reports — `reports.index` | |
 | Debriefing | Debriefing — `debriefing.index` | |
+| Výkaz práce | Monthly work report / `work_report` blueprint | Pre-filled xlsx payroll document generated per user per month; contains worked hours for paid events |
 | Uživatelé | Users — `users.index` | |
 | Pozvánky | Invites — `users.invites` | |
 | Audit log | Audit Log — `admin.audit_log_list` | |
@@ -142,6 +143,9 @@ When in doubt about the correct Czech UI label or English code name for a concep
 | Archivovaná | `archived` (boolean) |
 | Popis pozice | `EventSpot.description` |
 | Výchozí zobrazení kalendáře | `preferred_calendar_view` |
+| Pracovní úvazek | Employment type (always "DPP" in výkaz) |
+| Popis činnosti | Activity description (event names column in výkaz) |
+| Počet hodin | Hours count (výkaz column) |
 
 ### Terminology Ambiguities to Watch
 
