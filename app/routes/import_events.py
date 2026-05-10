@@ -205,7 +205,7 @@ def events_preview() -> str | Response:
             continue
         gs_name = str(pu.get("gs_name", "")).strip()
         name = str(pu.get("name", "")).strip()
-        email = str(pu.get("email") or "").strip() or None
+        email = str(pu.get("email") or "").strip().lower() or None
         phone = str(pu.get("phone") or "").strip() or None
         is_zdravotnik = bool(pu.get("is_zdravotnik", False))
 
@@ -411,7 +411,7 @@ def events_confirm() -> Response:
                 continue
 
             name = form.get(f"{uprefix}name", "").strip()
-            email = form.get(f"{uprefix}email", "").strip()
+            email = form.get(f"{uprefix}email", "").strip().lower()
             phone = form.get(f"{uprefix}phone", "").strip() or None
             is_zdravotnik = form.get(f"{uprefix}is_zdravotnik") == "1"
 
