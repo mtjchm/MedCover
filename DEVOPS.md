@@ -16,51 +16,90 @@ MedCover/
 │       └── deploy.yml          # Trigger Render production deploy on merge to main
 │
 ├── app/
-│   ├── __init__.py             # Flask app factory: create_app()
+│   ├── __init__.py             # Flask app factory: create_app(); CSP headers; custom filters
 │   ├── config.py               # Config classes: DevelopmentConfig, ProductionConfig
-│   ├── extensions.py           # Flask extensions (db, migrate, mail, login_manager)
+│   ├── extensions.py           # Flask extensions (db, migrate, mail, login_manager, csrf)
+│   ├── utils.py                # Shared helpers: require_permission, audit, diff_changes, …
+│   ├── queries.py              # Reusable DB queries (active_master_events_list, …)
+│   ├── mail.py                 # Email sending helpers (outbox-backed)
+│   ├── scheduler_tasks.py      # Task implementations called by scheduler/main.py
+│   ├── work_report_generator.py# Výkaz práce XLSX generator
 │   ├── models/                 # SQLAlchemy models (one file per domain entity)
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   ├── event.py
-│   │   ├── master_event.py
-│   │   ├── assignment.py
-│   │   ├── equipment.py
-│   │   ├── credential.py
-│   │   └── audit.py
+│   │   ├── __init__.py         # Imports all models so Alembic auto-detects them
+│   │   ├── user.py             # UserAccount, has_permission(), has_any_permission()
+│   │   ├── role.py             # Role enum, ALL_PERMISSIONS, ROLE_PERMISSIONS
+│   │   ├── event.py            # Event, EventSpot, EventStatus, EventTemplate
+│   │   ├── master_event.py     # MasterEvent (hierarchy for yearly reporting)
+│   │   ├── assignment.py       # Assignment (user ↔ spot)
+│   │   ├── equipment.py        # EquipmentType, EquipmentItem, plans, assignments
+│   │   ├── qualification.py    # Qualification, UserQualification (credentials)
+│   │   ├── audit.py            # AuditLogEntry
+│   │   ├── settings.py         # AppSettings (SMTP, setup flag, Fernet-encrypted creds)
+│   │   ├── invite.py           # Invite (invite-only registration tokens)
+│   │   ├── outbox.py           # EmailOutbox (queued emails, retry logic)
+│   │   ├── digest.py           # DigestSubscription (weekly overview email)
+│   │   ├── debriefing.py       # DebriefingRecord, DebriefingQuestion
+│   │   └── feedback.py         # UserFeedback
 │   ├── routes/                 # Flask blueprints (one per feature area)
 │   │   ├── __init__.py
 │   │   ├── auth.py             # Login, logout, password reset, registration
-│   │   ├── events.py           # Event CRUD, lifecycle, assignments
-│   │   ├── master_events.py
-│   │   ├── equipment.py
-│   │   ├── users.py            # User management, credentials
-│   │   ├── reports.py
-│   │   └── admin.py            # Admin-only: audit log, system config
+│   │   ├── setup.py            # First-run setup wizard
+│   │   ├── admin.py            # Dashboard, audit log, permissions overview
+│   │   ├── admin_digest.py     # Weekly digest subscription management
+│   │   ├── app_settings.py     # SMTP & app settings (admin)
+│   │   ├── backup.py           # DB backup/restore (admin)
+│   │   ├── users.py            # User management, invites, credentials
+│   │   ├── master_events.py    # Master Event CRUD
+│   │   ├── events.py           # Event CRUD, lifecycle, spot assignment, calendar feed
+│   │   ├── assignments.py      # Assignment claim/release
+│   │   ├── templates.py        # Event template CRUD
+│   │   ├── qualifications.py   # Qualification (credential type) CRUD
+│   │   ├── equipment.py        # Equipment types, items, issuance, event plans
+│   │   ├── import_events.py    # Bulk event import from paste
+│   │   ├── reports.py          # Reports (staffing, statistics, glossary)
+│   │   ├── debriefing.py       # Post-event debriefing forms
+│   │   ├── work_report.py      # Výkaz práce (monthly work-report XLSX)
+│   │   ├── feedback.py         # User feedback submission
+│   │   ├── main.py             # Dashboard, health check
+│   │   └── dev.py              # Dev-only routes (disabled in production)
 │   ├── templates/              # Jinja2 HTML templates
-│   │   ├── base.html
+│   │   ├── base.html           # Base layout with nav, CSP-safe JS config
+│   │   ├── macros/             # Reusable macros (help_icon, pagination, …)
 │   │   ├── auth/
 │   │   ├── events/
-│   │   └── ...
+│   │   ├── equipment/
+│   │   └── …
 │   ├── static/
-│   │   ├── css/
-│   │   ├── js/                 # FullCalendar, custom JS
+│   │   ├── css/main.css        # Custom utility classes (no inline styles — CSP)
+│   │   ├── js/                 # FullCalendar, per-page JS modules
 │   │   └── img/
-│   └── email/                  # Email templates (Jinja2)
+│   └── email/                  # Email templates (Jinja2, plain-text + HTML)
 │
 ├── scheduler/
 │   └── main.py                 # Background task runner (schedule library)
-│                               # Tasks: event auto-transitions, reminder emails, digests
+│                               # Tasks: event auto-transitions, reminder emails,
+│                               #        digest emails, work-report cleanup
 │
 ├── migrations/                 # Flask-Migrate (Alembic) migration scripts
 │   └── versions/
 │
 ├── tests/
-│   ├── conftest.py             # pytest fixtures: test app, test DB, test client
+│   ├── conftest.py             # Fixtures: app, DB, client per role; AppSettings seed
 │   ├── test_auth.py
 │   ├── test_events.py
 │   ├── test_assignments.py
-│   └── ...
+│   ├── test_equipment.py
+│   ├── test_admin.py
+│   ├── test_admin_digest.py
+│   ├── test_debriefing.py
+│   ├── test_import_events.py
+│   ├── test_master_events.py
+│   ├── test_qualifications.py
+│   ├── test_reports.py
+│   ├── test_templates.py
+│   ├── test_users.py
+│   ├── test_work_report.py
+│   └── …
 │
 ├── scripts/
 │   └── seed_dev.py             # Populates DB with realistic mock data for local dev
@@ -83,12 +122,13 @@ MedCover/
 
 Two containers share a single Docker image; they run different commands:
 
-| Container | Command | Purpose |
-|---|---|---|
-| `web` | `gunicorn -w 2 -b 0.0.0.0:5000 "app:create_app()"` | Serves the Flask web application |
-| `scheduler` | `python scheduler/main.py` | Background tasks: auto-transitions, reminders, digests |
+| Container | Dev command (docker-compose) | Prod command (Dockerfile CMD) | Purpose |
+|---|---|---|---|
+| `web` | `flask run --host=0.0.0.0 --debug` | `gunicorn -w 2 -b 0.0.0.0:5000 "app:create_app()"` | Serves the Flask web application |
+| `scheduler` | `python scheduler/main.py` | `python scheduler/main.py` | Background tasks: auto-transitions, reminders, digests, file cleanup |
 
 Both containers share the same codebase and connect to the same PostgreSQL database via `DATABASE_URL`.
+The `docker-entrypoint.sh` runs `flask db upgrade` + `flask verify-schema` before starting either process.
 
 ---
 
@@ -115,7 +155,7 @@ The app will be available at `http://localhost:5000`.
 docker compose exec web python scripts/seed_dev.py
 ```
 
-This creates realistic test users, credentials, master events, events, assignments, and equipment using the `Faker` library. Running it multiple times is safe (idempotent).
+This creates realistic test users, credentials, master events, events, assignments, and equipment. Running it multiple times is safe (idempotent).
 
 ### Run database migrations
 
@@ -130,41 +170,48 @@ docker compose exec web flask db upgrade
 ### Run tests
 
 ```bash
-# Plain pytest (fastest, day-to-day dev)
+# Inside the running web container (day-to-day dev)
 docker compose exec web pytest
 
-# Via tox (recommended — mirrors CI exactly)
+# Via tox (mirrors CI — same pinned deps)
 docker compose exec web tox -e py314
 ```
 
-Or without Docker Compose (requires a local Python env with `requirements-dev.txt` installed
-and a running Docker daemon for testcontainers):
+Or directly on the host with a local Python venv (`requirements-dev.txt` installed)
+and `DATABASE_URL` / `TEST_DATABASE_URL` pointing at a running Postgres:
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements-dev.txt
 
-# Run directly — testcontainers auto-starts a postgres:17 container
+# Run directly — set TEST_DATABASE_URL to use an existing DB,
+# or let testcontainers auto-spin a postgres:17 container if not set
 pytest
 
-# Run via tox — same behaviour
+# Via tox — same behaviour
 tox -e py314
-```
-
-To skip testcontainers and use an existing Postgres, set `TEST_DATABASE_URL` before running:
-
-```bash
-TEST_DATABASE_URL=postgresql://user:pass@host:5432/mydb pytest
 ```
 
 ---
 
 ## docker-compose.yml
 
+The embedded summary below reflects the actual file. Key points:
+
+- `web` uses `flask run --debug` (hot reload) in dev; production uses gunicorn via `CMD` in the Dockerfile
+- Both containers mount `.:/app` so local code changes reflect immediately
+- Both containers have healthchecks; the scheduler checks a heartbeat file written every ~10 s
+- `db` uses **postgres:17-alpine** and a custom `postgres.conf` (tuned checkpoint settings for WSL2 stability — see Known Issues)
+- `stop_grace_period: 60s` on `db` gives PostgreSQL time to checkpoint cleanly on shutdown
+
 ```yaml
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: flask run --host=0.0.0.0 --debug
+    restart: unless-stopped
     volumes:
       - .:/app          # Hot reload: local code changes reflect immediately
     env_file: .env
@@ -175,8 +222,12 @@ services:
         condition: service_healthy
 
   scheduler:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
     command: python scheduler/main.py
+    restart: unless-stopped
     volumes:
       - .:/app
     env_file: .env
@@ -185,9 +236,14 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
+    restart: unless-stopped
+    stop_grace_period: 60s   # Gives PostgreSQL time to checkpoint cleanly
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+      - ./postgres.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: medcover_dev
       POSTGRES_USER: medcover
@@ -198,7 +254,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"    # Expose locally so you can connect with a DB GUI
+      - "5432:5432"
 
 volumes:
   postgres_data:
@@ -213,15 +269,24 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# Install dependencies first (layer cache friendly)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 COPY . .
 
-# Default command (overridden by docker-compose or render.yaml)
+# Embed git commit hash at build time:
+#   docker build --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) .
+ARG GIT_COMMIT=dev
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:create_app()"]
 ```
+
+`docker-entrypoint.sh` runs `flask db upgrade` then `flask verify-schema` on every container start before handing off to the CMD process. If `verify-schema` detects missing tables/columns the container exits immediately rather than serving broken traffic.
 
 ---
 
@@ -359,12 +424,8 @@ SQLAlchemy models use the old-style `db.Column()` syntax (not `Mapped[]`-style d
 PR opened / updated
       ↓
 GitHub Actions: ci.yml
-  - Spin up PostgreSQL service container
-  - Install dependencies
-  - Run Flask-Migrate (flask db upgrade)
-  - Run pytest
-      ↓
-Render: spin up PR Preview environment (if previews enabled)
+  ├── lint job: pre-commit (flake8, mypy, pyupgrade, whitespace)
+  └── test job: postgres:17 service → pytest --cov
       ↓
 Review, approve, merge
 ```
@@ -374,10 +435,10 @@ Review, approve, merge
 ```
 Merge to main
       ↓
-GitHub Actions: deploy.yml
-  - Trigger Render deploy via API (POST to deploy hook)
+GitHub Actions: deploy.yml  ← currently disabled (Render not yet configured)
+  - Trigger Render deploy via POST to deploy hook
       ↓
-Render: pulls latest image, runs migrations, restarts web + scheduler
+Render: pulls latest image, runs migrations via entrypoint, restarts web + scheduler
 ```
 
 ### .github/workflows/ci.yml
@@ -392,12 +453,26 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+    # Runs: trailing-whitespace, end-of-file-fixer, check-yaml,
+    #       flake8, pyupgrade, mypy
+
   test:
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: medcover
           POSTGRES_PASSWORD: testpassword
@@ -412,51 +487,41 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://medcover:testpassword@localhost:5432/medcover_test
+      TEST_DATABASE_URL: postgresql://medcover:testpassword@localhost:5432/medcover_test
       FLASK_ENV: testing
-      SECRET_KEY: ci-test-secret-key
+      SECRET_KEY: ci-test-secret-not-real
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Run migrations
-        run: flask db upgrade
-
-      - name: Run tests
-        run: pytest --cov=app --cov-report=term-missing
-        # Note: CI runs pytest directly. tox can be added here in future
-        # once multiple Python versions are available on the runner.
+        run: pip install --require-hashes -r requirements-dev.txt
+      - name: Run tests with coverage
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: htmlcov/
 ```
 
 ### .github/workflows/deploy.yml
 
-```yaml
-name: Deploy to Production
+**Currently disabled** (`if: false`). Render deployment is not yet configured. To enable:
 
-on:
-  push:
-    branches: [main]
+1. Create a Render account and set up services per the render.yaml Blueprint
+2. Copy the deploy hook URL from Render Dashboard → your service → Settings
+3. Add it as GitHub secret: Settings → Secrets → Actions → `RENDER_DEPLOY_HOOK_URL`
+4. Remove the `if: false` condition from `deploy.yml`
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    needs: []          # Could add 'test' job here if CI and deploy are in same workflow
+Once enabled, every merge to `main` triggers a Render deploy via:
 
-    steps:
-      - name: Trigger Render deploy
-        run: |
-          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+```bash
+curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 ```
-
-`RENDER_DEPLOY_HOOK_URL` is a secret stored in GitHub repository settings. Get it from Render Dashboard → your service → Settings → Deploy Hook.
 
 ---
 
@@ -550,16 +615,38 @@ docker compose exec web python scripts/seed_dev.py
 
 ## Dev Data Seeding
 
-`scripts/seed_dev.py` creates a realistic dataset using the `Faker` library:
+`scripts/seed_dev.py` creates a realistic dataset. Safe to run multiple times — idempotent.
 
-- 1 admin user, 2 coordinator users, 10 member users, 2 viewer users
-- Standard credentials hierarchy (Doctor, Nurse, First Aider, Trainee, Driver, etc.)
-- 2 custom Master Events + the default General ME
-- ~20 Events in various lifecycle states across the MEs
-- Assignments, equipment types, personal items (issued to members), shared items
-- Some completed Events with DebriefingRecords
+**Dev accounts** (password: `devpassword`, email format: `dev.<role>@medcover.local`):
 
-Running the script on an already-seeded database is safe — it checks for existing data before inserting.
+| Role | Email | Description |
+|---|---|---|
+| Admin | `dev.admin@medcover.local` | Full system access |
+| Coordinator | `dev.coordinator@medcover.local` | Create/manage events |
+| Member | `dev.member@medcover.local` | Join events, submit debriefings |
+| Viewer | `dev.viewer@medcover.local` | Read-only access |
+| Debrief Manager | `dev.debrief@medcover.local` | View/manage confidential debriefing records |
+| Inactive | `dev.inactive@medcover.local` | Registered but not yet activated |
+
+**Also seeded:**
+- All Roles, Permissions (synced to `ROLE_PERMISSIONS` in `role.py`)
+- Standard credential hierarchy (Záchranář, Zdravotník, Řidič, etc.)
+- 2 named Master Events + the default General ME
+- ~10 Events in various lifecycle states (planned, published, completed, cancelled)
+- Assignments, equipment types, personal and shared items
+- Completed events with DebriefingRecords
+- AppSettings (id=1, setup_complete=True)
+
+**After changing role permissions in `role.py`,** re-run the seeder to sync:
+
+```bash
+docker compose exec web python scripts/seed_dev.py
+```
+
+Or on zerver:
+```bash
+ssh milan@192.168.111.5 "cd /home/milan/MedCover && docker compose exec web python scripts/seed_dev.py"
+```
 
 ---
 
