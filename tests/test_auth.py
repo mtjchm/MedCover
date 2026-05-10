@@ -148,6 +148,92 @@ class TestOpenRedirectProtection:
         assert "/events/" in response.headers["Location"]
 
 
+class TestBruteForceProtection:
+    """Login lockout after repeated failed attempts."""
+
+    def _post_login(self, client, email: str, password: str):
+        return client.post(
+            "/auth/login",
+            data={"email": email, "password": password},
+            follow_redirects=True,
+        )
+
+    def test_account_locked_after_max_attempts(self, app, client):
+        """After LOGIN_MAX_ATTEMPTS failures the account is locked."""
+        from app.config import LOGIN_MAX_ATTEMPTS
+        with app.app_context():
+            _make_user("lock@example.com", "Lock User", Role.MEMBER)
+
+        for _ in range(LOGIN_MAX_ATTEMPTS):
+            resp = self._post_login(client, "lock@example.com", "wrongpassword")
+            assert "Nesprávný e-mail nebo heslo".encode() in resp.data
+
+        # Next attempt should show lockout message
+        resp = self._post_login(client, "lock@example.com", "wrongpassword")
+        assert "zablokováno".encode() in resp.data
+
+    def test_locked_account_rejects_correct_password(self, app, client):
+        """Even the correct password is rejected while the account is locked."""
+        from app.config import LOGIN_MAX_ATTEMPTS
+        with app.app_context():
+            _make_user("locked2@example.com", "Lock2 User", Role.MEMBER)
+
+        for _ in range(LOGIN_MAX_ATTEMPTS):
+            self._post_login(client, "locked2@example.com", "wrongpassword")
+
+        # Correct password still rejected while locked
+        resp = self._post_login(client, "locked2@example.com", "testpass123")
+        assert "zablokováno".encode() in resp.data
+        assert resp.request.path == "/auth/login"
+
+    def test_successful_login_resets_counter(self, app, client):
+        """A successful login clears failed_login_attempts."""
+        with app.app_context():
+            _make_user("good@example.com", "Good User", Role.MEMBER)
+
+        # Two failures
+        self._post_login(client, "good@example.com", "wrong")
+        self._post_login(client, "good@example.com", "wrong")
+
+        # Successful login
+        resp = client.post(
+            "/auth/login",
+            data={"email": "good@example.com", "password": "testpass123"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+        # Check counter was reset in DB
+        with app.app_context():
+            user = _db.session.scalar(
+                _db.select(UserAccount).where(UserAccount.email == "good@example.com")
+            )
+            assert user is not None
+            assert user.failed_login_attempts == 0
+            assert user.login_locked_until is None
+
+    def test_failed_attempt_increments_counter(self, app, client):
+        """Each failed login increments failed_login_attempts."""
+        with app.app_context():
+            _make_user("count@example.com", "Count User", Role.MEMBER)
+
+        self._post_login(client, "count@example.com", "wrong")
+        self._post_login(client, "count@example.com", "wrong")
+
+        with app.app_context():
+            user = _db.session.scalar(
+                _db.select(UserAccount).where(UserAccount.email == "count@example.com")
+            )
+            assert user is not None
+            assert user.failed_login_attempts == 2
+
+    def test_unknown_email_does_not_crash(self, client):
+        """Attempting to log in with an unknown email shows generic error, no crash."""
+        resp = self._post_login(client, "nobody@example.com", "wrongpassword")
+        assert resp.status_code == 200
+        assert "Nesprávný".encode() in resp.data
+
+
 class TestRegisterFlow:
     """Invite-based registration flow."""
 

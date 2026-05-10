@@ -4,6 +4,10 @@ import os
 RESET_TOKEN_MINUTES = 10
 INVITE_TOKEN_HOURS = 72
 
+# Brute-force login protection
+LOGIN_MAX_ATTEMPTS = 5        # consecutive failures before lockout
+LOGIN_LOCKOUT_MINUTES = 15    # how long the account is locked
+
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "")

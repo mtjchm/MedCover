@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
@@ -12,6 +12,7 @@ from app.models.role import Role
 from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.utils import external_url_for, safe_next
+from app.config import LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -54,13 +55,39 @@ def login() -> str | Response:
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
+        now = datetime.now(timezone.utc)
 
-        if user and user.check_password(password):
-            if not user.is_active:
-                flash("Váš účet čeká na aktivaci administrátorem.", "warning")
-                return redirect(url_for("auth.login"))
-            login_user(user)
-            return redirect(safe_next(request.args.get("next")))
+        if user:
+            # If lockout window has expired, reset the counter automatically
+            if user.login_locked_until and user.login_locked_until <= now:
+                user.failed_login_attempts = 0
+                user.login_locked_until = None
+
+            # Enforce active lockout before checking the password
+            if user.login_locked_until and user.login_locked_until > now:
+                flash(
+                    "Příliš mnoho neúspěšných pokusů o přihlášení. "
+                    "Přihlášení je dočasně zablokováno. Zkuste to za chvíli.",
+                    "danger",
+                )
+                return render_template("auth/login.html")
+
+            if user.check_password(password):
+                if not user.is_active:
+                    flash("Váš účet čeká na aktivaci administrátorem.", "warning")
+                    return redirect(url_for("auth.login"))
+                # Successful login — reset lockout state
+                user.failed_login_attempts = 0
+                user.login_locked_until = None
+                db.session.commit()
+                login_user(user)
+                return redirect(safe_next(request.args.get("next")))
+
+            # Failed attempt — increment counter and possibly lock
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= LOGIN_MAX_ATTEMPTS:
+                user.login_locked_until = now + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+            db.session.commit()
 
         flash("Nesprávný e-mail nebo heslo.", "danger")
 

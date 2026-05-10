@@ -50,6 +50,10 @@ class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
     # Single-use password reset: nonce is set when a reset link is issued and
     # cleared after successful password change. Old links become invalid immediately.
     password_reset_nonce = db.Column(db.String(64), nullable=True)
+    # Brute-force protection: track consecutive failed logins per account.
+    # After LOGIN_MAX_ATTEMPTS failures the account is locked for LOGIN_LOCKOUT_MINUTES.
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False, server_default="0")
+    login_locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
