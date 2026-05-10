@@ -38,7 +38,9 @@
               (9, "Září"), (10, "Říjen"), (11, "Listopad"), (12, "Prosinec")
             ] %}
             {% for num, name in month_names %}
-              <option value="{{ num }}" {% if num == current_month %}selected{% endif %}>
+              <option value="{{ num }}"
+                {% if num == current_month %}selected{% endif %}
+                {% if num > current_month %}disabled{% endif %}>
                 {{ name }}
               </option>
             {% endfor %}
@@ -48,7 +50,7 @@
         <div class="col-3">
           <label for="year" class="form-label fw-semibold">Rok</label>
           <select class="form-select" id="year" name="year" required>
-            {% for y in range(current_year - 3, current_year + 2) %}
+            {% for y in range(current_year - 3, current_year + 1) %}
               <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
             {% endfor %}
           </select>
@@ -94,4 +96,30 @@
     <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const currentYear = {{ current_year }};
+  const currentMonth = {{ current_month }};
+  const yearSel = document.getElementById('year');
+  const monthSel = document.getElementById('month');
+
+  function updateMonths() {
+    const selectedYear = parseInt(yearSel.value, 10);
+    Array.from(monthSel.options).forEach(function (opt) {
+      const m = parseInt(opt.value, 10);
+      const isFuture = selectedYear === currentYear && m > currentMonth;
+      opt.disabled = isFuture;
+      if (isFuture && opt.selected) {
+        monthSel.value = currentMonth;
+      }
+    });
+  }
+
+  yearSel.addEventListener('change', updateMonths);
+  updateMonths();
+})();
+</script>
 {% endblock %}

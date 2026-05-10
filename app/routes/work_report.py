@@ -88,11 +88,14 @@ def generate() -> object:
         return redirect(url_for("work_report.index"))
 
     now = datetime.now(tz=timezone.utc)
-    if not (2020 <= year <= now.year + 1):
+    if not (2020 <= year <= now.year):
         flash("Rok je mimo povolený rozsah.", "danger")
         return redirect(url_for("work_report.index"))
     if not (1 <= month <= 12):
         flash("Měsíc musí být v rozsahu 1–12.", "danger")
+        return redirect(url_for("work_report.index"))
+    if (year, month) > (now.year, now.month):
+        flash("Výkaz nelze vygenerovat pro budoucí měsíc.", "danger")
         return redirect(url_for("work_report.index"))
 
     try:
