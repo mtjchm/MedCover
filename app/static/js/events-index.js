@@ -9,16 +9,20 @@
 
   var FEED_URL_BASE  = cfg.feedUrl  || "";
   var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
+  var SHOW_COMPLETED = cfg.showCompleted || false;
   var CLAIM_BASE     = cfg.claimBase || "";
   var ACTIVE_MES     = cfg.activeMes || [];
 
   var STORAGE_VIEW  = "medcover_events_view";
-  var STORAGE_FILT  = "medcover_events_filters";
+  var STORAGE_FILT  = SHOW_COMPLETED ? "medcover_events_filters_c" : "medcover_events_filters";
   var STORAGE_SORT  = "medcover_events_sort";
   var STORAGE_ELIG  = "medcover_events_elig";
   var STORAGE_ME    = "medcover_events_me";
 
-  var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+  var _BASE_FILTERS    = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+  var DEFAULT_FILTERS  = SHOW_COMPLETED
+    ? _BASE_FILTERS.concat(["COMPLETED"])
+    : _BASE_FILTERS;
 
   var calendarInitialized = false;
   var calendar = null;

@@ -26,9 +26,14 @@
     </div>
 
     {% if show_archived %}
-      <a href="{{ url_for('events.index') }}" class="btn btn-outline-secondary btn-sm">Skrýt archivované</a>
+      <a href="{{ url_for('events.index', completed=1 if show_completed else None) }}" class="btn btn-outline-secondary btn-sm">Skrýt archivované</a>
     {% else %}
-      <a href="{{ url_for('events.index', archived=1) }}" class="btn btn-outline-secondary btn-sm">Zobrazit archivované</a>
+      <a href="{{ url_for('events.index', archived=1, completed=1 if show_completed else None) }}" class="btn btn-outline-secondary btn-sm">Zobrazit archivované</a>
+    {% endif %}
+    {% if show_completed %}
+      <a href="{{ url_for('events.index', archived=1 if show_archived else None) }}" class="btn btn-outline-secondary btn-sm">Skrýt dokončené</a>
+    {% else %}
+      <a href="{{ url_for('events.index', completed=1, archived=1 if show_archived else None) }}" class="btn btn-outline-secondary btn-sm">Zobrazit dokončené</a>
     {% endif %}
     {% if current_user.has_permission('event.create') %}
       <a href="{{ url_for('events.create') }}" class="btn btn-danger btn-sm">Nová akce</a>
@@ -216,19 +221,19 @@
     <div class="d-flex align-items-center gap-3 flex-wrap">
       <ul class="pagination pagination-sm mb-0">
         <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-          <a class="page-link" href="{{ url_for('events.index', page=pagination.prev_num, archived=1 if show_archived else None) }}">‹</a>
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.prev_num, archived=1 if show_archived else None, completed=1 if show_completed else None) }}">‹</a>
         </li>
         {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
           {% if p %}
             <li class="page-item {{ 'active' if p == pagination.page }}">
-              <a class="page-link" href="{{ url_for('events.index', page=p, archived=1 if show_archived else None) }}">{{ p }}</a>
+              <a class="page-link" href="{{ url_for('events.index', page=p, archived=1 if show_archived else None, completed=1 if show_completed else None) }}">{{ p }}</a>
             </li>
           {% else %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
           {% endif %}
         {% endfor %}
         <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-          <a class="page-link" href="{{ url_for('events.index', page=pagination.next_num, archived=1 if show_archived else None) }}">›</a>
+          <a class="page-link" href="{{ url_for('events.index', page=pagination.next_num, archived=1 if show_archived else None, completed=1 if show_completed else None) }}">›</a>
         </li>
       </ul>
       <small class="text-muted">
@@ -283,6 +288,6 @@
   }
 </style>
 
-<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
+<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed', archived=1 if show_archived else None, completed=1 if show_completed else None) }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "showCompleted": {{ 'true' if show_completed else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
 <script src="{{ url_for('static', filename='js/events-index.js') }}?v={{ static_ver }}"></script>
 {% endblock %}
