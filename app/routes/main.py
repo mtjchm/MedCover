@@ -148,17 +148,15 @@ def dashboard() -> str:
     pending_debriefings: list[Assignment] = []
     if current_user.has_permission("debriefing.submit_own"):
         from app.models.assignment import DebriefingRecord
-        submitted_assignment_ids = db.session.scalars(
-            db.select(DebriefingRecord.assignment_id)
-        ).all()
         pending_debriefings = list(db.session.scalars(
             db.select(Assignment)
             .join(EventSpot, Assignment.spot_id == EventSpot.id)
             .join(Event, EventSpot.event_id == Event.id)
+            .outerjoin(DebriefingRecord, DebriefingRecord.assignment_id == Assignment.id)
             .where(
                 Assignment.user_id == current_user.id,
                 Event.status == EventStatus.COMPLETED,
-                Assignment.id.notin_(submitted_assignment_ids),
+                DebriefingRecord.id == None,  # noqa: E711
             )
             .order_by(Event.start_datetime.desc())
         ).all())
