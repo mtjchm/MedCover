@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_grade, badge_warning, badge_secondary %}
 {% block title %}Správa debriefingů — MedCover{% endblock %}
 
 {% block content %}
@@ -24,13 +25,13 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
       {% if pending %}
-      <span class="badge bg-warning text-dark">{{ pending|length }} čekají</span>
+      {{ badge_warning(pending|length ~ ' čekají') }}
       {% endif %}
       <span class="badge bg-success">{{ submitted|length }} odevzdáno</span>
       {% if event.actual_start_datetime %}
       <span class="badge bg-primary">Časy uloženy</span>
       {% else %}
-      <span class="badge bg-secondary">Časy neuloženy</span>
+      {{ badge_secondary('Časy neuloženy') }}
       {% endif %}
     </div>
   </div>
@@ -64,9 +65,7 @@
         <tr>
           <td>{{ a.user.name }}</td>
           <td class="text-center">
-            <span class="badge bg-{{ 'success' if r.grade <= 2 else 'warning' if r.grade == 3 else 'danger' }} text-{{ 'dark' if r.grade == 3 else 'white' }}">
-              {{ r.grade }}/5
-            </span>
+            {{ badge_grade(r.grade) }}
           </td>
           <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_event or '—' }}</td>
           <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_customer or '—' }}</td>

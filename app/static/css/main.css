@@ -1,5 +1,30 @@
 /* MedCover custom styles */
 
+/*
+ * ── Dark-mode design conventions ────────────────────────────────────────────
+ *
+ *  SAFE (Bootstrap 5.3 CSS-variable-based, adapts to data-bs-theme="dark"):
+ *    bg-body            — page background
+ *    bg-body-secondary  — subtle panel / card-body highlight  ← use instead of bg-light
+ *    bg-body-tertiary   — slightly more distinct panel
+ *    bg-secondary       — muted badge/chip
+ *    text-body          — primary text
+ *    text-body-secondary — muted text
+ *    text-black         — true black (use on coloured badge backgrounds)
+ *
+ *  UNSAFE (fixed colours, ignore dark mode — avoid in app templates):
+ *    bg-light  ← always white/light-grey  → use bg-body-secondary instead
+ *    bg-white  ← always white             → use bg-body instead
+ *    text-dark ← always near-black        → use text-black on coloured badges
+ *
+ *  BADGE RULE: never write badge utility combos inline in templates.
+ *    Use the macros in macros/badges.html instead so dark-mode correctness
+ *    is enforced in one place.
+ *
+ *  TABLE HEADERS: always use <thead class="table-light"> — the global rule
+ *    below neutralises it in dark mode for every table automatically.
+ * ────────────────────────────────────────────────────────────────────────── */
+
 /* ── Help popover trigger button ── */
 .btn-help {
   display: inline-flex;
@@ -245,3 +270,6 @@
 
 /* Batch toolbar — flex layout when shown; d-none class overrides this */
 #batchToolbar { display: flex; }
+
+/* Login page logo */
+.logo-max-h { max-height: 80px; }

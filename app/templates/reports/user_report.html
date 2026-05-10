@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Přehled uživatele — {{ report_user.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -23,7 +24,7 @@
       <dd class="col-sm-9">
         {% if report_user.qualifications %}
           {% for cred in report_user.qualifications %}
-            <span class="badge bg-secondary me-1">{{ cred.name }}</span>
+            {{ badge_secondary(cred.name, extra_classes='me-1') }}
           {% endfor %}
         {% else %}
           <span class="text-muted">—</span>

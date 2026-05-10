@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary, badge_warning %}
 {% block title %}Pozvánky — MedCover{% endblock %}
 
 {% block content %}
@@ -72,7 +73,7 @@
         {# ── Email delivery status ── #}
         <td>
           {% if inv.outbox_email is none %}
-            <span class="badge bg-secondary">Nezařazeno</span>
+            {{ badge_secondary('Nezařazeno') }}
           {% elif inv.outbox_email.status == 'sent' %}
             <span class="badge bg-success" title="{{ inv.outbox_email.sent_at | localdt if inv.outbox_email.sent_at else '' }}">Odesláno</span>
           {% elif inv.outbox_email.status == 'failed' %}
@@ -83,7 +84,7 @@
             </small>
             {% endif %}
           {% else %}
-            <span class="badge bg-warning text-dark">Ve frontě</span>
+            {{ badge_warning('Ve frontě') }}
           {% endif %}
         </td>
 

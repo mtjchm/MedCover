@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_warning %}
 {% block title %}{{ user.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -35,7 +36,7 @@
           {% if user.is_active %}
             <span class="badge bg-success">Aktivní</span>
           {% else %}
-            <span class="badge bg-warning text-dark">Neaktivní</span>
+            {{ badge_warning('Neaktivní') }}
           {% endif %}
         </div>
         <div class="card-body">

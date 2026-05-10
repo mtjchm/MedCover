@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_info, badge_secondary %}
 {% block title %}Vybavení — MedCover{% endblock %}
 
 {% block content %}
@@ -34,9 +35,9 @@
         <td class="fw-semibold">{{ et.name }}</td>
         <td>
           {% if et.category.value == 'personal' %}
-            <span class="badge bg-info text-dark">Osobní</span>
+            {{ badge_info('Osobní') }}
           {% else %}
-            <span class="badge bg-secondary">Sdílené</span>
+            {{ badge_secondary('Sdílené') }}
           {% endif %}
         </td>
         <td class="text-muted small">{{ et.description or '—' }}</td>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_secondary %}
 {% block title %}Přehledový e-mail — MedCover{% endblock %}
 
 {% block content %}
@@ -97,8 +98,7 @@
           <div class="d-flex align-items-center gap-2">
             <span class="text-muted cursor-grab" data-drag-handle title="Přetáhnout">☰</span>
             <strong>{{ block.config_json.get('title') or cls.label }}</strong>
-            <span class="badge bg-secondary ms-1 text-lowercase"
-                  data-bs-toggle="tooltip" title="{{ cls.description if cls.description else block.block_type }}">{{ block.block_type }}</span>
+            {{ badge_secondary(block.block_type, extra_classes='ms-1 text-lowercase') }}
             {% if block.enabled %}
               <span class="badge bg-success" id="badge-{{ block.id }}">Aktivní</span>
             {% else %}

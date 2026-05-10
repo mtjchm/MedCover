@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
+{% from 'macros/badges.html' import badge_warning %}
 {% block title %}Položky vybavení — MedCover{% endblock %}
 
 {% block content %}
@@ -62,7 +63,7 @@
         <td class="text-muted small">{{ item.home_location or '—' }}</td>
         <td>
           {% if item.issued_to %}
-            <span class="badge bg-warning text-dark">{{ item.issued_to.name }}</span>
+            {{ badge_warning(item.issued_to.name) }}
           {% else %}
             <span class="text-muted">—</span>
           {% endif %}

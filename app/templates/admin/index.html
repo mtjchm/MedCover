@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_warning %}
 {% block title %}Admin — MedCover{% endblock %}
 
 {% block content %}
@@ -101,7 +102,7 @@
             <span class="badge bg-success">{{ outbox_sent }} odesláno</span>
           {% endif %}
           {% if outbox_pending > 0 %}
-            <span class="badge bg-warning text-dark">{{ outbox_pending }} čeká</span>
+            {{ badge_warning(outbox_pending ~ ' čeká') }}
           {% endif %}
           {% if outbox_failed > 0 %}
             <span class="badge bg-danger">{{ outbox_failed }} selhalo</span>

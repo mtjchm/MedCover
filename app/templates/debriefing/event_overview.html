@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/badges.html' import badge_grade %}
 {% block title %}Přehled debriefingů — {{ event.name }} — MedCover{% endblock %}
 
 {% block content %}
@@ -35,9 +36,7 @@
         {% if a.debriefing %}
         {% set r = a.debriefing %}
         <td class="text-center">
-          <span class="badge bg-{{ 'success' if r.grade <= 2 else 'warning' if r.grade == 3 else 'danger' }} text-{{ 'dark' if r.grade == 3 else 'white' }}">
-            {{ r.grade }}/5
-          </span>
+          {{ badge_grade(r.grade) }}
         </td>
         <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_event or '—' }}</td>
         <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_customer or '—' }}</td>
