@@ -68,7 +68,7 @@ def _match_responsible_person(
     if name_str.lower() in by_name_lower:
         return by_name_lower[name_str.lower()], "iexact"
 
-    # 3. Reversed — GS may store "Firstname Lastname"; DB now stores "Lastname Firstname"
+    # 3. Reversed — safety net for any name that arrives in the wrong order
     parts = name_str.split()
     if len(parts) == 2:
         reversed_name = f"{parts[1]} {parts[0]}"
