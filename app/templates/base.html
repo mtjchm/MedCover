@@ -52,6 +52,9 @@
           {% if current_user.has_permission('event_template.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('templates.index') }}">Šablony akcí</a></li>
           {% endif %}
+          {% if current_user.has_permission('qualification.view') %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
+          {% endif %}
           {% if current_user.has_permission('equipment.view') %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('equipment.items') }}">Vybavení</a></li>
           {% endif %}
@@ -75,9 +78,6 @@
               <li><a class="dropdown-item" href="{{ url_for('admin.audit_log_list') }}">Audit log</a></li>
               {% if current_user.has_permission('event.create') %}
               <li><a class="dropdown-item" href="{{ url_for('import_events.events_paste') }}">Import akcí</a></li>
-              {% endif %}
-              {% if current_user.has_permission('qualification.view') %}
-              <li><a class="dropdown-item" href="{{ url_for('qualifications.index') }}">Kvalifikace</a></li>
               {% endif %}
               {% if current_user.has_permission('admin.view') %}
               <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">Přehled oprávnění</a></li>

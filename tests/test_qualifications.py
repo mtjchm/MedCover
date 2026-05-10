@@ -71,6 +71,20 @@ class TestQualificationIndex:
         resp = admin_client.get("/qualifications/")
         assert resp.status_code == 200
 
+    def test_coordinator_can_view_list(self, coordinator_client):
+        resp = coordinator_client.get("/qualifications/")
+        assert resp.status_code == 200
+
+    def test_member_sees_nav_link(self, member_client):
+        """Issue #73: Members must see the Kvalifikace nav link (was hidden behind admin.view)."""
+        resp = member_client.get("/qualifications/")
+        assert b"Kvalifikace" in resp.data
+
+    def test_coordinator_sees_nav_link(self, coordinator_client):
+        """Issue #73: Coordinators must see the Kvalifikace nav link."""
+        resp = coordinator_client.get("/qualifications/")
+        assert b"Kvalifikace" in resp.data
+
     def test_list_shows_qualifications(self, app, admin_client):
         with app.app_context():
             _make_qual("Zdravotník")
