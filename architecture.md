@@ -1,9 +1,5 @@
 # MedCover Planner app
 
-
-# MedCover Planner app
-
-
 ## Czech ↔ English Glossary
 
 This table is the authoritative reference for domain terminology across the entire project.
@@ -30,6 +26,8 @@ When in doubt about the correct Czech UI label or English code name for a concep
 | Audit log | Audit Log / `AuditLogEntry` model | Immutable record of every create/edit/delete/status-change action |
 | Záloha | Backup | Database backup file; route module `backup` |
 | Nastavení | App Settings / `AppSettings` model | Global application configuration (SMTP, base URL, etc.) |
+| Zpětná vazba | User Feedback / `UserFeedback` model | In-app feedback form submitted by users; viewable by Admin |
+| E-mailová fronta | Email Outbox / `EmailOutbox` model | DB-backed outbox queue for all outbound emails; drained by scheduler |
 
 ### People & Roles
 
@@ -188,10 +186,7 @@ When in doubt about the correct Czech UI label or English code name for a concep
         - qualifications and their hierarchy shall be manageable (create, edit, delete) through the application by users with appropriate permissions
     - member equipment — the user profile shall display organisation-owned items currently issued to the member (long-term dislocation, e.g. uniform, personal medikit). Managed via the equipment inventory model (see Equipment section).
     - phone number, email
-    - reporting/overview section:
-        - **per-user**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history
-        - **per Master Event**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, medical materials used, attendance summary
-        - **date-range report**: all Events within a configurable date range (e.g. a calendar year), aggregated across all MEs — this replaces any need for a "yearly" ME hierarchy
+    - reporting/overview: covered in the Reporting and Statistics section below
     - new User Registration shall be invite-only: an admin generates a unique registration link which is sent to the prospective user; only the holder of the link can register (see AD03)
     - a newly registered account shall require admin activation before the user can log in
     - users shall be able to reset their own password via a self-service email link ("forgot password" flow)
@@ -278,7 +273,13 @@ When in doubt about the correct Czech UI label or English code name for a concep
     - **Views**: month, week, day (calendar), and list/table view
     - **Interactive**: clicking a day slot in the calendar opens the Event creation form pre-filled with that date (Coordinators / Admins only)
     - **Colour coding**: Events are coloured by lifecycle phase (e.g. Draft, Published, Assignments Open, etc.); if the logged-in user is not eligible to join the Event — even if spots exist — the Event is shown in grey
-    - **Default view**: shows all non-archived Events that are in a Published or later phase; filtering options (by ME, date range, etc.) are deferred to post-MVP
+    - **Default view**: shows all non-archived Events that are in a Published or later phase
+    - **Filtering**: filter Events by Master Event (ME filter); General ME (the default) is always excluded from the filter since all standalone Events belong to it. Archived MEs are never shown in the filter.
+- Reporting and statistics
+    - **Per-user report**: planned hours, actual worked hours, nearest upcoming Event, last attended Event, full Event history; CSV export
+    - **Per Master Event report**: total planned and worked hours, number of Events (completed / cancelled / open), total patients treated, attendance summary; CSV export
+    - **Date-range report**: all Events within a configurable date range (e.g. a calendar year), aggregated across all MEs; CSV export
+    - **Monthly work report (Výkaz práce)**: generates a pre-filled `.xlsx` payroll document per user per month, listing all paid Events the user attended with actual worked hours. Uses Czech public holidays to colour cells correctly. Generated on demand; file stored in `instance/work_report/<user-uuid>/<year>-<MM>.xlsx` and automatically deleted after 1 day by the scheduler.
 - Email notifications — **email only for MVP** (in-app notifications are on the wish list)
 - Notifications should be customisable to prevent unnecessary spamming (configurable per Event and at the user level)
 - Audit capability
@@ -503,7 +504,7 @@ When in doubt about the correct Czech UI label or English code name for a concep
         - Avoids Redis (no 3rd container, no extra cost, no extra ops).
         - Same `Dockerfile` base image; scheduler container just runs a different command.
     - Notes
-        - Scheduler tasks for MVP: (1) auto-transition Events at `assignments_open_at` datetime; (2) auto-close Events after `end_datetime`; (3) send reminder emails per `reminder_schedule`; (4) send admin digest emails.
+        - Scheduler tasks implemented: (1) drain the email outbox (`process_email_queue`) — runs every `MAIL_QUEUE_INTERVAL_SECONDS` (default 6 s); (2) auto-open assignments at `assignments_open_at` datetime; (3) send unfilled-spot reminder emails per `reminder_schedule`; (4) auto-complete Events after `end_datetime`; (5) send admin digest emails; (6) run scheduled DB backups; (7) delete expired work-report xlsx files from `instance/work_report/` (runs hourly).
         - Scheduler polls the DB every 60 seconds; no message broker needed at this volume.
         - See DEVOPS.md for container layout and `render.yaml` Blueprint.
 
@@ -869,6 +870,9 @@ erDiagram
 | **RegistrationInvite** | token, email, created by, expires at, used flag | Invite-only registration; single-use link |
 | **AuditLogEntry** | timestamp, actor (user), action, entity type, entity id, change detail | Immutable; records all significant changes |
 | **AppSettings** | org_name, timezone, smtp_server/port/tls/username/password (encrypted), smtp_default_sender, setup_complete | Single-row table; SMTP password stored Fernet-encrypted using SECRET_KEY; managed via Setup Wizard and Admin Settings UI |
+| **EmailOutbox** | to, subject, body (HTML), status (pending/sent/failed), retry_count, created_at | All outbound emails are queued here and drained by the scheduler (see AD15). Provides delivery audit trail. |
+| **DigestSubscription** | recipient email list, schedule (interval/last_sent), subject template | Configures who receives the admin digest and how often; managed via Admin Digest UI |
+| **UserFeedback** | user, message, submitted_at | In-app feedback form; viewable by Admin |
 
 ### Data Store
 - Single **relational database**: **PostgreSQL** (see AD04)
@@ -905,10 +909,10 @@ erDiagram
 ### Container Architecture
 The application runs as **two containers** sharing the same Docker image:
 
-| Container | Role | Command |
-|---|---|---|
-| `web` | Flask web application (Gunicorn in production, Flask dev server locally) | `gunicorn app:create_app()` |
-| `scheduler` | Background task runner — Event auto-transitions, reminder emails, admin digests | `python scheduler/main.py` |
+| Container | Role | Dev command | Prod command |
+|---|---|---|---|
+| `web` | Flask web application | `flask run --host=0.0.0.0 --debug` | `gunicorn -w 2 -b 0.0.0.0:5000 "app:create_app()"` |
+| `scheduler` | Background task runner — email outbox drain, Event auto-transitions, reminder emails, admin digests, backup, work-report cleanup | `python scheduler/main.py` | `python scheduler/main.py` |
 
 Both containers connect to the same PostgreSQL database. See AD10 for the scheduler decision rationale. Full details in `DEVOPS.md`.
 
@@ -917,10 +921,10 @@ Both containers connect to the same PostgreSQL database. See AD10 for the schedu
 | Environment | Purpose | Data | Infrastructure |
 |---|---|---|---|
 | **Local dev** | Developer playground; rapid iteration | Generated mock/seed data (`scripts/seed_dev.py`) | Docker Compose on developer laptop |
-| **PR Preview** | Ephemeral per-PR environment for review and functional testing | Fresh seeded DB (auto-provisioned by Render) | Render.com — spun up on PR open, torn down on merge/close |
+| **Zerver (home lab)** | Integration testing; mirrors production config | Seeded dev data | Self-hosted server (192.168.111.5 LAN); synced via `zerver_scp.sh` after each commit |
 | **Production** | Live system serving real users | Real data | Render.com free tier (MVP); hyperscaler with NGO credits long-term — see AD09 |
 
-No permanent staging environment for MVP — Render PR Preview environments fulfil this role on demand at no extra standing cost.
+No permanent staging environment for MVP. The zerver home-lab server fulfils this role during active development.
 
 ### Hosting Platform
 - **MVP**: Render.com — native Docker support, free tier (web service + background worker + managed PostgreSQL), auto-deploy from GitHub via `render.yaml` Blueprint. See AD09.
@@ -949,64 +953,82 @@ No permanent staging environment for MVP — Render PR Preview environments fulf
 
 
 ### Role Based Access Control (RBAC)
-The application will be built using the RBAC concept where User Accounts will be assigned to one or more Roles.
-A Role will be assigned to Permissions. (A Role is a set of permissions)
-For example an User Account assigned to the Admin role will have all the permissions of this role, allowing the User to administer the whole application. Multiple User Accounts can be assigned to a Role, one User Account can be assigned to multiple Roles.
+The application uses RBAC: User Accounts are assigned to one or more Roles; a Role is a named set of Permissions. Multiple accounts can share a Role; one account can hold multiple Roles.
 
-**Responsible Person (RP)** is not a separate Role but a contextual responsibility assigned to a specific user for a specific Event. The RP gains a small set of additional permissions scoped to their Event (see table note below).
+Pre-defined roles (see AD01):
+- **Admin** — full system access except confidential debriefing records
+- **Coordinator** — create/manage events and assign staff
+- **Member** — join events, submit debriefings
+- **Viewer** — read-only access; minimum role for using the application
+- **Debriefing Manager** — exclusive access to confidential debriefing records; intentionally separate from Admin to protect participant confidentiality
+
+**Responsible Person (RP)** is not a separate Role but a contextual responsibility assigned to a specific user for a specific Event. The RP gains `event.assignments.open`, `event.assignments.close`, and `event.notification.send` scoped to that Event only.
 
 ### Permissions
 
-| Permission | Admin | Coordinator | Member | Viewer |
-|---|:---:|:---:|:---:|:---:|
-| **Users** | | | | |
-| user.view | ✓ | ✓ | ✓ | ✓ |
-| user.edit_own | ✓ | ✓ | ✓ | ✓ |
-| user.edit_any | ✓ | — | — | — |
-| user.activate / deactivate | ✓ | — | — | — |
-| user.assign_role | ✓ | — | — | — |
-| user.assign_credential | ✓ | — | — | — |
-| invite.create | ✓ | — | — | — |
-| **Qualifications** | | | | |
-| qualification.view | ✓ | ✓ | ✓ | ✓ |
-| qualification.create / edit / delete | ✓ | — | — | — |
-| **Master Events** | | | | |
-| master_event.view | ✓ | ✓ | ✓ | ✓ |
-| master_event.create / edit | ✓ | ✓ | — | — |
-| master_event.archive / unarchive | ✓ | — | — | — |
-| **Events** | | | | |
-| event.view (Published and later) | ✓ | ✓ | ✓ | ✓ |
-| event.view (Draft) | ✓ | ✓ | — | — |
-| event.create / edit | ✓ | ✓ | — | — |
-| event.publish | ✓ | ✓ | — | — |
-| event.assignments.open / close | ✓ | ✓ | RP* | — |
-| event.cancel / restore | ✓ | ✓ | — | — |
-| event.delete (archived, permanent) | ✓ | — | — | — |
-| event.assign_own (join / leave) | ✓ | ✓ | ✓ | — |
-| event.assign_other | ✓ | ✓ | — | — |
-| event.set_responsible_person | ✓ | ✓ | — | — |
-| event.notification.send (manual) | ✓ | ✓ | RP* | — |
-| **Event Templates** | | | | |
-| event_template.view | ✓ | ✓ | ✓ | ✓ |
-| event_template.create / edit / delete | ✓ | ✓ | — | — |
-| **Equipment** | | | | |
-| equipment.view | ✓ | ✓ | ✓ | ✓ |
-| equipment_type.create / edit / delete | ✓ | — | — | — |
-| equipment_item.create / edit / delete | ✓ | — | — | — |
-| equipment_item.issue_personal (assign/unassign personal item to a member) | ✓ | — | — | — |
-| equipment_item.report_own (member self-reports status of their own issued personal items) | ✓ | ✓ | ✓ | — |
-| event.equipment.plan (set required equipment types + quantities on an Event) | ✓ | ✓ | — | — |
-| event.equipment.assign (record which specific shared items were brought to an Event) | ✓ | ✓ | — | — |
-| **Debriefing** | | | | |
-| debriefing.submit_own | ✓ | ✓ | ✓ | — |
-| debriefing.view_own | ✓ | ✓ | ✓ | — |
-| debriefing.view_all | ✓ | ✓ | — | — |
-| **Reports** | | | | |
-| report.view | ✓ | ✓ | ✓ | ✓ (limited) |
-| **Audit** | | | | |
-| audit.view | ✓ | — | — | — |
+| Permission | Admin | Coordinator | Member | Viewer | Debriefing Manager |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Users** | | | | | |
+| user.view | ✓ | ✓ | ✓ | ✓ | — |
+| user.edit_own | ✓ | ✓ | ✓ | — | — |
+| user.edit_any | ✓ | — | — | — | — |
+| user.activate / deactivate | ✓ | — | — | — | — |
+| user.assign_role | ✓ | — | — | — | — |
+| user.assign_qualification | ✓ | — | — | — | — |
+| invite.create | ✓ | — | — | — | — |
+| **Qualifications** | | | | | |
+| qualification.view | ✓ | ✓ | ✓ | ✓ | — |
+| qualification.create / edit / delete | ✓ | — | — | — | — |
+| **Master Events** | | | | | |
+| master_event.view | ✓ | ✓ | ✓ | ✓ | — |
+| master_event.create / edit | ✓ | ✓ | — | — | — |
+| master_event.archive / unarchive | ✓ | — | — | — | — |
+| **Events** | | | | | |
+| event.view (Published and later) | ✓ | ✓ | ✓ | ✓ | — |
+| event.view_draft | ✓ | ✓ | — | — | — |
+| event.create / edit | ✓ | ✓ | — | — | — |
+| event.publish | ✓ | ✓ | — | — | — |
+| event.assignments.open / close | ✓ | ✓ | RP* | — | — |
+| event.cancel / restore | ✓ | ✓ | — | — | — |
+| event.delete (archived, permanent) | ✓ | — | — | — | — |
+| event.assign_own (join / leave) | ✓ | ✓ | ✓ | — | — |
+| event.assign_other | ✓ | ✓ | — | — | — |
+| event.set_responsible_person | ✓ | ✓ | — | — | — |
+| event.notification.send (manual) | ✓ | ✓ | RP* | — | — |
+| **Event Templates** | | | | | |
+| event_template.view | ✓ | ✓ | ✓ | ✓ | — |
+| event_template.create / edit / delete | ✓ | ✓ | — | — | — |
+| **Equipment** | | | | | |
+| equipment.view | ✓ | ✓ | ✓ | ✓ | — |
+| equipment_type.create / edit / delete | ✓ | — | — | — | — |
+| equipment_item.create / edit / delete | ✓ | — | — | — | — |
+| equipment_item.issue_personal | ✓ | ✓ | ✓ | — | — |
+| equipment_item.report_own | ✓ | ✓ | ✓ | — | — |
+| event.equipment.plan | ✓ | ✓ | — | — | — |
+| event.equipment.assign | ✓ | ✓ | — | — | — |
+| **Debriefing** | | | | | |
+| debriefing.submit_own | ✓ | ✓ | ✓ | — | ✓ |
+| debriefing.view_own | ✓ | ✓ | ✓ | — | ✓ |
+| debriefing.view_all (confidential) | — | — | — | — | ✓ |
+| debriefing.manage | — | — | — | — | ✓ |
+| **Reports** | | | | | |
+| report.view | ✓ | ✓ | ✓ | ✓ | — |
+| work_report.generate | ✓ | ✓ | ✓ | — | — |
+| **Audit** | | | | | |
+| audit.view | ✓ | — | — | — | — |
+| **Admin / System** | | | | | |
+| admin.view | ✓ | — | — | — | — |
+| admin.manage_settings | ✓ | — | — | — | — |
+| admin.manage_digest | ✓ | — | — | — | — |
+| **Backup** | | | | | |
+| backup.run | ✓ | — | — | — | — |
+| backup.download | ✓ | — | — | — | — |
+| backup.restore | ✓ | — | — | — | — |
+| backup.delete | ✓ | — | — | — | — |
 
 *\*RP (Responsible Person)* — a Member who is the RP of an Event gains `event.assignments.open`, `event.assignments.close`, and `event.notification.send` scoped to that specific Event only.
+
+**Note on Admin and debriefing:** Admin intentionally does **not** hold `debriefing.view_all` or `debriefing.manage`. Only the Debriefing Manager role has access to confidential participant responses. This is a deliberate privacy boundary (see `Role._ADMIN_EXCLUDED_PERMISSIONS` in `app/models/role.py`).
 
 
 ### Application Components / Classes
@@ -1143,15 +1165,19 @@ For example an User Account assigned to the Admin role will have all the permiss
     - assigned at - timestamp
 
 #### DebriefingRecord
-- description: post-event report submitted by an assigned member after an Event is Completed.
+- description: post-event report submitted by an assigned member after an Event is Completed. Contains both a non-confidential RP section and confidential participant sections; access to confidential fields is restricted to the Debriefing Manager role.
 - properties
     - event ID
     - user account ID
-    - actual hours worked - may differ from the planned Event duration (partial attendance supported)
+    - **grade** — 1 (Výborná) to 5 (Špatná); overall event rating submitted by the participant
+    - actual hours worked — may differ from the planned Event duration (partial attendance supported)
     - patients treated
-    - materials used - free-text description of medical materials consumed (bandages, gloves, etc.); structured equipment assignment is tracked separately via EventEquipmentAssignment
-    - notes / feedback
-    - submitted at - timestamp
+    - materials used — free-text description of medical materials consumed
+    - **feedback_event** (confidential) — participant's evaluation of event execution
+    - **feedback_customer** (confidential) — participant's evaluation of the customer/organiser
+    - **feedback_colleagues** (confidential) — participant's evaluation of teamwork
+    - **RP section** — non-confidential fields filled only by the Responsible Person (actual start/end times, additional notes for coordinator)
+    - submitted at — timestamp
 
 #### EquipmentType
 - description: a category of physical equipment (e.g. AED, medikit, large medikit, training dummy, uniform, personal LED light).
@@ -1185,8 +1211,9 @@ For example an User Account assigned to the Admin role will have all the permiss
 
 ## Ideas for future
 - Feature to manage not only medical cover but also medical training Events with its specific requirements
-- In-app notifications (notification bell / inbox in the UI) — email only for MVP
+- In-app notifications (notification bell / inbox in the UI) — email only currently
 - Create a new Event from a Cancelled or Completed Event (copy/reuse as a starting point)
 - Custom user roles (currently only pre-defined roles per AD01)
 - REST API write access for third-party integrations
-- Advanced reporting / statistics dashboard beyond per-user and per-ME summaries
+- Advanced reporting / dashboards beyond current per-user, per-ME, date-range, and Výkaz práce reports
+- Social login / SSO (Google OAuth, Azure AD) — local auth only currently
