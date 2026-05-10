@@ -27,6 +27,8 @@ _PAGE_SIZE = 30
 
 # Phone: 9 bare digits, OR +/00 followed by 10-15 digits (spaces stripped before check)
 _PHONE_RE = re.compile(r"^\d{9}$|^(\+|00)\d{10,15}$")
+# Email: basic structural check — local@domain.tld
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _validate_phone(raw: str) -> bool:
@@ -228,6 +230,31 @@ def detail(user_id: uuid.UUID) -> str:
     return render_template("users/detail.html", user=user, all_roles=roles, all_qualifications=qualifications)
 
 
+def _apply_role_update(user: UserAccount, role_ids: list[int]) -> None:
+    """Assign *role_ids* to *user* and audit the change. Caller is responsible for version bump."""
+    before_roles = sorted(r.name for r in user.roles)
+    new_roles = db.session.scalars(
+        db.select(Role).where(Role.id.in_(role_ids))
+    ).all() if role_ids else []
+    user.roles = list(new_roles)
+    after_roles = sorted(r.name for r in user.roles)
+    audit("edit", "UserAccount", user.id, f"Role uživatele {user.name} aktualizovány",
+          diff_changes({"roles": before_roles}, {"roles": after_roles}))
+
+
+def _apply_qualification_update(user: UserAccount, qual_ids: list[int]) -> None:
+    """Assign *qual_ids* to *user* and audit the change. Caller is responsible for version bump."""
+    from app.models.qualification import Qualification
+    before_quals = sorted(c.name for c in user.qualifications)
+    new_creds = db.session.scalars(
+        db.select(Qualification).where(Qualification.id.in_(qual_ids))
+    ).all() if qual_ids else []
+    user.qualifications = list(new_creds)
+    after_quals = sorted(c.name for c in user.qualifications)
+    audit("edit", "UserAccount", user.id, f"Kvalifikace uživatele {user.name} aktualizovány",
+          diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}))
+
+
 @users_bp.route("/<uuid:user_id>/save", methods=["POST"])
 @login_required
 def save_user(user_id: uuid.UUID) -> Response:
@@ -268,25 +295,12 @@ def save_user(user_id: uuid.UUID) -> Response:
     # ── Roles ───────────────────────────────────────────────────────────────
     if current_user.has_permission("user.assign_role"):
         role_ids = [int(r) for r in request.form.getlist("role_ids")]
-        before_roles = sorted(r.name for r in user.roles)
-        new_roles = db.session.scalars(
-            db.select(Role).where(Role.id.in_(role_ids))
-        ).all() if role_ids else []
-        user.roles = list(new_roles)
-        after_roles = sorted(r.name for r in user.roles)
-        audit("edit", "UserAccount", user.id, f"Role uživatele {user.name} aktualizovány", diff_changes({"roles": before_roles}, {"roles": after_roles}))
+        _apply_role_update(user, role_ids)
 
     # ── Qualifications ──────────────────────────────────────────────────────
     if current_user.has_permission("user.assign_qualification"):
-        from app.models.qualification import Qualification
         cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
-        before_quals = sorted(c.name for c in user.qualifications)
-        new_creds = db.session.scalars(
-            db.select(Qualification).where(Qualification.id.in_(cred_ids))
-        ).all() if cred_ids else []
-        user.qualifications = list(new_creds)
-        after_quals = sorted(c.name for c in user.qualifications)
-        audit("edit", "UserAccount", user.id, f"Kvalifikace uživatele {user.name} aktualizovány", diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}))
+        _apply_qualification_update(user, cred_ids)
 
     # ── Admin password set (optional) ───────────────────────────────────────
     new_password = request.form.get("new_password", "").strip()
@@ -338,14 +352,8 @@ def update_roles(user_id: uuid.UUID) -> Response:
     require_permission("user.assign_role")
     user = get_or_404(UserAccount, user_id)
     role_ids = [int(r) for r in request.form.getlist("role_ids")]
-    before_roles = sorted(r.name for r in user.roles)
-    new_roles = db.session.scalars(
-        db.select(Role).where(Role.id.in_(role_ids))
-    ).all() if role_ids else []
-    user.roles = list(new_roles)
+    _apply_role_update(user, role_ids)
     user.version += 1
-    after_roles = sorted(r.name for r in user.roles)
-    audit("edit", "UserAccount", user.id, f"Role uživatele {user.name} aktualizovány", diff_changes({"roles": before_roles}, {"roles": after_roles}))
     db.session.commit()
     flash("Role byly aktualizovány.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
@@ -356,16 +364,9 @@ def update_roles(user_id: uuid.UUID) -> Response:
 def update_qualifications(user_id: uuid.UUID) -> Response:
     require_permission("user.assign_qualification")
     user = get_or_404(UserAccount, user_id)
-    from app.models.qualification import Qualification
     cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
-    before_quals = sorted(c.name for c in user.qualifications)
-    new_creds = db.session.scalars(
-        db.select(Qualification).where(Qualification.id.in_(cred_ids))
-    ).all() if cred_ids else []
-    user.qualifications = list(new_creds)
+    _apply_qualification_update(user, cred_ids)
     user.version += 1
-    after_quals = sorted(c.name for c in user.qualifications)
-    audit("edit", "UserAccount", user.id, f"Kvalifikace uživatele {user.name} aktualizovány", diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}))
     db.session.commit()
     flash("Kvalifikace byly aktualizovány.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
@@ -486,7 +487,7 @@ def invites() -> str:
 def create_invite() -> Response:
     require_permission("invite.create")
     email = request.form.get("email", "").strip().lower()
-    if not email or "@" not in email:
+    if not email or not _EMAIL_RE.match(email):
         flash("Zadejte platnou e-mailovou adresu.", "danger")
         return redirect(url_for("users.invites"))
 

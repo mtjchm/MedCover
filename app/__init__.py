@@ -128,6 +128,15 @@ def create_app(
                 "font-src 'self' cdn.jsdelivr.net; "
                 "img-src 'self' data:;"
             )
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+            response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+            response.headers.setdefault(
+                "Permissions-Policy",
+                "geolocation=(), microphone=(), camera=()",
+            )
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         return response
@@ -158,8 +167,14 @@ def create_app(
         if not settings.setup_complete:
             return redirect(url_for("setup.step1"))
 
-        # Keep Flask-Mail config in sync with DB on every request (cheap dict write)
-        settings.apply_to_app(app)
+        # Keep Flask-Mail config in sync with DB — skip reinit when SMTP settings unchanged.
+        fingerprint = (
+            settings.smtp_server, settings.smtp_port, settings.smtp_use_tls,
+            settings.smtp_username, settings.smtp_password_enc, settings.smtp_default_sender,
+        )
+        if app.config.get("_SMTP_FINGERPRINT") != fingerprint:
+            settings.apply_to_app(app)
+            app.config["_SMTP_FINGERPRINT"] = fingerprint
         return None
 
     return app

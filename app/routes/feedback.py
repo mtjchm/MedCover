@@ -23,7 +23,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.utils import get_or_404, require_permission
+from app.utils import get_or_404, require_permission, safe_next
 from app.models.audit import AuditLogEntry
 from app.models.feedback import UserFeedback
 from app.models.settings import get_settings
@@ -78,8 +78,8 @@ def feedback_submit() -> Response:
     db.session.commit()
 
     flash("Děkujeme za zpětnou vazbu!", "success")
-    # Return to the page the user came from, or dashboard
-    return redirect(page_url or url_for("main.dashboard"))
+    # Return to the page the user came from, or dashboard (safe_next guards against open redirect)
+    return redirect(safe_next(page_url))
 
 
 # ── Admin ──────────────────────────────────────────────────────────────────────

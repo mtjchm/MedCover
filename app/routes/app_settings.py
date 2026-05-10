@@ -47,6 +47,10 @@ def index() -> str | Response:
             flash("Neplatná časová zóna.", "warning")
             return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
 
+        if app_base_url and not (app_base_url.startswith("http://") or app_base_url.startswith("https://")):
+            flash("Základní URL aplikace musí začínat http:// nebo https://.", "warning")
+            return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
+
         # --- Build before dict for audit (no secrets) ---
         before = {
             "org_name": settings.org_name,

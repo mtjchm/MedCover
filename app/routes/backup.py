@@ -23,6 +23,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user, login_required
+from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.utils import audit, require_permission
@@ -152,7 +153,7 @@ def upload_restore() -> Response:
     # Save uploaded file to a temp location inside backup_dir then restore.
     backup_dir = _resolve_backup_dir()
     backup_dir.mkdir(parents=True, exist_ok=True)
-    tmp_path = backup_dir / f"_upload_{file.filename}"
+    tmp_path = backup_dir / f"_upload_{secure_filename(file.filename)}"
     try:
         file.save(str(tmp_path))
         _do_restore(tmp_path, actor_id=current_user.id)

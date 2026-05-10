@@ -118,8 +118,9 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     """
     from app.models.digest import get_digest_schedule
     from app.digest.renderer import render_digest
-    from app.mail import send_admin_digest, user_can_receive_notification
+    from app.mail import send_admin_digest
     from app.models.user import UserAccount
+    from app.models.role import Role
 
     if now is None:
         now = datetime.now(timezone.utc)
@@ -129,7 +130,10 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     if not schedule.enabled:
         return False
 
-    if now.hour != schedule.preferred_hour_utc:
+    # For daily-or-longer frequencies, only fire at the preferred UTC hour.
+    # Sub-daily frequencies (e.g. every 6 h) ignore the hour gate and rely
+    # solely on the elapsed-time check below.
+    if schedule.frequency_hours >= 24 and now.hour != schedule.preferred_hour_utc:
         return False
 
     if schedule.last_sent_at is not None:
@@ -137,10 +141,11 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
         if elapsed < schedule.frequency_hours * 3600:
             return False
 
-    recipients = db_session.scalars(
-        sa.select(UserAccount).where(UserAccount.is_active.is_(True))
+    eligible = db_session.scalars(
+        sa.select(UserAccount)
+        .join(UserAccount.roles)
+        .where(UserAccount.is_active.is_(True), Role.name == "Admin")
     ).all()
-    eligible = [u for u in recipients if user_can_receive_notification(u, "admin_digest")]
 
     if not eligible:
         log.info("Admin digest: no eligible recipients, skipping.")

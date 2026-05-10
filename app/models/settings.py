@@ -140,10 +140,25 @@ class AppSettings(db.Model):  # type: ignore[misc]
 # ------------------------------------------------------------------ #
 
 def get_settings() -> AppSettings:
-    """Return the single AppSettings row, creating it if it doesn't exist yet."""
-    row = db.session.get(AppSettings, 1)
-    if row is None:
-        row = AppSettings(id=1)
-        db.session.add(row)
-        db.session.commit()
-    return row
+    """Return the single AppSettings row, creating it if it doesn't exist yet.
+
+    The result is cached on ``flask.g`` for the duration of the request so that
+    multiple callers within the same request share a single DB hit.  Outside a
+    request context (e.g. the scheduler) the row is fetched directly each time.
+    """
+    def _fetch() -> AppSettings:
+        row = db.session.get(AppSettings, 1)
+        if row is None:
+            row = AppSettings(id=1)
+            db.session.add(row)
+            db.session.commit()
+        return row
+
+    try:
+        from flask import g  # noqa: PLC0415
+        if not hasattr(g, "_medcover_settings"):
+            g._medcover_settings = _fetch()
+        return g._medcover_settings
+    except RuntimeError:
+        # No active request context (scheduler, CLI) — fetch directly.
+        return _fetch()
