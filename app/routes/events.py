@@ -37,7 +37,7 @@ from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.utils import RECORD_MODIFIED_MSG, audit, check_version_conflict, diff_changes, get_or_404, require_permission
-from app.queries import active_master_events_list, active_users_list
+from app.queries import active_master_events_list, active_users_list, user_fillable_qual_ids
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -95,12 +95,15 @@ def index() -> str:
         user_assigned_spot_ids = set(db.session.scalars(
             db.select(Assignment.spot_id).where(Assignment.user_id == current_user.id)
         ).all())
+        fillable_ids = user_fillable_qual_ids(current_user)
         for e in events:
             if e.status != EventStatus.ASSIGNMENTS_OPEN:
                 continue
             eligible = [
                 (s.id, s.description)
-                for s in e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids)
+                for s in e.spots
+                if s.assignment is None and s.id not in user_assigned_spot_ids
+                and s.is_eligible_for(fillable_ids)
             ]
             if eligible:
                 eligible_spot_map[e.id] = eligible
@@ -148,6 +151,7 @@ def feed() -> Response:
 
     # Build eligible spot set for current user (same logic as index view)
     user_assigned_spot_ids: set[int] = set()
+    fillable_ids: set[int] = set()
     if current_user.has_permission("event.assign_own"):
         assigned = db.session.scalars(
             db.select(Assignment).where(
@@ -155,13 +159,18 @@ def feed() -> Response:
             )
         ).all()
         user_assigned_spot_ids = {a.spot_id for a in assigned}
+        fillable_ids = user_fillable_qual_ids(current_user)
 
     items = []
     for e in events:
         color = _STATUS_COLORS.get(e.status.value, "#6c757d")
         eligible = False
         if current_user.has_permission("event.assign_own"):
-            eligible = bool(e.eligible_unfilled_spots_for(current_user, user_assigned_spot_ids))
+            eligible = any(
+                s.assignment is None and s.id not in user_assigned_spot_ids
+                and s.is_eligible_for(fillable_ids)
+                for s in e.spots
+            )
         items.append({
             "id": e.id,
             "title": e.name,
