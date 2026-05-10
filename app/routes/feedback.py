@@ -64,7 +64,7 @@ def feedback_submit() -> Response:
     page_url = request.form.get("page_url", "").strip() or None
     user_agent = request.form.get("user_agent", "").strip() or None
     screen_info = request.form.get("screen_info", "").strip() or None
-    app_version = current_app.config.get("GIT_COMMIT") or None
+    app_version = current_app.config.get("APP_VERSION") or None
 
     entry = UserFeedback(
         user_id=current_user.id,

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Změny ve verzích — MedCover{% endblock %}
+
+{% block content %}
+<div class="maxw-640 mx-auto">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Změny ve verzích</h2>
+    <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
+  </div>
+
+  {# ── Unreleased ──────────────────────────────────────────────────────────── #}
+  <div class="card mb-3 border-secondary">
+    <div class="card-header d-flex justify-content-between align-items-center bg-body-secondary">
+      <span class="fw-semibold text-muted">Chystané změny</span>
+      <span class="badge bg-secondary">Nevydáno</span>
+    </div>
+    <div class="card-body text-muted small">
+      Žádné chystané změny.
+    </div>
+  </div>
+
+  {# ── v0.9.0 ──────────────────────────────────────────────────────────────── #}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Verze 0.9.0</span>
+      <span class="text-muted small">10. 5. 2026</span>
+    </div>
+    <div class="card-body">
+
+      <h6 class="text-success">✚ Přidáno</h6>
+      <ul class="small mb-3">
+        <li>Autentizace: pozvánek, registrace, obnova hesla, ochrana proti brute-force útokům</li>
+        <li>Správa uživatelů: role, oprávnění, aktivace/deaktivace účtů, tmavý režim</li>
+        <li>Profil uživatele a nastavení (horizont na dashboardu, tmavý režim)</li>
+        <li>Správa akcí: CRUD, stavy (Koncept → Publikováno → Přihlášky otevřeny → Probíhá → Dokončeno / Zrušeno)</li>
+        <li>Nadřazené akce (Master Events) s hierarchickým reportingem</li>
+        <li>Správa pozic a přihlášek s pesimistickým zamykáním</li>
+        <li>Odpovědný zdravotník (RP): přiřazení, varování na dashboardu</li>
+        <li>Volitelné pozice na akcích a šablonách</li>
+        <li>Kvalifikace: CRUD, hierarchie, podmínky obsazení pozic, soft-delete</li>
+        <li>Šablony akcí: uložení struktury pozic pro opakované akce</li>
+        <li>Debriefing: dvoustupňový formulář, přehled správce debriefingu, automatické spuštění po dokončení akce</li>
+        <li>Výkaz práce (Výkaz práce): generování předvyplněného xlsx za vybraný měsíc</li>
+        <li>Zpětná vazba uživatelů: odeslání z libovolné stránky, správa v administraci</li>
+        <li>Přehledový e-mail (digest): konfigurovatelné bloky, plánované odesílání</li>
+        <li>Správa vybavení: typy a položky vybavení</li>
+        <li>Import akcí a uživatelů z xlsx/CSV souborů</li>
+        <li>Reporty a statistiky: na uživatele, na nadřazenou akci, za časové období (s exportem CSV)</li>
+        <li>Záloha a obnova databáze</li>
+        <li>Přehled oprávnění v administraci</li>
+        <li>Audit log: záznam všech změn na všech entitách</li>
+        <li>FullCalendar: vizualizace akcí v kalendářním zobrazení</li>
+        <li>Tmavý režim s plnou podporou Bootstrap 5.3 CSS proměnných</li>
+        <li>Mobilní navigace a responzivní rozvržení</li>
+        <li>Změny ve verzích (tato stránka)</li>
+      </ul>
+
+      <h6 class="text-warning">▲ Zabezpečení</h6>
+      <ul class="small mb-0">
+        <li>CSRF ochrana na všech formulářích (Flask-WTF) a AJAX požadavcích</li>
+        <li>Content Security Policy hlavičky</li>
+        <li>Šifrování SMTP hesla algoritmem Fernet</li>
+        <li>Ochrana před otevřeným přesměrováním (open redirect)</li>
+        <li>SSL/TLS připojení k databázi v produkčním prostředí</li>
+        <li>Brute-force ochrana přihlášení (zamčení účtu po 5 neúspěšných pokusech)</li>
+      </ul>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

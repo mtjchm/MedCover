@@ -73,3 +73,30 @@ class TestExternalUrlFor:
 
             settings.app_base_url = None
             db.session.flush()
+
+
+# ── Changelog route ───────────────────────────────────────────────────────────
+
+
+class TestChangelog:
+    def test_anonymous_redirected(self, client):
+        rv = client.get("/changelog", follow_redirects=False)
+        assert rv.status_code in (301, 302)
+
+    def test_member_can_view(self, app, member_client):
+        rv = member_client.get("/changelog")
+        assert rv.status_code == 200
+        assert "Změny ve verzích".encode() in rv.data
+        assert b"0.9.0" in rv.data
+
+    def test_admin_can_view(self, app, admin_client):
+        rv = admin_client.get("/changelog")
+        assert rv.status_code == 200
+        assert b"0.9.0" in rv.data
+
+
+# ── APP_VERSION config ────────────────────────────────────────────────────────
+
+
+def test_app_version_config(app):
+    assert app.config["APP_VERSION"] == "0.9.0"
