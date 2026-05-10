@@ -247,7 +247,7 @@
 
   {# All open events (hidden by default) #}
   {% if open_events_all | length > open_events | length %}
-  <ul class="list-group list-group-flush" id="open-all" style="display:none">
+  <ul class="list-group list-group-flush d-none" id="open-all">
     {% for e in open_events_all %}
     <li class="list-group-item list-group-item-action py-2">
       <a href="{{ url_for('events.detail', event_id=e.id) }}" class="text-decoration-none stretched-link"></a>

@@ -9,8 +9,8 @@ function toggleOpenAll() {
   var btn          = document.getElementById("btn-show-all");
   var count        = btn ? (btn.dataset.openCount || "?") : "?";
 
-  if (openEligible) openEligible.style.display = showingAll ? "none" : "";
-  if (openAll)      openAll.style.display      = showingAll ? ""     : "none";
+  if (openEligible) openEligible.classList.toggle('d-none', showingAll);
+  if (openAll)      openAll.classList.toggle('d-none', !showingAll);
   if (openLabel)    openLabel.textContent       = showingAll ? "(všechny)" : "(jen vaše kvalifikace)";
   if (btn) btn.textContent = showingAll ? "Jen moje kvalifikace" : "Zobrazit vše (" + count + ")";
 }

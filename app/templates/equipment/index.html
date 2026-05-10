@@ -28,7 +28,7 @@
     <tbody>
       {% for et in types %}
       <tr {% if current_user.has_permission('equipment_type.edit') %}
-          style="cursor:pointer"
+          class="cursor-pointer"
           onclick="window.location='{{ url_for('equipment.type_edit', type_id=et.id) }}'"
           {% endif %}>
         <td class="fw-semibold">{{ et.name }}</td>

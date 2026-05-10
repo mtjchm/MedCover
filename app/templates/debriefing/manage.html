@@ -68,9 +68,9 @@
               {{ r.grade }}/5
             </span>
           </td>
-          <td class="small text-muted" style="max-width:200px;white-space:pre-wrap">{{ r.feedback_event or '—' }}</td>
-          <td class="small text-muted" style="max-width:200px;white-space:pre-wrap">{{ r.feedback_customer or '—' }}</td>
-          <td class="small text-muted" style="max-width:200px;white-space:pre-wrap">{{ r.feedback_colleagues or '—' }}</td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_event or '—' }}</td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_customer or '—' }}</td>
+          <td class="small text-muted" class="maxw-200 text-prewrap">{{ r.feedback_colleagues or '—' }}</td>
           <td class="text-muted small">{{ r.submitted_at | localdt }}</td>
         </tr>
         {% endfor %}

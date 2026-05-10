@@ -27,12 +27,12 @@
 } %}
 
 <div class="table-responsive">
-  <table class="table table-sm table-bordered align-middle" style="font-size:0.85rem">
+  <table class="table table-sm table-bordered align-middle font-85">
     <thead class="table-dark">
       <tr>
-        <th style="min-width:260px">Oprávnění</th>
+        <th class="minw-260">Oprávnění</th>
         {% for role in role_names %}
-          <th class="text-center" style="min-width:110px">{{ role }}</th>
+          <th class="text-center minw-110">{{ role }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -49,7 +49,7 @@
         {% endif %}
         <tr>
           <td>
-            <code class="text-muted" style="font-size:0.78rem">{{ perm.code }}</code>
+            <code class="text-muted font-78">{{ perm.code }}</code>
             <span class="ms-2 text-body-secondary">{{ perm.description }}</span>
           </td>
           {% for role in role_names %}
