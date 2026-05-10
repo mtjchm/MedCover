@@ -327,6 +327,13 @@
                 {{ u.name }}
               </option>
               {% endfor %}
+              {# New users being imported in this batch (no DB id yet) #}
+              {% for new_u in users_preview_rows if not new_u.existing %}
+              <option value="name:{{ new_u.name }}"
+                {% if not row.rp_user and row.responsible_person and new_u.name|lower == row.responsible_person|lower %}selected{% endif %}>
+                {{ new_u.name }} ✨
+              </option>
+              {% endfor %}
             </select>
           </td>
 
