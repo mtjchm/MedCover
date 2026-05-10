@@ -153,7 +153,6 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     ],
     Role.COORDINATOR: [
         "user.view", "user.edit_own",
-        "invite.create",
         "qualification.view",
         "master_event.view", "master_event.create", "master_event.edit",
         "event.view", "event.view_draft", "event.create", "event.edit",

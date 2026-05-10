@@ -131,6 +131,7 @@ Two modules hold all reusable building blocks. **Always import the existing help
 
 ## Branch & PR Convention
 - One feature branch per logical unit: `feat/<short-name>`
+- **Always create a feature branch before making any code changes.** Never modify files while on `main`.
 - CI must pass before merging (GitHub Actions: lint-free import, `flask db upgrade`, `pytest`; locally use `tox` for multi-Python validation)
 - Never commit directly to `main`
 - Co-author all Copilot commits: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
