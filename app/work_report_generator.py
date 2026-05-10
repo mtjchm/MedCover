@@ -137,12 +137,12 @@ _INFO_VALUE_D = Border(
     top=_side("thin"), bottom=_side("thin"),
 )
 _INFO_VALUE_E = Border(right=_side("medium"), top=_side("thin"), bottom=_side("thin"))
-# Row 7: empty spacer
+# Row 7: empty spacer — D7:E7 merged so no interior border appears between them
 _INFO_SPACER_A = Border(left=_side("medium"), top=_side("thin"))
 _INFO_SPACER_B = Border(top=_side("thin"))
 _INFO_SPACER_C = Border(right=_side("thin"), top=_side("thin"))
 _INFO_SPACER_D = Border(
-    left=_side("thin"), right=_side("medium"),
+    left=_side("thin"),
     top=_side("thin"), bottom=_side("thin"),
 )
 _INFO_SPACER_E = Border(right=_side("medium"), top=_side("thin"), bottom=_side("thin"))
@@ -314,10 +314,11 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
         _write_cell(ws, row_num, 4, value, font=_STD_FONT, border=_INFO_VALUE_D)
         _write_cell(ws, row_num, 5, None, border=_INFO_VALUE_E)
 
-    # Row 7: empty spacer with side borders
+    # Row 7: empty spacer — D7:E7 merged so no interior line appears between them
     _write_cell(ws, 7, 1, None, border=_INFO_SPACER_A)
     _write_cell(ws, 7, 2, None, border=_INFO_SPACER_B)
     _write_cell(ws, 7, 3, None, border=_INFO_SPACER_C)
+    ws.merge_cells("D7:E7")
     _write_cell(ws, 7, 4, None, border=_INFO_SPACER_D)
     _write_cell(ws, 7, 5, None, border=_INFO_SPACER_E)
 
@@ -418,6 +419,7 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     _write_cell(ws, sig_worker, 1, "Datum a podpis pracovníka:", font=_BOLD_FONT)
     last_day_date = date(year, month, days_in_month)
     _write_cell(ws, sig_worker, 4, last_day_date, font=_STD_FONT,
+                alignment=Alignment(horizontal="left"),
                 number_format="DD.MM.YYYY")
     _write_cell(ws, sig_boss, 1, "Datum a podpis nadřízeného pracovníka:", font=_BOLD_FONT)
 
