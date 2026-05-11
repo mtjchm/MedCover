@@ -14,7 +14,7 @@ from flask import Blueprint, Response, render_template, redirect, url_for, flash
 from flask_login import login_required
 
 from app.extensions import db
-from app.models.event import EventTemplate, EventSpotTemplate
+from app.models.event import EventTemplate, EventSpotTemplate, EventType
 from app.models.qualification import Qualification
 from app.models.equipment import EquipmentCategory, EquipmentType, EventTemplateEquipmentPlan
 from app.constants import RECORD_MODIFIED_MSG
@@ -115,20 +115,23 @@ def create() -> str | Response:
         description = request.form.get("description", "").strip() or None
         paid = request.form.get("paid") == "1"
         reminder_schedule = request.form.get("reminder_schedule", "24").strip() or "24"
+        event_type_str = request.form.get("event_type", "").strip()
+        event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
 
         if not name:
             flash("Název šablony je povinný.", "danger")
-            return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types)
+            return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
         if db.session.scalar(db.select(EventTemplate).where(EventTemplate.name == name)):
             flash("Šablona s tímto názvem již existuje.", "danger")
-            return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types)
+            return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
         tmpl = EventTemplate(
             name=name,
             description=description,
             paid=paid,
             reminder_schedule=reminder_schedule,
+            event_type=event_type,
         )
         db.session.add(tmpl)
         db.session.flush()
@@ -143,7 +146,7 @@ def create() -> str | Response:
         flash(f'Šablona „{tmpl.name}" byla vytvořena.', "success")
         return redirect(url_for("templates.index"))
 
-    return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types)
+    return render_template("templates/form.html", template=None, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
 
 # ── Edit ──────────────────────────────────────────────────────────────────────
@@ -167,16 +170,18 @@ def edit(template_id: int) -> str | Response:
     if request.method == "POST":
         if check_version_conflict(tmpl, request.form.get("version")):
             flash(RECORD_MODIFIED_MSG, "danger")
-            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
         name = request.form.get("name", "").strip()
         description = request.form.get("description", "").strip() or None
         paid = request.form.get("paid") == "1"
         reminder_schedule = request.form.get("reminder_schedule", "24").strip() or "24"
+        event_type_str = request.form.get("event_type", "").strip()
+        event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
 
         if not name:
             flash("Název šablony je povinný.", "danger")
-            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
         conflict = db.session.scalar(
             db.select(EventTemplate).where(
@@ -185,13 +190,14 @@ def edit(template_id: int) -> str | Response:
         )
         if conflict:
             flash("Šablona s tímto názvem již existuje.", "danger")
-            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
+            return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
         before = {
             "name": tmpl.name,
             "description": tmpl.description,
             "paid": tmpl.paid,
             "reminder_schedule": tmpl.reminder_schedule,
+            "event_type": tmpl.event_type.name,
             "spot_count": len(tmpl.spot_templates),
         }
 
@@ -199,6 +205,7 @@ def edit(template_id: int) -> str | Response:
         tmpl.description = description
         tmpl.paid = paid
         tmpl.reminder_schedule = reminder_schedule
+        tmpl.event_type = event_type
         tmpl.version += 1
 
         slots = _parse_spot_slots(request.form)
@@ -210,6 +217,7 @@ def edit(template_id: int) -> str | Response:
             "description": tmpl.description,
             "paid": tmpl.paid,
             "reminder_schedule": tmpl.reminder_schedule,
+            "event_type": tmpl.event_type.name,
             "spot_count": len(slots),
         }
 
@@ -225,7 +233,7 @@ def edit(template_id: int) -> str | Response:
         flash(f'Šablona „{tmpl.name}" byla uložena.', "success")
         return redirect(url_for("templates.index"))
 
-    return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types)
+    return render_template("templates/form.html", template=tmpl, qualifications=qualifications, equipment_types=equipment_types, EventType=EventType)
 
 
 # ── Delete ────────────────────────────────────────────────────────────────────

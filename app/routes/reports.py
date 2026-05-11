@@ -175,7 +175,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
     total_patients = 0
     for _, ev in pairs:
         planned_h = _event_planned_hours(ev)
-        patients = ev.patients_count if ev.actual_hours is not None else None
+        patients = ev.post_event_count if ev.actual_hours is not None else None
         rows.append({
             "event": ev,
             "planned_hours": planned_h,
@@ -287,7 +287,7 @@ def me_report(me_id: int) -> str | Response:
     for ev in events:
         total_spots, filled_spots = spot_map.get(ev.id, (0, 0))
         worked_hours = ev.actual_hours or Decimal("0")
-        patients = ev.patients_count or 0
+        patients = ev.post_event_count or 0
 
         rows.append({
             "event": ev,
@@ -430,7 +430,7 @@ def date_range_report() -> str | Response:
         total_spots += t
         filled_spots += f
         total_worked_hours += ev.actual_hours or Decimal("0")
-        total_patients += ev.patients_count or 0
+        total_patients += ev.post_event_count or 0
 
     # Per-user statistics across the date range
     now = datetime.now(timezone.utc)
@@ -454,7 +454,7 @@ def date_range_report() -> str | Response:
             total_s = len(ev.spots)
             filled_s = sum(1 for s in ev.spots if s.assignment is not None)
             worked_h = ev.actual_hours or Decimal("0")
-            patients = ev.patients_count or 0
+            patients = ev.post_event_count or 0
             csv_rows.append([
                 me_name,
                 ev.name,

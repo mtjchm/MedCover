@@ -1023,3 +1023,76 @@ class TestEventChangedNotification:
                 .where(OutboxEmail.notification_type == "event_changed")
             )
         assert after_count == before_count  # nothing enqueued
+
+
+class TestEventTypes:
+    """Tests for event type field — create, edit, and type filter."""
+
+    def test_create_training_event(self, app, admin_client):
+        me_id = _make_master_event(app)
+        data = {
+            **_event_form_data(me_id, "Training Event"),
+            "event_type": "TRAINING",
+            "planned_participants_count": "20",
+        }
+        resp = admin_client.post("/events/create", data=data, follow_redirects=False)
+        assert resp.status_code == 302
+        with app.app_context():
+            from app.models.event import EventType
+            ev = db.session.scalar(db.select(Event).where(Event.name == "Training Event"))
+            assert ev is not None
+            assert ev.event_type == EventType.TRAINING
+            assert ev.planned_participants_count == 20
+
+    def test_create_presentation_event(self, app, admin_client):
+        me_id = _make_master_event(app)
+        data = {
+            **_event_form_data(me_id, "Presentation Event"),
+            "event_type": "PRESENTATION",
+        }
+        resp = admin_client.post("/events/create", data=data, follow_redirects=False)
+        assert resp.status_code == 302
+        with app.app_context():
+            from app.models.event import EventType
+            ev = db.session.scalar(db.select(Event).where(Event.name == "Presentation Event"))
+            assert ev is not None
+            assert ev.event_type == EventType.PRESENTATION
+            assert ev.planned_participants_count is None
+
+    def test_default_event_type_is_medical_cover(self, app, admin_client):
+        me_id = _make_master_event(app)
+        admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
+        with app.app_context():
+            from app.models.event import EventType
+            ev = db.session.scalar(db.select(Event).where(Event.name == "Test Event"))
+            assert ev.event_type == EventType.MEDICAL_COVER
+
+    def test_type_filter_returns_only_matching_events(self, app, admin_client):
+        me_id = _make_master_event(app)
+        admin_client.post(
+            "/events/create",
+            data={**_event_form_data(me_id, "MC Event"), "event_type": "MEDICAL_COVER"},
+            follow_redirects=True,
+        )
+        admin_client.post(
+            "/events/create",
+            data={**_event_form_data(me_id, "Training Event"), "event_type": "TRAINING"},
+            follow_redirects=True,
+        )
+        # Filter for TRAINING only (include DRAFT so newly created events appear)
+        resp = admin_client.get("/events/?types=TRAINING&statuses=DRAFT")
+        assert resp.status_code == 200
+        assert b"Training Event" in resp.data
+        assert b"MC Event" not in resp.data
+
+    def test_type_badge_shown_in_event_list(self, app, admin_client):
+        me_id = _make_master_event(app)
+        admin_client.post(
+            "/events/create",
+            data={**_event_form_data(me_id, "Badge Training"), "event_type": "TRAINING"},
+            follow_redirects=True,
+        )
+        resp = admin_client.get("/events/?statuses=DRAFT")
+        assert b"Badge Training" in resp.data
+        # Training badge label
+        assert "Školení".encode() in resp.data

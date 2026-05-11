@@ -644,6 +644,26 @@ When in doubt about the correct Czech UI label or English code name for a concep
         - Compatibility issues with new Python versions are surfaced immediately after adding a new env, rather than at deployment time.
         - The `requirements-dev.txt` pinned file may need to be recompiled when a new Python version is added (some packages ship version-specific wheels).
 
+- AD19 Event Type Model
+    - **Status:** Decided
+    - **Context:** The app was originally designed only for medical cover events (zdravotní dozor). Issue #69 identified the need for additional event types — training (školení) and presentation (prezentační akce) — each with different field requirements and debriefing behaviour.
+    - **Options considered:**
+        - **Separate model subclasses (STI or separate tables)** — full separation, but high migration cost and complex ORM queries for combined lists.
+        - **Sparse nullable columns on `Event`** — single table, simple queries, nullable fields signal type-specific data.
+        - **JSON extra-data column** — flexible but loses type safety and queryability for type-specific fields.
+    - **Decision:** **Sparse nullable columns** on the `Event` model with an `EventType` enum (`MEDICAL_COVER`, `TRAINING`, `PRESENTATION`).
+        - New column: `event_type` (NOT NULL, default `MEDICAL_COVER`) on both `Event` and `EventTemplate`.
+        - New column: `planned_participants_count` (nullable int, TRAINING only — planned audience size set pre-event).
+        - Column rename: `patients_count` → `post_event_count` — shared post-event metric; its UI label is driven by event type (patients for medical cover, actual participants for training; not displayed for presentations).
+        - `EventTemplate` also carries `event_type` so creating an event from a template inherits the correct type.
+    - **Debriefing differences by type:**
+        - `MEDICAL_COVER`: actual start/end required, `post_event_count` required, RP section titled "ZZ".
+        - `TRAINING`: actual start/end optional, `post_event_count` optional, RP section titled "Lektor".
+        - `PRESENTATION`: no RP section at all.
+    - **Consequences:**
+        - Adding a new event type in the future requires only: a new `EventType` enum member, any new nullable columns, and template/route adjustments — no schema redesign.
+        - The `post_event_count` column and all reports use a generic label ("Ošetřených / účastníků") that works across types.
+
 MedCover is a standard three-tier web application:
 
 - **Frontend** — a browser-based web client accessed over the public Internet. Optimised for both desktop and mobile screens.

@@ -52,8 +52,13 @@
           <dt class="col-sm-4">Skutečný konec</dt>
           <dd class="col-sm-8">{{ event.actual_end_datetime | localdt }}</dd>
 
-          <dt class="col-sm-4">Počet ošetřených</dt>
-          <dd class="col-sm-8">{{ event.patients_count }}</dd>
+          {% if event.event_type == EventType.MEDICAL_COVER %}
+            <dt class="col-sm-4">Počet ošetřených</dt>
+            <dd class="col-sm-8">{{ event.post_event_count }}</dd>
+          {% elif event.event_type == EventType.TRAINING and event.post_event_count is not none %}
+            <dt class="col-sm-4">Skutečný počet účastníků</dt>
+            <dd class="col-sm-8">{{ event.post_event_count }}</dd>
+          {% endif %}
         </dl>
       </div>
     </div>

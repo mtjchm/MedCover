@@ -21,7 +21,7 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.utils import audit, require_permission
 from app.models.assignment import Assignment, DebriefingRecord
-from app.models.event import Event, EventSpot, EventStatus
+from app.models.event import Event, EventSpot, EventStatus, EventType
 from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
 from app.models.role import Role
@@ -506,6 +506,7 @@ def events_confirm() -> Response:
                 name=name,
                 master_event_id=master_event.id,
                 status=EventStatus.COMPLETED if is_past else EventStatus.DRAFT,
+                event_type=EventType.MEDICAL_COVER,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
                 actual_start_datetime=start_dt if is_past else None,

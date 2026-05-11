@@ -38,6 +38,19 @@
 
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-6">
+          <label for="event_type" class="form-label">Typ akce <span class="text-danger">*</span>
+            {{ help_icon("Typ akce šablony. Při vytvoření akce z šablony se typ automaticky přenese.") }}
+          </label>
+          <select class="form-select" id="event_type" name="event_type" required>
+            {% for et in EventType %}
+              <option value="{{ et.name }}"
+                {{ 'selected' if request.form.get('event_type', (template.event_type.name if template else 'MEDICAL_COVER')) == et.name }}>
+                {{ et.value }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
           <label for="reminder_schedule" class="form-label">Plán připomenutí
             {{ help_icon("Časy (v hodinách před začátkem akce), kdy se odešle upomínka. Zapište hodiny oddělené čárkou, např. '24,48'.") }}
           </label>

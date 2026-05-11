@@ -267,7 +267,7 @@ class TestDebriefingRPSection:
             **_VALID_FORM,
             "actual_start_datetime": "2024-01-01T10:15",
             "actual_end_datetime": "2024-01-01T17:45",
-            "patients_count": "3",
+            "post_event_count": "3",
         }
         resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
         assert resp.status_code == 200
@@ -275,7 +275,7 @@ class TestDebriefingRPSection:
             event = db.session.get(Event, event_id)
             assert event.actual_start_datetime is not None
             assert event.actual_end_datetime is not None
-            assert event.patients_count == 3
+            assert event.post_event_count == 3
 
     def test_rp_invalid_times_rejected(self, app):
         _, _, assignment_id = _setup_completed_assignment(app, is_rp=True)
@@ -284,7 +284,7 @@ class TestDebriefingRPSection:
             **_VALID_FORM,
             "actual_start_datetime": "not-a-date",
             "actual_end_datetime": "also-not",
-            "patients_count": "0",
+            "post_event_count": "0",
         }
         resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
         assert resp.status_code == 200
@@ -302,7 +302,7 @@ class TestDebriefingRPSection:
             **_VALID_FORM,
             "actual_start_datetime": "2024-01-01T18:00",
             "actual_end_datetime": "2024-01-01T10:00",
-            "patients_count": "0",
+            "post_event_count": "0",
         }
         resp = c.post(f"/debriefing/{assignment_id}", data=form_data, follow_redirects=True)
         assert resp.status_code == 200
@@ -354,3 +354,98 @@ class TestDebriefingManage:
         event_id, _, _ = _setup_completed_assignment(app)
         resp = coordinator_client.get(f"/debriefing/event/{event_id}")
         assert resp.status_code == 403
+
+
+class TestDebriefingEventTypes:
+    """Test debriefing behaviour differs by event type."""
+
+    def _setup_training_assignment(self, app, *, is_rp: bool = False):
+        """Like _setup_completed_assignment but for a TRAINING event."""
+        from app.models.event import EventType
+        with app.app_context():
+            me = MasterEvent(name="Test ME Training")
+            db.session.add(me)
+            db.session.flush()
+            creator = _make_user("training_creator@test.com", "Creator T", Role.ADMIN)
+            assigned = _make_user("training_assigned@test.com", "Assigned T", Role.MEMBER)
+            event = Event(
+                name="Training Event",
+                master_event_id=me.id,
+                start_datetime=datetime(2024, 3, 1, 9, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2024, 3, 1, 15, 0, tzinfo=timezone.utc),
+                status=EventStatus.COMPLETED,
+                created_by_id=creator.id,
+                responsible_person_id=assigned.id if is_rp else None,
+                event_type=EventType.TRAINING,
+            )
+            db.session.add(event)
+            db.session.flush()
+            spot = EventSpot(event_id=event.id)
+            db.session.add(spot)
+            db.session.flush()
+            assignment = Assignment(
+                spot_id=spot.id, user_id=assigned.id, assigned_by_id=creator.id
+            )
+            db.session.add(assignment)
+            db.session.commit()
+            return event.id, spot.id, assignment.id
+
+    def test_training_rp_can_submit_without_actuals(self, app):
+        """Training RP section is optional — submission without times succeeds."""
+        event_id, _, assignment_id = self._setup_training_assignment(app, is_rp=True)
+        c = app.test_client()
+        _login(c, "training_assigned@test.com")
+        resp = c.post(
+            f"/debriefing/{assignment_id}",
+            data=_VALID_FORM,
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        with app.app_context():
+            record = db.session.scalar(
+                db.select(DebriefingRecord).where(
+                    DebriefingRecord.assignment_id == assignment_id
+                )
+            )
+            assert record is not None
+            ev = db.session.get(Event, event_id)
+            # Actuals not required — should still be None (not set)
+            assert ev.actual_start_datetime is None
+
+    def test_presentation_rp_section_not_shown(self, app):
+        """PRESENTATION events: no RP section even for responsible person."""
+        from app.models.event import EventType
+        with app.app_context():
+            me = MasterEvent(name="Pres ME")
+            db.session.add(me)
+            db.session.flush()
+            creator = _make_user("pres_creator@test.com", "Creator P", Role.ADMIN)
+            assigned = _make_user("pres_assigned@test.com", "Assigned P", Role.MEMBER)
+            event = Event(
+                name="Presentation Event",
+                master_event_id=me.id,
+                start_datetime=datetime(2024, 4, 1, 9, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2024, 4, 1, 12, 0, tzinfo=timezone.utc),
+                status=EventStatus.COMPLETED,
+                created_by_id=creator.id,
+                responsible_person_id=assigned.id,
+                event_type=EventType.PRESENTATION,
+            )
+            db.session.add(event)
+            db.session.flush()
+            spot = EventSpot(event_id=event.id)
+            db.session.add(spot)
+            db.session.flush()
+            assignment = Assignment(
+                spot_id=spot.id, user_id=assigned.id, assigned_by_id=creator.id
+            )
+            db.session.add(assignment)
+            db.session.commit()
+            assignment_id = assignment.id
+
+        c = app.test_client()
+        _login(c, "pres_assigned@test.com")
+        resp = c.get(f"/debriefing/{assignment_id}")
+        assert resp.status_code == 200
+        # RP section should not appear for PRESENTATION
+        assert "Skutečný začátek".encode() not in resp.data

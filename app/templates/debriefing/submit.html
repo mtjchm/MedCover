@@ -74,48 +74,63 @@
         </div>
       </div>
 
-      {# ── Part 2: RP section (actual times + patient count) ─────────────── #}
-      {% if is_rp %}
+      {# ── Part 2: RP section (actual times + post-event count) ─────────────── #}
+      {% if has_rp_section %}
       <div class="card mb-4 border-primary">
         <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center gap-2">
           <i class="bi bi-clipboard2-pulse-fill text-primary"></i>
-          <strong>Část vedoucího zdravotníka (ZZ)</strong>
-          {{ help_icon("Tuto část vyplňuje pouze zodpovědný zdravotník (ZZ). Skutečné časy a počet ošetřených pacientů jsou veřejné informace viditelné pro všechny uživatele na detailu akce a použijí se pro fakturaci.") }}
+          {% if event.event_type == EventType.TRAINING %}
+            <strong>Část lektora</strong>
+            {{ help_icon("Tuto část vyplňuje lektor školení. Skutečné časy a počet účastníků jsou viditelné pro koordinátory a slouží pro výkazy. Všechna pole jsou nepovinná.") }}
+          {% else %}
+            <strong>Část vedoucího zdravotníka (ZZ)</strong>
+            {{ help_icon("Tuto část vyplňuje pouze zodpovědný zdravotník (ZZ). Skutečné časy a počet ošetřených pacientů jsou veřejné informace viditelné pro všechny uživatele na detailu akce a použijí se pro fakturaci.") }}
+          {% endif %}
         </div>
         <div class="card-body">
 
           <div class="row g-3 mb-3">
             <div class="col-12 col-md-6">
-              <label for="actual_start_datetime" class="form-label fw-semibold">
-                Skutečný začátek akce <span class="text-danger">*</span>
+              <label for="actual_start_datetime" class="form-label {% if event.event_type != EventType.TRAINING %}fw-semibold{% endif %}">
+                Skutečný začátek akce {% if event.event_type != EventType.TRAINING %}<span class="text-danger">*</span>{% endif %}
                 {{ help_icon("Skutečný čas zahájení akce — může se lišit od plánovaného.") }}
               </label>
               <input type="datetime-local" class="form-control"
                      id="actual_start_datetime" name="actual_start_datetime"
                      value="{{ request.form.get('actual_start_datetime', event.start_datetime.strftime('%Y-%m-%dT%H:%M')) }}"
-                     required>
+                     {% if event.event_type != EventType.TRAINING %}required{% endif %}>
             </div>
             <div class="col-12 col-md-6">
-              <label for="actual_end_datetime" class="form-label fw-semibold">
-                Skutečný konec akce <span class="text-danger">*</span>
+              <label for="actual_end_datetime" class="form-label {% if event.event_type != EventType.TRAINING %}fw-semibold{% endif %}">
+                Skutečný konec akce {% if event.event_type != EventType.TRAINING %}<span class="text-danger">*</span>{% endif %}
                 {{ help_icon("Skutečný čas ukončení akce — může se lišit od plánovaného.") }}
               </label>
               <input type="datetime-local" class="form-control"
                      id="actual_end_datetime" name="actual_end_datetime"
                      value="{{ request.form.get('actual_end_datetime', event.end_datetime.strftime('%Y-%m-%dT%H:%M')) }}"
-                     required>
+                     {% if event.event_type != EventType.TRAINING %}required{% endif %}>
             </div>
           </div>
 
           <div class="mb-1">
-            <label for="patients_count" class="form-label fw-semibold">
-              Počet ošetřených <span class="text-danger">*</span>
-              {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče. Zadejte 0 pokud nebyl ošetřen žádný pacient.") }}
-            </label>
-            <input type="number" min="0" class="form-control" class="maxw-160"
-                   id="patients_count" name="patients_count"
-                   value="{{ request.form.get('patients_count', '0') }}"
-                   required>
+            {% if event.event_type == EventType.TRAINING %}
+              <label for="post_event_count" class="form-label">
+                Skutečný počet účastníků
+                {{ help_icon("Celkový počet účastníků, kteří se školení zúčastnili. Nepovinné.") }}
+              </label>
+              <input type="number" min="0" class="form-control maxw-160"
+                     id="post_event_count" name="post_event_count"
+                     value="{{ request.form.get('post_event_count', '') }}">
+            {% else %}
+              <label for="post_event_count" class="form-label fw-semibold">
+                Počet ošetřených <span class="text-danger">*</span>
+                {{ help_icon("Celkový počet pacientů, kterým byla poskytnuta první pomoc nebo zdravotnická péče. Zadejte 0 pokud nebyl ošetřen žádný pacient.") }}
+              </label>
+              <input type="number" min="0" class="form-control maxw-160"
+                     id="post_event_count" name="post_event_count"
+                     value="{{ request.form.get('post_event_count', '0') }}"
+                     required>
+            {% endif %}
           </div>
 
         </div>

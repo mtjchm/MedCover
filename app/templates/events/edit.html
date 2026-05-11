@@ -26,6 +26,28 @@
                  value="{{ request.form.get('name', event.name) }}" required autofocus>
         </div>
         <div class="col-12 col-md-6">
+          <label for="event_type" class="form-label">Typ akce <span class="text-danger">*</span>
+            {{ help_icon("Určuje typ akce a ovlivňuje dostupná pole i formulář výjezdové zprávy.") }}
+          </label>
+          <select class="form-select" id="event_type" name="event_type" required
+                  onchange="toggleEventTypeFields(this.value)">
+            {% for et in EventType %}
+              <option value="{{ et.name }}"
+                {{ 'selected' if request.form.get('event_type', event.event_type.name) == et.name }}>
+                {{ et.value }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6" id="planned_participants_row" style="display:none">
+          <label for="planned_participants_count" class="form-label">Plánovaný počet účastníků
+            {{ help_icon("Odhadovaný počet účastníků školení. Slouží pro plánování a výkazy.") }}
+          </label>
+          <input type="number" min="0" class="form-control" id="planned_participants_count"
+                 name="planned_participants_count"
+                 value="{{ request.form.get('planned_participants_count', event.planned_participants_count or '') }}">
+        </div>
+        <div class="col-12 col-md-6">
           <label for="master_event_id" class="form-label">Nadřazená akce <span class="text-danger">*</span>
             {{ help_icon("Nadřazená akce sdružuje více akcí do celku pro souhrnné výkazy. Pokud akce nepatří do žádné série, ponechte 'Obecné'.") }}
           </label>
@@ -123,4 +145,10 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/event-form.js') }}?v={{ static_ver }}"></script>
+<script>
+function toggleEventTypeFields(type) {
+  document.getElementById('planned_participants_row').style.display = (type === 'TRAINING') ? '' : 'none';
+}
+toggleEventTypeFields(document.getElementById('event_type').value);
+</script>
 {% endblock %}
