@@ -130,10 +130,14 @@
               </td>
               <td>
                 {% if urow.existing %}
-                <span class="badge bg-secondary">
-                  Existuje
-                  {% if urow.match_reason == 'name' %}(jméno){% else %}(e-mail){% endif %}
-                </span>
+                  {% if urow.is_archived %}
+                  <span class="badge bg-secondary">Archivován — přeskočeno</span>
+                  {% else %}
+                  <span class="badge bg-secondary">
+                    Existuje
+                    {% if urow.match_reason == 'name' %}(jméno){% else %}(e-mail){% endif %}
+                  </span>
+                  {% endif %}
                 {% elif not urow.email %}
                 {{ badge_warning('⚠ Chybí e-mail') }}
                 {% else %}

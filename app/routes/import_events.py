@@ -226,6 +226,7 @@ def events_preview() -> str | Response:
             "is_zdravotnik": is_zdravotnik,
             "existing": existing_user,
             "match_reason": match_reason,
+            "is_archived": existing_user.is_archived if existing_user else False,
         })
 
     # Pre-build set of existing (name, date) pairs for duplicate detection
@@ -444,8 +445,11 @@ def events_confirm() -> Response:
             created_users += 1
 
         # Build comprehensive name→user map (all DB users incl. newly created)
+        # Exclude archived users — they must not be assigned to imported events.
         all_users_now = list(db.session.scalars(db.select(UserAccount)).all())
-        name_to_user: dict[str, UserAccount] = {u.name.lower(): u for u in all_users_now}
+        name_to_user: dict[str, UserAccount] = {
+            u.name.lower(): u for u in all_users_now if not u.is_archived
+        }
 
         # ── Step 2: Process events ──────────────────────────────────────────
         created = 0
@@ -574,7 +578,7 @@ def events_confirm() -> Response:
                 # RP → Zdravotník spot
                 if responsible_person_id and zdravotnik_spot:
                     rp_user_obj = db.session.get(UserAccount, responsible_person_id)
-                    if rp_user_obj:
+                    if rp_user_obj and not rp_user_obj.is_archived:
                         rp_assignment = Assignment(
                             spot_id=zdravotnik_spot.id,
                             user_id=rp_user_obj.id,
