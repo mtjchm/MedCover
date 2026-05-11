@@ -131,7 +131,7 @@
               <td>
                 {% if urow.existing %}
                   {% if urow.is_archived %}
-                  <span class="badge bg-secondary">Archivován — přeskočeno</span>
+                  <span class="badge bg-secondary">Archivován</span>
                   {% else %}
                   <span class="badge bg-secondary">
                     Existuje
@@ -141,7 +141,13 @@
                 {% elif not urow.email %}
                 {{ badge_warning('⚠ Chybí e-mail') }}
                 {% else %}
-                <span class="badge bg-success">Nový</span>
+                <div class="d-flex flex-column gap-1">
+                  <span class="badge bg-success">Nový</span>
+                  <label class="small text-muted d-flex align-items-center gap-1">
+                    <input type="checkbox" name="user_{{ j }}_archived" value="1">
+                    archivovat
+                  </label>
+                </div>
                 {% endif %}
               </td>
             </tr>

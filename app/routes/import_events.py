@@ -426,6 +426,10 @@ def events_confirm() -> Response:
                 continue
 
             new_user = UserAccount(name=name, email=email, phone=phone, is_active=True)
+            import_as_archived = form.get(f"{uprefix}archived") == "1"
+            if import_as_archived:
+                new_user.is_archived = True
+                new_user.is_active = False
             new_user.set_password(secrets.token_urlsafe(32))
             if member_role:
                 new_user.roles = [member_role]
@@ -444,12 +448,11 @@ def events_confirm() -> Response:
             audit("import", "UserAccount", new_user.id, f"Uživatel importován z Google Sheets: {name}", None)
             created_users += 1
 
-        # Build comprehensive name→user map (all DB users incl. newly created)
-        # Exclude archived users — they must not be assigned to imported events.
+        # Build comprehensive name→user map (all DB users incl. newly created).
+        # Archived users are included — historical events may reference people who
+        # have since left the organisation.
         all_users_now = list(db.session.scalars(db.select(UserAccount)).all())
-        name_to_user: dict[str, UserAccount] = {
-            u.name.lower(): u for u in all_users_now if not u.is_archived
-        }
+        name_to_user: dict[str, UserAccount] = {u.name.lower(): u for u in all_users_now}
 
         # ── Step 2: Process events ──────────────────────────────────────────
         created = 0
@@ -578,7 +581,7 @@ def events_confirm() -> Response:
                 # RP → Zdravotník spot
                 if responsible_person_id and zdravotnik_spot:
                     rp_user_obj = db.session.get(UserAccount, responsible_person_id)
-                    if rp_user_obj and not rp_user_obj.is_archived:
+                    if rp_user_obj:
                         rp_assignment = Assignment(
                             spot_id=zdravotnik_spot.id,
                             user_id=rp_user_obj.id,
