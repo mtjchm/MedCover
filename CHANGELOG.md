@@ -14,15 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Training events: new optional `planned_participants_count` field (planned audience size); debriefing RP section has optional actual times and participant count, with "Lektor" title
 - Presentation events: no unique fields; no RP section in debriefing
 - `post_event_count` column (renamed from `patients_count`): shared post-event metric whose label is driven by event type (patients for medical cover, actual participants for training; not shown for presentations)
-- Event type filter buttons on the events list page (server-side, like the status filter)
+- Event type filter buttons on the events list page (server-side, like the status filter); deselecting all types shows no events
 - Event type badge shown in the events table for non-medical-cover types
 - Event type selector in event create/edit forms with JS-toggled training-specific fields
 - Event type selector in event template create/edit form
+- `Neplacená` badge (blue) shown on unpaid events in the event list, event detail, and dashboard — paid events keep the green `Placená` badge
 
 ### Changed
 - Debriefing: section heading changes to "Lektor" for training events; "ZZ" remains for medical cover
 - Reports: "Pacienti" column header renamed to "Ošetřených / účastníků" in user and ME reports
 - Event template form: event type field added alongside existing fields
+- Events table: day-of-week abbreviation moved to the second line (left of the time) to keep the start-date column narrow
 
 ## [0.10.0] - 2026-05-10
 
