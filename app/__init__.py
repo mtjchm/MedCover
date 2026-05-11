@@ -92,12 +92,18 @@ def create_app(
         return _CZECH_DAY_ABBR[dt.astimezone(_PRAGUE_TZ).weekday()]
 
     @app.template_filter("cznum")
-    def cznum_filter(value: object, decimals: int = 1) -> str:
-        """Format a number using Czech locale: comma as decimal separator."""
+    def cznum_filter(value: object, decimals: int = 1, strip: bool = False) -> str:
+        """Format a number using Czech locale: comma as decimal separator.
+
+        strip=True removes trailing zeros after the decimal point
+        (e.g. 2.0 → '2', 2.5 → '2,5').
+        """
         try:
             formatted = f"{float(value):.{decimals}f}"  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return "—"
+        if strip:
+            formatted = formatted.rstrip("0").rstrip(".")
         return formatted.replace(".", ",")
 
     @app.template_global()

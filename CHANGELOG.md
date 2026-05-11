@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Archived user list accessible via `?archived=1` on the users page (Admin only)
 - Import: new users in the import preview can be marked as archived at creation time (for departed volunteers in historical data)
 - Import: archived users are assignable to imported event spots (historical events may reference people who have since left)
+- Report link on user detail page: users with `report.view` permission now have a direct "Přehled akcí" button linking to the user's event report (closes #117)
+- Events table: scheduled duration now shown in the Začátek column, e.g. "pá 10:00 (2 h)"; Nadřazená akce column moved to the end (closes #121)
+
+### Fixed
+- User report: planned hours sum cell in the "Celkem (dokončené akce)" footer row now shows "—" instead of a meaningless scheduled-hours total (closes #108)
+- Hour values consistently rounded to 1 decimal place in both HTML views and CSV export; previously HTML showed 1 dp while CSV showed 2 dp for the same value (closes #115)
 
 ## [0.11.0] - 2026-05-11
 
