@@ -384,7 +384,10 @@ class TestComputeUserStats:
         actual_hours: Decimal | None = None
         if actual_start and actual_end:
             delta = actual_end - actual_start
-            actual_hours = Decimal(str(delta.total_seconds() / 3600))
+            actual_hours = Decimal(str(round(delta.total_seconds() / 3600, 1)))
+
+        scheduled_delta = end - start
+        scheduled_hours = Decimal(str(round(scheduled_delta.total_seconds() / 3600, 1)))
 
         return SimpleNamespace(
             status=status,
@@ -392,6 +395,7 @@ class TestComputeUserStats:
             end_datetime=end,
             paid=paid,
             actual_hours=actual_hours,
+            scheduled_hours=scheduled_hours,
         )
 
     def test_completed_shift_counts_served(self):
