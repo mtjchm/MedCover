@@ -172,8 +172,6 @@
           </th>
           <th class="text-nowrap minw-12r">
             <a href="{{ sort_url('name') }}" class="text-decoration-none text-reset">Název {{ sort_icon('name') }}</a></th>
-          <th class="text-wrap minw-7r maxw-9r">
-            <a href="{{ sort_url('me_name') }}" class="text-decoration-none text-reset">Nadřazená<br>akce {{ sort_icon('me_name') }}</a></th>
           <th class="text-nowrap">
             <a href="{{ sort_url('start') }}" class="text-decoration-none text-reset">Začátek {{ sort_icon('start') }}</a></th>
           <th class="text-nowrap">
@@ -182,6 +180,8 @@
             <a href="{{ sort_url('total') }}" class="text-decoration-none text-reset">Obsazení {{ sort_icon('total') }}</a></th>
           <th class="text-wrap minw-7r maxw-9r">
             <a href="{{ sort_url('rp') }}" class="text-decoration-none text-reset">Zodpovědný<br>zdravotník {{ sort_icon('rp') }}</a></th>
+          <th class="text-wrap minw-7r maxw-9r">
+            <a href="{{ sort_url('me_name') }}" class="text-decoration-none text-reset">Nadřazená<br>akce {{ sort_icon('me_name') }}</a></th>
           <th></th>
         </tr>
       </thead>
@@ -209,8 +209,7 @@
               <span class="badge ms-1 {% if event.event_type == EventType.TRAINING %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ event.event_type.value }}</span>
             {% endif %}
           </td>
-          <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
-          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | czechday }} {{ event.start_datetime | localdt("%H:%M") }}</span></td>
+          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | czechday }} {{ event.start_datetime | localdt("%H:%M") }} ({{ event.scheduled_hours | cznum }} h)</span></td>
           <td>
             <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
@@ -236,6 +235,7 @@
               —
             {% endif %}
           </td>
+          <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
           <td class="text-end">
             {% set eligible_spots = eligible_spot_map.get(event.id) %}
             {% if eligible_spots %}
