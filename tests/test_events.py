@@ -85,6 +85,25 @@ class TestEventCreate:
             count = db.session.scalar(db.select(db.func.count()).select_from(Event))
             assert count == 0
 
+    def test_create_event_with_responsible_person_uuid(self, app, admin_client):
+        """Regression: responsible_person_id is a UUID string — must not be cast to int."""
+        from app.models.role import Role
+        from app.models.user import UserAccount
+        me_id = _make_master_event(app)
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            rp = UserAccount(email="rp_uuid@test.com", name="RP User", is_active=True)
+            rp.set_password("testpass123")
+            rp.roles = [role]
+            db.session.add(rp)
+            db.session.commit()
+            rp_id = str(rp.id)
+
+        data = _event_form_data(me_id)
+        data["responsible_person_id"] = rp_id
+        response = admin_client.post("/events/create", data=data, follow_redirects=False)
+        assert response.status_code == 302  # not 500
+
 
 class TestEventDetail:
     def test_event_detail_loads(self, app, admin_client):
