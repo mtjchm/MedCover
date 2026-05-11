@@ -34,6 +34,12 @@ class EventStatus(str, enum.Enum):
     CANCELLED = "Zrušena"
 
 
+class EventType(str, enum.Enum):
+    MEDICAL_COVER = "Zdravotní dozor"
+    TRAINING = "Školení"
+    PRESENTATION = "Prezentační akce"
+
+
 # M2M: EventSpot ↔ Qualification (required qualifications for a spot)
 spot_qualifications = db.Table(
     "spot_qualifications",
@@ -56,6 +62,11 @@ class EventTemplate(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     name = db.Column(db.String(255), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
     paid = db.Column(db.Boolean, default=False, nullable=False)
+    event_type = db.Column(
+        db.Enum(EventType, name="event_type_enum"),
+        default=EventType.MEDICAL_COVER,
+        nullable=False,
+    )
     # Reminder schedule: list of hours-before-start values, stored as comma-separated ints
     # e.g. "24,48" means send reminders 24h and 48h before start
     reminder_schedule = db.Column(db.String(255), nullable=True, default="24")
@@ -109,6 +120,11 @@ class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     master_event_id = db.Column(db.Integer, db.ForeignKey("master_event.id"), nullable=False)
+    event_type = db.Column(
+        db.Enum(EventType, name="event_type_enum"),
+        default=EventType.MEDICAL_COVER,
+        nullable=False,
+    )
     status = db.Column(
         db.Enum(EventStatus, name="event_status_enum"),
         default=EventStatus.DRAFT,
@@ -133,7 +149,13 @@ class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
     # ── Post-event actuals (filled during debriefing by responsible person) ───
     actual_start_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
     actual_end_datetime = db.Column(db.DateTime(timezone=True), nullable=True)
-    patients_count = db.Column(db.Integer, nullable=True)  # počet ošetřených (0–10+)
+    # Plánovaný počet účastníků — only for TRAINING events (set at create/edit time)
+    planned_participants_count = db.Column(db.Integer, nullable=True)
+    # Post-event count metric — meaning depends on event_type:
+    #   MEDICAL_COVER → počet ošetřených pacientů
+    #   TRAINING      → skutečný počet účastníků
+    #   PRESENTATION  → not used (always None)
+    post_event_count = db.Column(db.Integer, nullable=True)
     # Optimistic locking — increment on every write; catch StaleDataError → HTTP 409
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(

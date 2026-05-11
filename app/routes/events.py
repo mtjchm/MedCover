@@ -30,7 +30,7 @@ from flask_login import login_required, current_user
 
 from sqlalchemy import func, case
 from app.extensions import db
-from app.models.event import Event, EventSpot, EventStatus, EventTemplate
+from app.models.event import Event, EventSpot, EventStatus, EventTemplate, EventType
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
@@ -106,6 +106,14 @@ def index() -> str:
         if active_me and (active_me.is_general or active_me.archived):
             active_me = None  # ignore general/archived ME params
 
+    # Event type filter: comma-separated EventType names, absent = all types
+    _all_event_types = [t.name for t in EventType]
+    if "types" not in request.args:
+        active_types = _all_event_types
+    else:
+        raw_types = request.args.get("types", "")
+        active_types = [t for t in raw_types.split(",") if t in _all_event_types]
+
     query = db.select(Event)
 
     if not current_user.has_permission("event.view_draft"):
@@ -116,6 +124,11 @@ def index() -> str:
     # Apply ME filter
     if active_me:
         query = query.where(Event.master_event_id == active_me.id)
+
+    # Apply event type filter
+    type_values = [EventType[t] for t in active_types if t in EventType.__members__]
+    if type_values and len(type_values) < len(_all_event_types):
+        query = query.where(Event.event_type.in_(type_values))
 
     # Apply server-side status filter
     status_values = [EventStatus[s] for s in active_statuses if s in EventStatus.__members__]
@@ -203,10 +216,13 @@ def index() -> str:
         active_statuses=active_statuses,
         default_statuses=_default_statuses,
         all_statuses=_all_statuses,
+        active_types=active_types,
+        all_event_types=_all_event_types,
         sort_col=sort_col,
         sort_dir=sort_dir,
         active_me=active_me,
         EventStatus=EventStatus,
+        EventType=EventType,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
         eligible_spot_map=eligible_spot_map,
@@ -304,7 +320,7 @@ def create() -> str | Response:
         event, error = _parse_event_form(request.form)
         if error or event is None:
             flash(error or "Chyba formuláře.", "danger")
-            return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
+            return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
 
         quick_publish = request.form.get("action") == "quick_publish"
         if quick_publish:
@@ -338,7 +354,7 @@ def create() -> str | Response:
             flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications)
+    return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
 
 
 # ── Create from template ──────────────────────────────────────────────────────
@@ -359,6 +375,7 @@ def create_from_template(template_id: int) -> str | Response:
         users=users,
         template=tmpl,
         all_qualifications=all_qualifications,
+        EventType=EventType,
     )
 
 
@@ -423,6 +440,7 @@ def detail(event_id: int) -> str | Response:
         "events/detail.html",
         event=event,
         EventStatus=EventStatus,
+        EventType=EventType,
         eligible_users=eligible_users,
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
@@ -451,12 +469,13 @@ def edit(event_id: int) -> str | Response:
     if request.method == "POST":
         if check_version_conflict(event, request.form.get("version")):
             flash(RECORD_MODIFIED_MSG, "danger")
-            return render_template("events/edit.html", event=event, master_events=master_events, users=users)
+            return render_template("events/edit.html", event=event, master_events=master_events, users=users, EventType=EventType)
 
         # Snapshot before mutation
         before = {
             "name": event.name,
             "master_event_id": event.master_event_id,
+            "event_type": event.event_type.name,
             "start_datetime": str(event.start_datetime),
             "end_datetime": str(event.end_datetime),
             "address": event.address,
@@ -465,16 +484,18 @@ def edit(event_id: int) -> str | Response:
             "paid": event.paid,
             "responsible_person_id": str(event.responsible_person_id),
             "assignments_open_datetime": str(event.assignments_open_datetime),
+            "planned_participants_count": event.planned_participants_count,
         }
 
         updated, error = _parse_event_form(request.form, existing=event)
         if error:
             flash(error, "danger")
-            return render_template("events/edit.html", event=event, master_events=master_events, users=users)
+            return render_template("events/edit.html", event=event, master_events=master_events, users=users, EventType=EventType)
 
         after = {
             "name": event.name,
             "master_event_id": event.master_event_id,
+            "event_type": event.event_type.name,
             "start_datetime": str(event.start_datetime),
             "end_datetime": str(event.end_datetime),
             "address": event.address,
@@ -483,6 +504,7 @@ def edit(event_id: int) -> str | Response:
             "paid": event.paid,
             "responsible_person_id": str(event.responsible_person_id),
             "assignments_open_datetime": str(event.assignments_open_datetime),
+            "planned_participants_count": event.planned_participants_count,
         }
 
         event.version += 1
@@ -506,7 +528,7 @@ def edit(event_id: int) -> str | Response:
         flash("Akce byla uložena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/edit.html", event=event, master_events=master_events, users=users)
+    return render_template("events/edit.html", event=event, master_events=master_events, users=users, EventType=EventType)
 
 
 # ── Lifecycle transitions ─────────────────────────────────────────────────────
@@ -828,6 +850,22 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
     responsible_person_id = form.get("responsible_person_id") or None
     assignments_open_str = form.get("assignments_open_datetime", "").strip()
 
+    # Event type
+    event_type_str = form.get("event_type", "").strip()
+    event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
+
+    # Training-specific: planned participant count (optional)
+    planned_participants_count: int | None = None
+    if event_type == EventType.TRAINING:
+        ppc_str = form.get("planned_participants_count", "").strip()
+        if ppc_str:
+            try:
+                planned_participants_count = int(ppc_str)
+                if planned_participants_count < 0:
+                    return None, "Plánovaný počet účastníků musí být nezáporné číslo."
+            except ValueError:
+                return None, "Plánovaný počet účastníků musí být celé číslo."
+
     if not name:
         return None, "Název akce je povinný."
     if not master_event_id:
@@ -873,6 +911,9 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
         existing.paid = paid
         existing.responsible_person_id = responsible_person_id
         existing.assignments_open_datetime = assignments_open_dt
+        existing.event_type = event_type
+        # Reset planned_participants_count when type changes away from TRAINING
+        existing.planned_participants_count = planned_participants_count
         return existing, None
 
     event = Event(
@@ -887,6 +928,8 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
         responsible_person_id=responsible_person_id,
         assignments_open_datetime=assignments_open_dt,
         created_by_id=current_user.id,
+        event_type=event_type,
+        planned_participants_count=planned_participants_count,
     )
     return event, None
 

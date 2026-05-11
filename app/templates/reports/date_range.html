@@ -71,7 +71,7 @@
     <div class="card text-center">
       <div class="card-body py-3">
         <div class="fs-3 fw-bold text-danger">{{ results.total_patients }}</div>
-        <div class="text-muted small">Ošetřených pacientů</div>
+        <div class="text-muted small">Ošetřených / účastníků</div>
       </div>
     </div>
   </div>
@@ -106,7 +106,7 @@
           <th>Stav</th>
           <th class="text-end">Pozice (obsaz./celkem)</th>
           <th class="text-end">Odprac. hodiny</th>
-          <th class="text-end">Pacienti</th>
+          <th class="text-end">Ošetřených / účastníků</th>
         </tr>
       </thead>
       <tbody>
@@ -129,7 +129,7 @@
           <td class="text-end">
             {% if ev.actual_hours is not none %}{{ ev.actual_hours | cznum }}{% else %}<span class="text-muted">—</span>{% endif %}
           </td>
-          <td class="text-end">{{ ev.patients_count or 0 }}</td>
+          <td class="text-end">{{ ev.post_event_count or 0 if ev.event_type.name != 'PRESENTATION' else '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

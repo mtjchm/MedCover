@@ -79,7 +79,7 @@ def _make_debriefing(asgn: Assignment, actual_hours: float = 2.0, patients: int 
     assert event is not None
     event.actual_start_datetime = event.start_datetime
     event.actual_end_datetime = event.start_datetime + timedelta(hours=actual_hours)
-    event.patients_count = patients
+    event.post_event_count = patients
     dr = DebriefingRecord(
         assignment_id=asgn.id,
         submitted_by_id=asgn.user_id,

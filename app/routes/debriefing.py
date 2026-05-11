@@ -23,7 +23,7 @@ from flask import Blueprint, Response, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models.event import Event, EventStatus
+from app.models.event import Event, EventStatus, EventType
 from app.models.assignment import Assignment, DebriefingRecord
 from app.utils import audit, diff_changes, get_or_404, require_permission
 
@@ -43,10 +43,16 @@ def _parse_grade(raw: str) -> tuple[int, str | None]:
     return grade, None
 
 
-def _parse_rp_actuals(form: dict) -> tuple[datetime | None, datetime | None, int | None, list[str]]:
-    """Parse and validate the RP-only actual start/end and patients count.
+def _parse_rp_actuals(
+    form: dict, event_type: EventType,
+) -> tuple[datetime | None, datetime | None, int | None, list[str]]:
+    """Parse and validate the RP-only actual start/end and post-event count.
 
-    Returns (actual_start_utc, actual_end_utc, patients_count, errors).
+    For MEDICAL_COVER: actual start/end and post_event_count are required.
+    For TRAINING: all fields are optional.
+    For PRESENTATION: this function should not be called (no RP section).
+
+    Returns (actual_start_utc, actual_end_utc, post_event_count, errors).
     """
     from zoneinfo import ZoneInfo
     from app.models.settings import get_settings
@@ -58,54 +64,66 @@ def _parse_rp_actuals(form: dict) -> tuple[datetime | None, datetime | None, int
     errors: list[str] = []
     actual_start: datetime | None = None
     actual_end: datetime | None = None
-    patients_count: int | None = None
+    post_event_count: int | None = None
 
-    try:
-        actual_start = datetime.fromisoformat(
-            form.get("actual_start_datetime", "").strip()
-        ).replace(tzinfo=tz).astimezone(timezone.utc)
-    except (ValueError, TypeError):
+    is_training = event_type == EventType.TRAINING
+
+    start_str = form.get("actual_start_datetime", "").strip()
+    end_str = form.get("actual_end_datetime", "").strip()
+
+    if start_str:
+        try:
+            actual_start = datetime.fromisoformat(start_str).replace(tzinfo=tz).astimezone(timezone.utc)
+        except (ValueError, TypeError):
+            errors.append("Zadejte platný skutečný čas začátku.")
+    elif not is_training:
         errors.append("Zadejte platný skutečný čas začátku.")
 
-    try:
-        actual_end = datetime.fromisoformat(
-            form.get("actual_end_datetime", "").strip()
-        ).replace(tzinfo=tz).astimezone(timezone.utc)
-    except (ValueError, TypeError):
+    if end_str:
+        try:
+            actual_end = datetime.fromisoformat(end_str).replace(tzinfo=tz).astimezone(timezone.utc)
+        except (ValueError, TypeError):
+            errors.append("Zadejte platný skutečný čas konce.")
+    elif not is_training:
         errors.append("Zadejte platný skutečný čas konce.")
 
     if actual_start and actual_end and actual_end <= actual_start:
         errors.append("Čas konce musí být po čase začátku.")
 
-    try:
-        patients_count = int(form.get("patients_count", "").strip())
-        if patients_count < 0 or patients_count > 999:
-            raise ValueError
-    except ValueError:
+    count_str = form.get("post_event_count", "").strip()
+    if count_str:
+        try:
+            post_event_count = int(count_str)
+            if post_event_count < 0 or post_event_count > 999:
+                raise ValueError
+        except ValueError:
+            label = "Počet účastníků" if is_training else "Počet ošetřených"
+            errors.append(f"{label} musí být celé číslo (0 nebo více).")
+    elif not is_training:
         errors.append("Počet ošetřených musí být celé číslo (0 nebo více).")
 
-    return actual_start, actual_end, patients_count, errors
+    return actual_start, actual_end, post_event_count, errors
 
 
 def _apply_rp_actuals_to_event(
-    event: Event, actual_start: datetime, actual_end: datetime, patients_count: int,
+    event: Event, actual_start: datetime | None, actual_end: datetime | None, post_event_count: int | None,
 ) -> None:
     """Update event with RP-supplied actuals and write an audit entry."""
     before = {
         "actual_start_datetime": str(event.actual_start_datetime),
         "actual_end_datetime": str(event.actual_end_datetime),
-        "patients_count": event.patients_count,
+        "post_event_count": event.post_event_count,
     }
     event.actual_start_datetime = actual_start
     event.actual_end_datetime = actual_end
-    event.patients_count = patients_count
+    event.post_event_count = post_event_count
     event.version += 1
     audit("edit", "Event", str(event.id),
-          f"Aktuální časy a počet ošetřených aktualizovány pro akci '{event.name}'",
+          f"Aktuální časy a výsledný počet aktualizovány pro akci '{event.name}'",
           diff_changes(before, {
               "actual_start_datetime": str(actual_start),
               "actual_end_datetime": str(actual_end),
-              "patients_count": patients_count,
+              "post_event_count": post_event_count,
           }))
 
 
@@ -131,13 +149,17 @@ def submit(assignment_id: int) -> str | Response:
             assignment=assignment,
             event=event,
             record=assignment.debriefing,
+            EventType=EventType,
         )
 
     is_rp = event.responsible_person_id == current_user.id
+    # PRESENTATION events have no RP section
+    has_rp_section = is_rp and event.event_type != EventType.PRESENTATION
 
     if request.method != "POST":
         return render_template(
-            "debriefing/submit.html", assignment=assignment, event=event, is_rp=is_rp,
+            "debriefing/submit.html", assignment=assignment, event=event,
+            is_rp=is_rp, has_rp_section=has_rp_section, EventType=EventType,
         )
 
     # ── Validate ──────────────────────────────────────────────────────────────
@@ -152,16 +174,17 @@ def submit(assignment_id: int) -> str | Response:
 
     actual_start: datetime | None = None
     actual_end: datetime | None = None
-    patients_count: int | None = None
-    if is_rp:
-        actual_start, actual_end, patients_count, rp_errors = _parse_rp_actuals(request.form)
+    post_event_count: int | None = None
+    if has_rp_section:
+        actual_start, actual_end, post_event_count, rp_errors = _parse_rp_actuals(request.form, event.event_type)
         errors.extend(rp_errors)
 
     if errors:
         for e in errors:
             flash(e, "danger")
         return render_template(
-            "debriefing/submit.html", assignment=assignment, event=event, is_rp=is_rp,
+            "debriefing/submit.html", assignment=assignment, event=event,
+            is_rp=is_rp, has_rp_section=has_rp_section, EventType=EventType,
         )
 
     # ── Persist confidential record ───────────────────────────────────────────
@@ -178,8 +201,9 @@ def submit(assignment_id: int) -> str | Response:
     audit("create", "DebriefingRecord", str(record.id),
           f"Debriefing odevzdán pro akci '{event.name}'")
 
-    if is_rp and actual_start and actual_end and patients_count is not None:
-        _apply_rp_actuals_to_event(event, actual_start, actual_end, patients_count)
+    # Apply RP actuals when at least start/end are set (all optional for TRAINING)
+    if has_rp_section and (actual_start or actual_end or post_event_count is not None):
+        _apply_rp_actuals_to_event(event, actual_start, actual_end, post_event_count)
 
     db.session.commit()
     flash("Debriefing byl úspěšně odevzdán. Děkujeme.", "success")

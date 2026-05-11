@@ -17,6 +17,12 @@
     <h2 class="mb-1">
       {{ event.name }}
       {{ badge_status(event.status.value, status_colors, extra_classes='ms-1 fs-6') }}
+      {# Event type badge #}
+      {% if event.event_type == EventType.TRAINING %}
+        <span class="badge bg-info text-dark ms-1 fs-6">{{ event.event_type.value }}</span>
+      {% elif event.event_type == EventType.PRESENTATION %}
+        <span class="badge bg-secondary ms-1 fs-6">{{ event.event_type.value }}</span>
+      {% endif %}
       {% if event.paid %}<span class="badge bg-success ms-1 fs-6">Placená</span>{% endif %}
       <span class="badge bg-{{ 'success' if event.filled_spots == event.total_spots and event.total_spots > 0 else 'warning' }} ms-1 fs-6">{{ event.staffing_status }}</span>
     </h2>
@@ -106,7 +112,16 @@
         {% if event.actual_start_datetime %}
         <p class="mb-1 mt-2"><strong>Skutečný začátek:</strong> {{ event.actual_start_datetime | localdt }}</p>
         <p class="mb-0"><strong>Skutečný konec:</strong> {{ event.actual_end_datetime | localdt }}</p>
-        <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.patients_count }}</p>
+        {% if event.event_type == EventType.MEDICAL_COVER %}
+          <p class="mb-0"><strong>Počet ošetřených:</strong> {{ event.post_event_count }}</p>
+        {% elif event.event_type == EventType.TRAINING %}
+          {% if event.post_event_count is not none %}
+            <p class="mb-0"><strong>Skutečný počet účastníků:</strong> {{ event.post_event_count }}</p>
+          {% endif %}
+        {% endif %}
+        {% endif %}
+        {% if event.event_type == EventType.TRAINING and event.planned_participants_count is not none %}
+          <p class="mb-0 mt-1"><strong>Plánovaný počet účastníků:</strong> {{ event.planned_participants_count }}</p>
         {% endif %}
       </div>
     </div>
@@ -119,7 +134,7 @@
           <strong>{{ event.filled_spots }}/{{ event.total_spots }}</strong> pozic obsazeno
         </p>
         <p class="mb-0">
-          <strong>Zodpovědný zdravotník:</strong>
+          <strong>{% if event.event_type == EventType.TRAINING %}Lektor{% else %}Zodpovědný zdravotník{% endif %}:</strong>
           {% if event.responsible_person %}
             <span class="badge bg-success ms-1">{{ event.responsible_person.name }}</span>
           {% else %}

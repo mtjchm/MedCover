@@ -57,16 +57,27 @@
   {%- else -%}
     {%- set new_statuses = active_statuses + [toggle_status] -%}
   {%- endif -%}
-  {{ url_for('events.index', statuses=new_statuses|join(','), me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
+  {{ url_for('events.index', statuses=new_statuses|join(','), types=active_types|join(',') if active_types|length < all_event_types|length else None, me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
 {%- endmacro %}
 
-{# Sort URL: preserve statuses + me_id + archived, toggle sort col/dir #}
+{# Type filter toggle macro #}
+{% macro type_url(toggle_type) %}
+  {%- set new_types = [] -%}
+  {%- if toggle_type in active_types -%}
+    {%- set new_types = active_types | reject('equalto', toggle_type) | list -%}
+  {%- else -%}
+    {%- set new_types = active_types + [toggle_type] -%}
+  {%- endif -%}
+  {{ url_for('events.index', types=new_types|join(',') if new_types|length < all_event_types|length else None, statuses=active_statuses|join(','), me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
+{%- endmacro %}
+
+{# Sort URL: preserve statuses + types + me_id + archived, toggle sort col/dir #}
 {% macro sort_url(col) %}
   {%- set new_dir = 'asc' -%}
   {%- if sort_col == col -%}
     {%- set new_dir = 'desc' if sort_dir == 'asc' else 'asc' -%}
   {%- endif -%}
-  {{ url_for('events.index', sort=col, dir=new_dir, statuses=active_statuses|join(','), me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
+  {{ url_for('events.index', sort=col, dir=new_dir, statuses=active_statuses|join(','), types=active_types|join(',') if active_types|length < all_event_types|length else None, me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
 {%- endmacro %}
 {% macro sort_icon(col) %}
   {%- if sort_col == col -%}
@@ -76,7 +87,7 @@
   {%- endif -%}
 {%- endmacro %}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
-  <small class="text-muted me-1">Filtr:</small>
+  <small class="text-muted me-1">Stav:</small>
   {% if has_draft_perm %}
   <a href="{{ status_url('DRAFT') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'DRAFT' in active_statuses }}">Koncept</a>
   {% endif %}
@@ -97,6 +108,14 @@
   </select>
   <a href="{{ url_for('events.index', archived=1 if show_archived else None) }}"
      class="btn btn-sm btn-link text-muted p-0 ms-2">Výchozí</a>
+</div>
+
+{# ── Event type filter bar ────────────────────────────────────────────────── #}
+<div class="mb-3 d-flex gap-1 flex-wrap align-items-center">
+  <small class="text-muted me-1">Typ:</small>
+  <a href="{{ type_url('MEDICAL_COVER') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'MEDICAL_COVER' in active_types }}">Zdravotní dozor</a>
+  <a href="{{ type_url('TRAINING') }}" class="btn btn-sm btn-outline-info filter-btn {{ 'active' if 'TRAINING' in active_types }}">Školení</a>
+  <a href="{{ type_url('PRESENTATION') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'PRESENTATION' in active_types }}">Prezentační akce</a>
 </div>
 
 {% set status_colors = {
@@ -186,6 +205,9 @@
               {{ event.name }}{% if not event.master_event.is_general %} <span class="fw-normal">({{ event.master_event.name }})</span>{% endif %}
             </a>
             {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
+            {% if event.event_type != EventType.MEDICAL_COVER %}
+              <span class="badge ms-1 {% if event.event_type == EventType.TRAINING %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ event.event_type.value }}</span>
+            {% endif %}
           </td>
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
           <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }} <span class="text-muted">{{ event.start_datetime | czechday }}</span><br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>

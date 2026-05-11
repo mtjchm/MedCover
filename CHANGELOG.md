@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-03
+
+### Added
+- Event types: events now have a type — `Zdravotní dozor` (medical cover), `Školení` (training), or `Prezentační akce` (presentation) (closes #69)
+- Training events: new optional `planned_participants_count` field (planned audience size); debriefing RP section has optional actual times and participant count, with "Lektor" title
+- Presentation events: no unique fields; no RP section in debriefing
+- `post_event_count` column (renamed from `patients_count`): shared post-event metric whose label is driven by event type (patients for medical cover, actual participants for training; not shown for presentations)
+- Event type filter buttons on the events list page (server-side, like the status filter)
+- Event type badge shown in the events table for non-medical-cover types
+- Event type selector in event create/edit forms with JS-toggled training-specific fields
+- Event type selector in event template create/edit form
+
+### Changed
+- Debriefing: section heading changes to "Lektor" for training events; "ZZ" remains for medical cover
+- Reports: "Pacienti" column header renamed to "Ošetřených / účastníků" in user and ME reports
+- Event template form: event type field added alongside existing fields
+
 ## [0.10.0] - 2026-05-10
 
 ### Added
@@ -66,5 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sslmode=require` enforced for production `DATABASE_URL`
 - Feedback deletion blocked when `DEV_LOGIN_ENABLED=True` (test environment guard)
 
-[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/spidermila/MedCover/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/spidermila/MedCover/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/spidermila/MedCover/releases/tag/v0.9.0
