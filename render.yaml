@@ -6,6 +6,7 @@ services:
     dockerCommand: gunicorn -w 2 -b 0.0.0.0:$PORT "app:create_app()"
     branch: main
     autoDeploy: true
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: FLASK_ENV
@@ -27,6 +28,7 @@ services:
     dockerCommand: python scheduler/main.py
     branch: main
     autoDeploy: true
+    plan: free
     envVars:
       - key: FLASK_ENV
         value: production
