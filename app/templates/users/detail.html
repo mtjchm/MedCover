@@ -7,6 +7,9 @@
 <div class="mb-3 d-flex justify-content-between align-items-center">
   <a href="{{ url_for('users.index', archived=1 if user.is_archived else None) }}" class="btn btn-sm btn-outline-secondary">← Zpět na uživatele</a>
   <div class="d-flex gap-2">
+    {% if current_user.has_permission('report.view') %}
+    <a href="{{ url_for('reports.user_report', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Přehled akcí</a>
+    {% endif %}
     {% if not user.is_archived %}
       {% if not user.is_active and current_user.has_permission('user.activate') %}
       <form method="POST" action="{{ url_for('users.activate', user_id=user.id) }}">
