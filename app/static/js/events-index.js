@@ -56,7 +56,10 @@
     eligFilter = !eligFilter;
     saveEligFilter(eligFilter);
     var btn = document.getElementById("btn-elig-filter");
-    if (btn) btn.classList.toggle("active", eligFilter);
+    if (btn) {
+      btn.classList.toggle("active", eligFilter);
+      btn.blur();
+    }
     applyLocalFilters();
   }
 

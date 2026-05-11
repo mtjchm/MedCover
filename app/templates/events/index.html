@@ -173,7 +173,7 @@
             data-status="{{ event.status.name }}"
             data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
             data-me="{{ '' if event.master_event.is_general else event.master_event.name }}"
-            data-event-id="{{ event.id }}"
+            data-event-id="{{ event.id }}">
           <td class="px-2">
             <input type="checkbox" class="form-check-input row-event-check" value="{{ event.id }}"
                    title="Vybrat akci">
