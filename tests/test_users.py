@@ -124,6 +124,36 @@ class TestAdminUserList:
         resp = admin_client.get(f"/users/{uuid.uuid4()}")
         assert resp.status_code == 404
 
+    def test_user_detail_shows_report_link_for_report_view_permission(self, app: object, admin_client: object) -> None:
+        """Admin (has report.view) must see Přehled akcí link on user detail (#117)."""
+        with app.app_context():
+            user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "admin@test.com"))
+            uid = str(user.id)
+        resp = admin_client.get(f"/users/{uid}")
+        assert resp.status_code == 200
+        assert "Přehled akcí".encode() in resp.data
+        assert f"/reports/user/{uid}".encode() in resp.data
+
+    def test_user_detail_hides_report_link_without_report_view_permission(self, app: object, client: object) -> None:
+        """A user without report.view must not see the Přehled akcí link (#117)."""
+        with app.app_context():
+            admin_role = db.session.scalar(db.select(Role).where(Role.name == Role.ADMIN))
+            # User with no roles has no permissions at all
+            norole = UserAccount(email="norole117@test.com", name="NoRole 117", is_active=True)
+            norole.set_password("pass1234")
+            norole.roles = []
+            target = UserAccount(email="target117@test.com", name="Target 117", is_active=True)
+            target.set_password("pass1234")
+            target.roles = [admin_role]
+            db.session.add_all([norole, target])
+            db.session.commit()
+            target_id = str(target.id)
+        client.post("/auth/login", data={"email": "norole117@test.com", "password": "pass1234"})
+        resp = client.get(f"/users/{target_id}")
+        assert resp.status_code in (200, 403)
+        if resp.status_code == 200:
+            assert "Přehled akcí".encode() not in resp.data
+
     def test_activate_user(self, app: object, admin_client: object) -> None:
         with app.app_context():
             role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
