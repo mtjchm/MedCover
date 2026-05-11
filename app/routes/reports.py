@@ -66,17 +66,13 @@ class UserStats:
         return self.hours_served + self.hours_planned
 
 
-def _event_planned_hours(ev: Event) -> Decimal:
-    return Decimal(str((ev.end_datetime - ev.start_datetime).total_seconds() / 3600))
-
-
 def _compute_user_stats(pairs: list[tuple[Assignment, Event]], now: datetime) -> UserStats:
     """Compute UserStats from a list of (assignment, event) pairs for a single user."""
     stats = UserStats()
     for _, ev in pairs:
         if ev.status == EventStatus.CANCELLED:
             continue
-        planned_h = _event_planned_hours(ev)
+        planned_h = ev.scheduled_hours
         if ev.status == EventStatus.COMPLETED:
             stats.shifts_served += 1
             # Use actual hours when available, fall back to planned hours.
@@ -174,7 +170,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
     rows = []
     total_patients = 0
     for _, ev in pairs:
-        planned_h = _event_planned_hours(ev)
+        planned_h = ev.scheduled_hours
         patients = ev.post_event_count if ev.actual_hours is not None else None
         rows.append({
             "event": ev,
@@ -191,10 +187,10 @@ def user_report(user_id: uuid.UUID) -> str | Response:
             ["Směny odsloužené", str(stats.shifts_served)],
             ["Směny plánované", str(stats.shifts_planned)],
             ["Směny celkem", str(stats.shifts_total)],
-            ["Hodiny odsloužené", f"{stats.hours_served:.2f}"],
-            ["Hodiny plánované", f"{stats.hours_planned:.2f}"],
-            ["Hodiny celkem", f"{stats.hours_total:.2f}"],
-            ["Hodiny celkem zdarma", f"{stats.hours_free:.2f}"],
+            ["Hodiny odsloužené", f"{stats.hours_served:.1f}"],
+            ["Hodiny plánované", f"{stats.hours_planned:.1f}"],
+            ["Hodiny celkem", f"{stats.hours_total:.1f}"],
+            ["Hodiny celkem zdarma", f"{stats.hours_free:.1f}"],
             ["Poslední směna", stats.last_shift.strftime("%Y-%m-%d") if stats.last_shift else ""],
             ["Příští směna", stats.next_shift.strftime("%Y-%m-%d") if stats.next_shift else ""],
             [],
@@ -207,8 +203,8 @@ def user_report(user_id: uuid.UUID) -> str | Response:
                 ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
                 ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
                 ev.status.value,
-                f"{r['planned_hours']:.2f}",
-                f"{r['actual_hours']:.2f}" if r["actual_hours"] is not None else "",
+                f"{r['planned_hours']:.1f}",
+                f"{r['actual_hours']:.1f}" if r["actual_hours"] is not None else "",
                 r["patients"] if r["patients"] is not None else "",
             ])
         safe_name = user.name.replace(" ", "_")
@@ -316,7 +312,7 @@ def me_report(me_id: int) -> str | Response:
                 csv_ev.status.value,
                 str(r["total_spots"]),
                 str(r["filled_spots"]),
-                f"{r['worked_hours']:.2f}",
+                f"{r['worked_hours']:.1f}",
                 str(r["patients"]),
             ])
         csv_rows.append([])
@@ -326,10 +322,10 @@ def me_report(me_id: int) -> str | Response:
                 u.name,
                 str(s.shifts_served),
                 str(s.shifts_planned),
-                f"{s.hours_served:.2f}",
-                f"{s.hours_planned:.2f}",
-                f"{s.hours_total:.2f}",
-                f"{s.hours_free:.2f}",
+                f"{s.hours_served:.1f}",
+                f"{s.hours_planned:.1f}",
+                f"{s.hours_total:.1f}",
+                f"{s.hours_free:.1f}",
                 s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
                 s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
             ])
@@ -463,7 +459,7 @@ def date_range_report() -> str | Response:
                 ev.status.value,
                 str(total_s),
                 str(filled_s),
-                f"{worked_h:.2f}",
+                f"{worked_h:.1f}",
                 str(patients),
             ])
         csv_rows.append([])
@@ -473,10 +469,10 @@ def date_range_report() -> str | Response:
                 u.name,
                 str(s.shifts_served),
                 str(s.shifts_planned),
-                f"{s.hours_served:.2f}",
-                f"{s.hours_planned:.2f}",
-                f"{s.hours_total:.2f}",
-                f"{s.hours_free:.2f}",
+                f"{s.hours_served:.1f}",
+                f"{s.hours_planned:.1f}",
+                f"{s.hours_total:.1f}",
+                f"{s.hours_free:.1f}",
                 s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
                 s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
             ])

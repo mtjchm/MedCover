@@ -207,16 +207,16 @@ class Event(ReminderScheduleMixin, db.Model):  # type: ignore[misc]
 
     @property
     def scheduled_hours(self) -> Decimal:
-        """Planned duration in hours derived from start_datetime / end_datetime."""
+        """Planned duration in hours derived from start_datetime / end_datetime, rounded to 1 dp."""
         delta = self.end_datetime - self.start_datetime
-        return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+        return Decimal(str(round(delta.total_seconds() / 3600, 1)))
 
     @property
     def actual_hours(self) -> Decimal | None:
-        """Actual duration in hours derived from RP-submitted actual start/end times."""
+        """Actual duration in hours derived from RP-submitted actual start/end times, rounded to 1 dp."""
         if self.actual_start_datetime and self.actual_end_datetime:
             delta = self.actual_end_datetime - self.actual_start_datetime
-            return Decimal(str(round(delta.total_seconds() / 3600, 2)))
+            return Decimal(str(round(delta.total_seconds() / 3600, 1)))
         return None
 
     @property
