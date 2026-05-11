@@ -172,6 +172,8 @@
           {% endif %}
           {% if event.paid %}
           <span class="badge bg-success">Placená</span>
+          {% else %}
+          <span class="badge bg-primary">Neplacená</span>
           {% endif %}
           {% if event.total_spots > 0 %}
           <span class="badge bg-{{ 'success' if fully_staffed else 'warning' }}">
