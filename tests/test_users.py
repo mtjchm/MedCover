@@ -724,3 +724,92 @@ class TestUserListFiltersAndSort:
         """GET /users/?sort=created&dir=desc returns 200."""
         resp = admin_client.get("/users/?sort=created&dir=desc")
         assert resp.status_code == 200
+
+
+# ── Archive / Unarchive ───────────────────────────────────────────────────────
+
+class TestUserArchive:
+    def _create_target(self, app) -> int:
+        """Create a plain member user to be archived and return their id."""
+        with app.app_context():
+            role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+            u = UserAccount(email="target@archive.test", name="Archivovatelný", is_active=True)
+            u.set_password("pass")
+            u.roles = [role]
+            db.session.add(u)
+            db.session.commit()
+            return u.id
+
+    def test_archive_requires_permission(self, app, member_client):
+        """Member without user.archive cannot archive."""
+        uid = self._create_target(app)
+        resp = member_client.post(f"/users/{uid}/archive", follow_redirects=True)
+        assert resp.status_code == 403
+
+    def test_admin_can_archive(self, app, admin_client):
+        """Admin can archive a user — sets is_archived=True, is_active=False."""
+        uid = self._create_target(app)
+        resp = admin_client.post(f"/users/{uid}/archive", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            assert u.is_archived is True
+            assert u.is_active is False
+
+    def test_archived_user_hidden_from_list(self, app, admin_client):
+        """Archived user does not appear in the default user list."""
+        uid = self._create_target(app)
+        admin_client.post(f"/users/{uid}/archive")
+        resp = admin_client.get("/users/")
+        assert b"target@archive.test" not in resp.data
+
+    def test_archived_user_visible_with_param(self, app, admin_client):
+        """Archived user appears when ?archived=1 is passed."""
+        uid = self._create_target(app)
+        admin_client.post(f"/users/{uid}/archive")
+        resp = admin_client.get("/users/?archived=1")
+        assert resp.status_code == 200
+        assert b"target@archive.test" in resp.data
+
+    def test_view_archived_requires_permission(self, app, coordinator_client):
+        """Coordinator without user.view_archived gets 403 for ?archived=1."""
+        resp = coordinator_client.get("/users/?archived=1")
+        assert resp.status_code == 403
+
+    def test_archived_user_cannot_login(self, app, client):
+        """Archived user is blocked at login."""
+        uid = self._create_target(app)
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            u.is_archived = True
+            u.is_active = False
+            db.session.commit()
+        resp = client.post(
+            "/auth/login",
+            data={"email": "target@archive.test", "password": "pass"},
+            follow_redirects=True,
+        )
+        assert "archivován".encode() in resp.data
+
+    def test_unarchive_restores_flag(self, app, admin_client):
+        """Unarchive sets is_archived=False but leaves is_active=False."""
+        uid = self._create_target(app)
+        admin_client.post(f"/users/{uid}/archive")
+        resp = admin_client.post(f"/users/{uid}/unarchive", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            assert u.is_archived is False
+            assert u.is_active is False
+
+    def test_archived_user_not_in_active_users_list(self, app, admin_client):
+        """active_users_list() excludes archived users."""
+        from app.queries import active_users_list
+        uid = self._create_target(app)
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            u.is_archived = True
+            u.is_active = False
+            db.session.commit()
+            ids = [u.id for u in active_users_list()]
+            assert uid not in ids

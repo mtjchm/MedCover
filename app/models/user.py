@@ -38,6 +38,7 @@ class UserAccount(UserMixin, db.Model):  # type: ignore[misc]
     name = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(50), nullable=True)
     is_active = db.Column(db.Boolean, default=False, nullable=False)
+    is_archived = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
     preferred_calendar_view = db.Column(
         db.Enum(CalendarView, name="calendar_view_enum"),
         default=CalendarView.LIST,

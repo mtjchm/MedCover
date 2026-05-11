@@ -32,6 +32,13 @@
        class="btn btn-sm {{ 'btn-secondary' if role_filter == r.name else 'btn-outline-secondary' }}">{{ r.name }}</a>
     {% endfor %}
   </div>
+
+  {% if current_user.has_permission('user.view_archived') %}
+  <a href="{{ url_for('users.index', archived='1' if not show_archived else None) }}"
+     class="btn btn-sm {{ 'btn-danger' if show_archived else 'btn-outline-danger' }} ms-auto">
+    {{ 'Zobrazit aktivní' if show_archived else 'Archivovaní uživatelé' }}
+  </a>
+  {% endif %}
 </div>
 
 {# ── Batch action form wrapping the table ─────────────────────────────────── #}
@@ -94,11 +101,13 @@
         {% endif %}
         <td>
           <a href="{{ url_for('users.detail', user_id=u.id) }}"
-             class="{{ 'text-warning' if not u.is_active }}">{{ u.name }}</a>
+             class="{{ 'text-muted' if u.is_archived else ('text-warning' if not u.is_active) }}">{{ u.name }}</a>
         </td>
         <td>{{ u.email }}</td>
         <td>
-          {% if u.is_active %}
+          {% if u.is_archived %}
+            {{ badge_secondary('Archivován') }}
+          {% elif u.is_active %}
             <span class="badge bg-success">Aktivní</span>
           {% else %}
             {{ badge_warning('Čeká na aktivaci') }}

@@ -26,6 +26,10 @@ class Role(db.Model):  # type: ignore[misc]
     # system administrators must not access confidential debriefing data.
     _ADMIN_EXCLUDED_PERMISSIONS: set[str] = {"debriefing.view_all", "debriefing.manage"}
 
+    # Permissions only available to Admin (not in any other role's list).
+    # Listed here for documentation; enforcement is via ROLE_PERMISSIONS below.
+    _ADMIN_ONLY_PERMISSIONS: set[str] = {"user.archive", "user.view_archived"}
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
@@ -74,6 +78,8 @@ ALL_PERMISSIONS: list[dict] = [
     {"code": "user.edit_any", "description": "Edit any user's profile"},
     {"code": "user.activate", "description": "Activate a user account"},
     {"code": "user.deactivate", "description": "Deactivate a user account"},
+    {"code": "user.archive", "description": "Archive a user account (hides from all lists; also deactivates)"},
+    {"code": "user.view_archived", "description": "View archived user accounts"},
     {"code": "user.assign_role", "description": "Assign/unassign roles to users"},
     {"code": "user.assign_qualification", "description": "Assign/unassign qualifications to users"},
     {"code": "invite.create", "description": "Create registration invites"},

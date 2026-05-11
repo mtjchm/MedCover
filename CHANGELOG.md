@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- User archiving: admins can archive departed users, hiding them from all lists and dropdowns while preserving their historical data (closes #123)
+- Archived users cannot log in and are excluded from all assignment/notification queries
+- New permissions: `user.archive` (archive/unarchive) and `user.view_archived` (see archived list) — Admin role only
+- Archived user list accessible via `?archived=1` on the users page (Admin only)
+
 ## [0.11.0] - 2026-05-11
 
 ### Added

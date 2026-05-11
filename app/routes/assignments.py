@@ -169,7 +169,7 @@ def assign_other(spot_id: int) -> Response:
         return redirect(request.referrer or url_for("events.index"))
 
     user = db.session.get(UserAccount, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.is_archived:
         flash("Uživatel nenalezen nebo není aktivní.", "danger")
         return redirect(request.referrer or url_for("events.index"))
 

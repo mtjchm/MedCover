@@ -74,6 +74,9 @@ def login() -> str | Response:
                 return render_template("auth/login.html")
 
             if user.check_password(password):
+                if user.is_archived:
+                    flash("Váš účet byl archivován. Kontaktujte administrátora.", "danger")
+                    return redirect(url_for("auth.login"))
                 if not user.is_active:
                     flash("Váš účet čeká na aktivaci administrátorem.", "warning")
                     return redirect(url_for("auth.login"))
