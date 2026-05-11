@@ -67,7 +67,7 @@
     {% for u in pending_activations %}
     <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2">
       <div>
-        <div class="fw-semibold">{{ u.name }}</div>
+        <div class="fw-semibold"><a href="{{ url_for('users.detail', user_id=u.id) }}" class="text-decoration-none text-body">{{ u.name }}</a></div>
         <div class="text-muted small">{{ u.email }}</div>
       </div>
       <form method="POST" action="{{ url_for('users.activate', user_id=u.id) }}">

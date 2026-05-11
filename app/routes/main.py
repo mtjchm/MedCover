@@ -40,20 +40,21 @@ def dashboard() -> str:
 
     # ── Moje akce ─────────────────────────────────────────────────────────
     # Events where user is: assigned to a spot, RP, or creator — within horizon
-    assigned_event_ids = db.session.scalars(
+    assigned_event_id_set: set = set(db.session.scalars(
         db.select(EventSpot.event_id)
         .join(Assignment, Assignment.spot_id == EventSpot.id)
         .where(Assignment.user_id == current_user.id)
-    ).all()
+    ).all())
 
     my_events_query = (
         db.select(Event)
         .where(
+            Event.archived.is_(False),
             Event.end_datetime >= now,
             Event.start_datetime <= horizon,
             Event.status != EventStatus.CANCELLED,
             or_(
-                Event.id.in_(assigned_event_ids),
+                Event.id.in_(assigned_event_id_set),
                 Event.responsible_person_id == current_user.id,
                 Event.created_by_id == current_user.id,
             ),
@@ -63,13 +64,16 @@ def dashboard() -> str:
     # Users without view_draft cannot open DRAFT events — exclude them to avoid 403
     if not current_user.has_permission("event.view_draft"):
         my_events_query = my_events_query.where(Event.status != EventStatus.DRAFT)
-    my_events_raw = db.session.scalars(my_events_query).all()
+    my_events_raw = sorted(
+        db.session.scalars(my_events_query).all(),
+        key=lambda e: e.start_datetime,
+    )
 
     # Build (event, [tags]) pairs
     my_events: list[tuple[Event, list[str]]] = []
     for e in my_events_raw:
         tags = []
-        if e.id in assigned_event_ids:
+        if e.id in assigned_event_id_set:
             tags.append("Přihlášen")
         if e.responsible_person_id == current_user.id:
             tags.append("Zodpovědný zdravotník")
@@ -82,7 +86,7 @@ def dashboard() -> str:
     open_events_all: list[Event] = []
 
     if current_user.has_permission("event.assign_own"):
-        already_in = set(assigned_event_ids)
+        already_in = assigned_event_id_set
         candidates = db.session.scalars(
             db.select(Event)
             .where(
