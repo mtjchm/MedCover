@@ -80,6 +80,17 @@ def create_app(
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
+    _CZECH_DAY_ABBR = ["po", "út", "st", "čt", "pá", "so", "ne"]
+
+    @app.template_filter("czechday")
+    def czechday_filter(dt: datetime | None) -> str:
+        """Return Czech two-letter weekday abbreviation (po/út/st/čt/pá/so/ne)."""
+        if dt is None:
+            return ""
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return _CZECH_DAY_ABBR[dt.astimezone(_PRAGUE_TZ).weekday()]
+
     @app.template_filter("cznum")
     def cznum_filter(value: object, decimals: int = 1) -> str:
         """Format a number using Czech locale: comma as decimal separator."""

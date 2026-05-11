@@ -202,13 +202,17 @@
 }
 
 /* Filter buttons: Bootstrap .btn classes handle all base styling.
-   On touch-only devices (mobile), suppress the sticky simulated-hover
-   that persists after a tap on inactive buttons. */
+   On touch-only devices (mobile), suppress the sticky simulated-hover,
+   focus and active states that persist after a tap on inactive buttons. */
 @media (hover: none) {
-  .filter-btn:not(.active):hover {
+  .filter-btn:not(.active):hover,
+  .filter-btn:not(.active):focus,
+  .filter-btn:not(.active):focus-visible,
+  .filter-btn:not(.active):active {
     background-color: transparent !important;
     color: var(--bs-btn-color) !important;
     box-shadow: none !important;
+    outline: none !important;
   }
 }
 

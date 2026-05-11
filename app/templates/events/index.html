@@ -49,23 +49,54 @@
 </div>
 
 {# ── Status filter bar ──────────────────────────────────────────────────── #}
+{# Build a helper macro to toggle a status in/out of the active set #}
+{% macro status_url(toggle_status) %}
+  {%- set new_statuses = [] -%}
+  {%- if toggle_status in active_statuses -%}
+    {%- set new_statuses = active_statuses | reject('equalto', toggle_status) | list -%}
+  {%- else -%}
+    {%- set new_statuses = active_statuses + [toggle_status] -%}
+  {%- endif -%}
+  {{ url_for('events.index', statuses=new_statuses|join(','), me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
+{%- endmacro %}
+
+{# Sort URL: preserve statuses + me_id + archived, toggle sort col/dir #}
+{% macro sort_url(col) %}
+  {%- set new_dir = 'asc' -%}
+  {%- if sort_col == col -%}
+    {%- set new_dir = 'desc' if sort_dir == 'asc' else 'asc' -%}
+  {%- endif -%}
+  {{ url_for('events.index', sort=col, dir=new_dir, statuses=active_statuses|join(','), me_id=active_me.id if active_me else None, archived=1 if show_archived else None) }}
+{%- endmacro %}
+{% macro sort_icon(col) %}
+  {%- if sort_col == col -%}
+    <span class="sort-icon">{{ '↑' if sort_dir == 'asc' else '↓' }}</span>
+  {%- else -%}
+    <span class="sort-icon text-muted">↕</span>
+  {%- endif -%}
+{%- endmacro %}
 <div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="status-filter-bar">
   <small class="text-muted me-1">Filtr:</small>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="DRAFT">Koncept</button>
-  <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-status="PUBLISHED">Zveřejněná</button>
-  <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
-  <button type="button" class="btn btn-sm btn-outline-warning filter-btn" data-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
-  <button type="button" class="btn btn-sm btn-outline-dark filter-btn" data-status="COMPLETED">Dokončena</button>
-  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-status="CANCELLED">Zrušena</button>
+  {% if has_draft_perm %}
+  <a href="{{ status_url('DRAFT') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'DRAFT' in active_statuses }}">Koncept</a>
+  {% endif %}
+  <a href="{{ status_url('PUBLISHED') }}" class="btn btn-sm btn-outline-primary filter-btn {{ 'active' if 'PUBLISHED' in active_statuses }}">Zveřejněná</a>
+  <a href="{{ status_url('ASSIGNMENTS_OPEN') }}" class="btn btn-sm btn-outline-success filter-btn {{ 'active' if 'ASSIGNMENTS_OPEN' in active_statuses }}">Přihlášky otevřeny</a>
+  <a href="{{ status_url('ASSIGNMENTS_CLOSED') }}" class="btn btn-sm btn-outline-warning filter-btn {{ 'active' if 'ASSIGNMENTS_CLOSED' in active_statuses }}">Přihlášky uzavřeny</a>
+  <a href="{{ status_url('COMPLETED') }}" class="btn btn-sm filter-btn-neutral filter-btn {{ 'active' if 'COMPLETED' in active_statuses }}">Dokončena</a>
+  <a href="{{ status_url('CANCELLED') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'CANCELLED' in active_statuses }}">Zrušena</a>
   {% if current_user.has_permission('event.assign_own') %}
   <button type="button" class="btn btn-sm btn-outline-info filter-btn ms-2" id="btn-elig-filter">Pro mě</button>
   {% endif %}
-  <select id="me-filter-select" class="form-select form-select-sm ms-2 maxw-250 d-none"
-          title="Filtrovat podle nadřazené akce" onchange="setMeFilter(this.value)">
+  <select id="me-filter-select" class="form-select form-select-sm ms-2 maxw-250 {{ 'd-none' if not active_named_mes }}"
+          title="Filtrovat podle nadřazené akce" onchange="navigateToMe(this.value)">
     <option value="">Všechny nadřazené akce</option>
+    {% for me in active_named_mes %}
+    <option value="{{ me.id }}" {% if active_me and active_me.id == me.id %}selected{% endif %}>{{ me.name }}</option>
+    {% endfor %}
   </select>
-  <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="btn-reset-filters"
-          onclick="resetFilters()">Výchozí</button>
+  <a href="{{ url_for('events.index', archived=1 if show_archived else None) }}"
+     class="btn btn-sm btn-link text-muted p-0 ms-2">Výchozí</a>
 </div>
 
 {% set status_colors = {
@@ -120,18 +151,18 @@
             <input type="checkbox" class="form-check-input" id="check-all-events"
                    title="Vybrat / odebrat vše viditelné">
           </th>
-          <th class="sortable cursor-pointer text-nowrap minw-12r" data-col="name">
-            Název <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="me_name">
-            Nadřazená<br>akce <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="start">
-            Začátek <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="status">
-            Stav <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-nowrap" data-col="total">
-            Obsazení <span class="sort-icon text-muted">↕</span></th>
-          <th class="sortable cursor-pointer text-wrap minw-7r maxw-9r" data-col="rp">
-            Zodpovědný<br>zdravotník <span class="sort-icon text-muted">↕</span></th>
+          <th class="text-nowrap minw-12r">
+            <a href="{{ sort_url('name') }}" class="text-decoration-none text-reset">Název {{ sort_icon('name') }}</a></th>
+          <th class="text-wrap minw-7r maxw-9r">
+            <a href="{{ sort_url('me_name') }}" class="text-decoration-none text-reset">Nadřazená<br>akce {{ sort_icon('me_name') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('start') }}" class="text-decoration-none text-reset">Začátek {{ sort_icon('start') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('status') }}" class="text-decoration-none text-reset">Stav {{ sort_icon('status') }}</a></th>
+          <th class="text-nowrap">
+            <a href="{{ sort_url('total') }}" class="text-decoration-none text-reset">Obsazení {{ sort_icon('total') }}</a></th>
+          <th class="text-wrap minw-7r maxw-9r">
+            <a href="{{ sort_url('rp') }}" class="text-decoration-none text-reset">Zodpovědný<br>zdravotník {{ sort_icon('rp') }}</a></th>
           <th></th>
         </tr>
       </thead>
@@ -145,8 +176,7 @@
             data-status="{{ event.status.name }}"
             data-eligible="{{ '1' if eligible_spot_map.get(event.id) else '0' }}"
             data-me="{{ '' if event.master_event.is_general else event.master_event.name }}"
-            data-event-id="{{ event.id }}"
-            data-sv='{"name":{{ event.name | lower | tojson }},"me_name":{{ ('' if event.master_event.is_general else event.master_event.name) | lower | tojson }},"start":{{ event.start_datetime.isoformat() | tojson }},"status":{{ event.status.name | tojson }},"staffing":{{ '%.4f' % staffing_ratio }},"total":{{ mand_total }},"rp":{{ (event.responsible_person.name | lower if event.responsible_person else '') | tojson }}}'>
+            data-event-id="{{ event.id }}">
           <td class="px-2">
             <input type="checkbox" class="form-check-input row-event-check" value="{{ event.id }}"
                    title="Vybrat akci">
@@ -158,7 +188,7 @@
             {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
           </td>
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
-          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
+          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }} <span class="text-muted">{{ event.start_datetime | czechday }}</span><br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
           <td>
             <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
@@ -268,7 +298,6 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
 <style>
-  .sortable:hover { background-color: rgba(0,0,0,.04); }
   .sort-icon { font-size: .75em; }
   /* Theme-aware "dark/completed" filter button */
   .filter-btn-neutral {
@@ -283,6 +312,6 @@
   }
 </style>
 
-<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMes": {{ active_named_mes | map(attribute='name') | list | tojson }}}</script>
+<script type="application/json" id="events-page-cfg">{"feedUrl": "{{ url_for('events.feed') }}{{ '?archived=1' if show_archived }}", "hasDraftPerm": {{ 'true' if has_draft_perm else 'false' }}, "activeStatuses": {{ active_statuses | tojson }}, "claimBase": "{{ url_for('assignments.claim', spot_id=0) | replace('/0', '/') }}", "activeMeName": {{ (active_me.name if active_me else '') | tojson }}}</script>
 <script src="{{ url_for('static', filename='js/events-index.js') }}?v={{ static_ver }}"></script>
 {% endblock %}

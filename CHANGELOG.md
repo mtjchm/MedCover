@@ -16,9 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Welcome email on registration: `send_account_activated` is now called automatically when a user completes invite-link registration (previously only sent on manual admin activation)
 - Catalog rule: added documentation requiring the notification catalog to be updated whenever any email notification is added, changed, or removed (DEVOPS.md + copilot-instructions)
 - Event change notification (closes #103): assigned users now receive an email when any event detail (name, time, location, description, etc.) is changed; includes old and new values with Czech field labels; controllable via the notification catalog toggle
+- Czech two-letter weekday abbreviation (po/út/st/čt/pá/so/ne) shown next to the date in the events table for quick day-of-week recognition
 
 ### Fixed
 - Backup timestamps displayed in CET (Europe/Prague) instead of UTC in both the backup management page and the admin digest email (closes #110)
+- Completed events now appear in the table view; status and ME filters and table sorting all moved fully server-side (before pagination) so all pages are correctly filtered and sorted — previously only the calendar showed completed events (closes #120)
+- Master Event filter in the events table now correctly counts and paginates only the filtered results
+- Table sorting now covers all pages, not just the current page
+- Default events table view shows only active/upcoming events (excludes Draft, Cancelled, Completed) sorted by start date ascending
+- "Pro mě" toggle button no longer stays visually stuck active after tapping on mobile
 
 ## [0.9.0] - 2026-05-10
 

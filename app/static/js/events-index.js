@@ -7,170 +7,65 @@
     if (cfgEl) cfg = JSON.parse(cfgEl.textContent);
   } catch (e) {}
 
-  var FEED_URL_BASE  = cfg.feedUrl  || "";
-  var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
-  var CLAIM_BASE     = cfg.claimBase || "";
-  var ACTIVE_MES     = cfg.activeMes || [];
+  var FEED_URL_BASE   = cfg.feedUrl  || "";
+  var HAS_DRAFT_PERM  = cfg.hasDraftPerm || false;
+  var ACTIVE_STATUSES = cfg.activeStatuses || [];
+  var CLAIM_BASE      = cfg.claimBase || "";
+  var ACTIVE_ME_NAME  = cfg.activeMeName || "";
 
   var STORAGE_VIEW  = "medcover_events_view";
-  var STORAGE_FILT  = "medcover_events_filters";
-  var STORAGE_SORT  = "medcover_events_sort";
   var STORAGE_ELIG  = "medcover_events_elig";
-  var STORAGE_ME    = "medcover_events_me";
-
-  var DEFAULT_FILTERS = ["PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
 
   var calendarInitialized = false;
   var calendar = null;
   var allCalendarEvents = null;
-  var sortState = { col: "start", dir: "asc" };
   var eligFilter = false;
-  var meFilter = "";
 
-  // ── Filter state ──────────────────────────────────────────────────────────
+  // ── Per-page JS filter (elig only — status + ME are server-side) ──
 
-  function loadFilters() {
-    try { var s = localStorage.getItem(STORAGE_FILT); if (s) return JSON.parse(s); } catch(e) {}
-    return DEFAULT_FILTERS.slice();
-  }
-  function saveFilters(f) { localStorage.setItem(STORAGE_FILT, JSON.stringify(f)); }
   function loadEligFilter() {
     try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
   }
   function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
-  function loadMeFilter() {
-    try { return localStorage.getItem(STORAGE_ME) || ""; } catch(e) { return ""; }
-  }
-  function saveMeFilter(v) { localStorage.setItem(STORAGE_ME, v || ""); }
-  function loadSort() {
-    try { var s = localStorage.getItem(STORAGE_SORT); if (s) return JSON.parse(s); } catch(e) {}
-    return { col: "start", dir: "asc" };
-  }
-  function saveSort(s) { localStorage.setItem(STORAGE_SORT, JSON.stringify(s)); }
 
-  // ── Filter buttons ────────────────────────────────────────────────────────
+  // ── Table row visibility (elig only — status + ME are server-side) ──
 
-  function renderFilterButtons(activeFilters) {
-    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
-      btn.classList.toggle("active", activeFilters.includes(btn.dataset.status));
-    });
-  }
-
-  function toggleFilter(key) {
-    var f = loadFilters();
-    var idx = f.indexOf(key);
-    if (idx >= 0) f.splice(idx, 1); else f.push(key);
-    saveFilters(f);
-    renderFilterButtons(f);
-    applyFilters(f);
-  }
-
-  function toggleEligFilter() {
-    eligFilter = !eligFilter;
-    saveEligFilter(eligFilter);
-    var btn = document.getElementById("btn-elig-filter");
-    if (btn) btn.classList.toggle("active", eligFilter);
-    applyFilters(loadFilters());
-  }
-
-  function setMeFilter(value) {
-    meFilter = value || "";
-    saveMeFilter(meFilter);
-    var sel = document.getElementById("me-filter-select");
-    if (sel) sel.value = meFilter;
-    applyFilters(loadFilters());
-    if (calendarInitialized && calendar) calendar.refetchEvents();
-  }
-
-  function populateMeSelect() {
-    var sel = document.getElementById("me-filter-select");
-    if (!sel || ACTIVE_MES.length === 0) return;
-    ACTIVE_MES.forEach(function (name) {
-      var opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      sel.appendChild(opt);
-    });
-    sel.value = meFilter;
-    sel.classList.remove("d-none");
-  }
-
-  function resetFilters() {
-    eligFilter = false;
-    saveEligFilter(false);
-    var btn = document.getElementById("btn-elig-filter");
-    if (btn) btn.classList.remove("active");
-    meFilter = "";
-    saveMeFilter("");
-    var sel = document.getElementById("me-filter-select");
-    if (sel) sel.value = "";
-    saveFilters(DEFAULT_FILTERS.slice());
-    renderFilterButtons(DEFAULT_FILTERS.slice());
-    applyFilters(DEFAULT_FILTERS.slice());
-    if (calendarInitialized && calendar) calendar.refetchEvents();
-  }
-
-  // ── Table filter + sort ───────────────────────────────────────────────────
-
-  function applyFilters(activeFilters) {
+  function applyLocalFilters() {
     var tbody = document.querySelector("#events-table tbody");
     if (!tbody) return;
     var visibleCount = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
-      var statusOk = activeFilters.includes(row.dataset.status);
       var eligOk = !eligFilter || row.dataset.eligible === "1";
-      var meOk = !meFilter || row.dataset.me === meFilter;
-      var visible = statusOk && eligOk && meOk;
-      row.style.display = visible ? "" : "none";
-      if (visible) visibleCount++;
+      row.style.display = eligOk ? "" : "none";
+      if (eligOk) visibleCount++;
     });
     var emptyMsg = document.getElementById("table-empty-msg");
     if (emptyMsg) emptyMsg.classList.toggle('d-none', visibleCount > 0);
     if (calendarInitialized && calendar) calendar.refetchEvents();
   }
 
-  function sortTable(col) {
-    if (sortState.col === col) {
-      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
-    } else {
-      sortState.col = col;
-      sortState.dir = "asc";
+  function toggleEligFilter() {
+    eligFilter = !eligFilter;
+    saveEligFilter(eligFilter);
+    var btn = document.getElementById("btn-elig-filter");
+    if (btn) {
+      btn.classList.toggle("active", eligFilter);
+      btn.blur();
     }
-    saveSort(sortState);
-    renderSortIcons();
-    doSort();
+    applyLocalFilters();
   }
 
-  function renderSortIcons() {
-    document.querySelectorAll(".sortable").forEach(function (th) {
-      var icon = th.querySelector(".sort-icon");
-      if (!icon) return;
-      if (th.dataset.col === sortState.col) {
-        icon.textContent = sortState.dir === "asc" ? "↑" : "↓";
-        icon.classList.remove("text-muted");
-      } else {
-        icon.textContent = "↕";
-        icon.classList.add("text-muted");
-      }
-    });
-  }
+  // ── ME filter navigation (server-side; select triggers URL change) ──────
 
-  function doSort() {
-    var tbody = document.querySelector("#events-table tbody");
-    if (!tbody) return;
-    var rows = Array.from(tbody.querySelectorAll("tr"));
-    var col = sortState.col;
-    var dir = sortState.dir === "asc" ? 1 : -1;
-    rows.sort(function (a, b) {
-      var aVals = JSON.parse(a.dataset.sv || "{}");
-      var bVals = JSON.parse(b.dataset.sv || "{}");
-      var av = aVals[col] != null ? String(aVals[col]) : "";
-      var bv = bVals[col] != null ? String(bVals[col]) : "";
-      if (col === "start") return dir * av.localeCompare(bv);
-      if (col === "staffing" || col === "total") return dir * (parseFloat(av) - parseFloat(bv));
-      return dir * av.localeCompare(bv, "cs");
-    });
-    rows.forEach(function (r) { tbody.appendChild(r); });
+  function navigateToMe(meId) {
+    var params = new URLSearchParams(window.location.search);
+    if (meId) {
+      params.set("me_id", meId);
+    } else {
+      params.delete("me_id");
+    }
+    params.delete("page");
+    window.location.href = window.location.pathname + "?" + params.toString();
   }
 
   // ── View toggle ───────────────────────────────────────────────────────────
@@ -201,11 +96,10 @@
             var r = await fetch(FEED_URL_BASE);
             allCalendarEvents = await r.json();
           }
-          var active = loadFilters();
           successCallback(allCalendarEvents.filter(function (e) {
-            var statusOk = active.includes(e.extendedProps.status_key);
+            var statusOk = ACTIVE_STATUSES.includes(e.extendedProps.status_key);
             var eligOk = !eligFilter || e.extendedProps.eligible;
-            var meOk = !meFilter || (e.extendedProps.me_name || "") === meFilter;
+            var meOk = !ACTIVE_ME_NAME || (e.extendedProps.me_name || "") === ACTIVE_ME_NAME;
             return statusOk && eligOk && meOk;
           }));
         } catch (err) { failureCallback(err); }
@@ -290,35 +184,7 @@
   // ── Init ──────────────────────────────────────────────────────────────────
 
   document.addEventListener("DOMContentLoaded", function () {
-    sortState = loadSort();
-    renderSortIcons();
-    doSort();
-
-    document.querySelectorAll(".sortable").forEach(function (th) {
-      th.addEventListener("click", function () { sortTable(th.dataset.col); });
-    });
-    document.querySelectorAll(".filter-btn[data-status]").forEach(function (btn) {
-      var touchStartY = 0;
-      var touchFired = false;
-      btn.addEventListener("touchstart", function (e) {
-        touchStartY = e.touches[0].clientY;
-      }, { passive: true });
-      btn.addEventListener("touchend", function (e) {
-        var dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
-        if (dy > 10) return; // scroll — ignore
-        touchFired = true;
-        e.preventDefault(); // prevents simulated hover state + synthetic click
-        toggleFilter(btn.dataset.status);
-        setTimeout(function () { touchFired = false; }, 500);
-      }, { passive: false });
-      btn.addEventListener("click", function () {
-        if (touchFired) return; // already handled by touchend
-        toggleFilter(btn.dataset.status);
-      });
-    });
-
     eligFilter = loadEligFilter();
-    meFilter = loadMeFilter();
     var eligBtn = document.getElementById("btn-elig-filter");
     if (eligBtn) {
       eligBtn.classList.toggle("active", eligFilter);
@@ -341,10 +207,7 @@
       });
     }
 
-    var activeFilters = loadFilters();
-    renderFilterButtons(activeFilters);
-    populateMeSelect();
-    applyFilters(activeFilters);
+    applyLocalFilters();
 
     var saved = localStorage.getItem(STORAGE_VIEW) || "table";
     setView(saved);
@@ -388,9 +251,8 @@
 
   // Expose globals used by inline HTML onclick attributes in the template
   window.setView = setView;
-  window.setMeFilter = setMeFilter;
+  window.navigateToMe = navigateToMe;
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
-  window.resetFilters = resetFilters;
   window.toggleEligFilter = toggleEligFilter;
 })();

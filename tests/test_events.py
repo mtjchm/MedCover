@@ -44,7 +44,8 @@ class TestEventListPermissions:
     def test_event_row_has_data_me_attribute(self, app, admin_client):
         me_id = _make_master_event(app)
         admin_client.post("/events/create", data=_event_form_data(me_id), follow_redirects=True)
-        response = admin_client.get("/events/")
+        # DRAFT is excluded by default; request it explicitly
+        response = admin_client.get("/events/?statuses=DRAFT")
         assert b'data-me=' in response.data
 
 
@@ -249,6 +250,34 @@ class TestCalendarFeed:
         feed_data = admin_client.get("/events/feed").get_json()
         titles = [e.get("title", "") for e in feed_data]
         assert not any("Test Event" in t for t in titles)
+
+    def test_completed_events_included_in_index_and_feed(self, app, admin_client):
+        """Completed is a status like Published — server always returns it; JS filter controls visibility."""
+        with app.app_context():
+            me = MasterEvent(name="ME for completed test")
+            db.session.add(me)
+            db.session.flush()
+            from app.models.user import UserAccount
+            creator = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "admin@test.com"))
+            event = Event(
+                name="Completed Test Event",
+                master_event_id=me.id,
+                start_datetime=__import__("datetime").datetime(2020, 1, 1, 10, 0, tzinfo=__import__("datetime").timezone.utc),
+                end_datetime=__import__("datetime").datetime(2020, 1, 1, 18, 0, tzinfo=__import__("datetime").timezone.utc),
+                status=EventStatus.COMPLETED,
+                created_by_id=creator.id,
+            )
+            db.session.add(event)
+            db.session.commit()
+
+        # Table page should include the row when COMPLETED filter is explicitly enabled
+        resp = admin_client.get("/events/?statuses=COMPLETED")
+        assert b"Completed Test Event" in resp.data
+
+        # Feed should also return the completed event
+        feed_data = admin_client.get("/events/feed").get_json()
+        titles = [e.get("title", "") for e in feed_data]
+        assert any("Completed Test Event" in t for t in titles)
 
 
 class TestAuditChangeTracking:

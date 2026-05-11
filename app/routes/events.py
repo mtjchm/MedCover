@@ -28,6 +28,7 @@ from __future__ import annotations
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
 
+from sqlalchemy import func, case
 from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate
 from app.models.master_event import MasterEvent
@@ -74,12 +75,90 @@ def index() -> str:
     show_archived = request.args.get("archived") == "1"
     page = request.args.get("page", 1, type=int)
 
-    query = db.select(Event).order_by(Event.start_datetime.desc())
+    # Status filter: comma-separated list of EventStatus names in URL.
+    # If the ?statuses param is absent (first visit / direct link) use defaults.
+    # If it is present but empty, the user explicitly disabled all filters → respect that.
+    _all_statuses = [s.name for s in EventStatus]
+    _default_statuses = [
+        s.name for s in EventStatus
+        if s not in (EventStatus.DRAFT, EventStatus.CANCELLED, EventStatus.COMPLETED)
+    ]
+    if "statuses" not in request.args:
+        active_statuses = _default_statuses
+    else:
+        raw_statuses = request.args.get("statuses", "")
+        active_statuses = [s for s in raw_statuses.split(",") if s in _all_statuses]
+
+    # Sort: server-side ORDER BY before pagination
+    _VALID_SORT_COLS = {"start", "name", "status", "me_name", "total", "rp"}
+    sort_col = request.args.get("sort", "start")
+    sort_dir = request.args.get("dir", "asc")
+    if sort_col not in _VALID_SORT_COLS:
+        sort_col = "start"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
+
+    # ME filter: filter by master event ID (UUID in URL)
+    me_id_param = request.args.get("me_id", "").strip()
+    active_me: MasterEvent | None = None
+    if me_id_param:
+        active_me = db.session.get(MasterEvent, me_id_param)
+        if active_me and (active_me.is_general or active_me.archived):
+            active_me = None  # ignore general/archived ME params
+
+    query = db.select(Event)
 
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
         query = query.where(Event.archived.is_(False))
+
+    # Apply ME filter
+    if active_me:
+        query = query.where(Event.master_event_id == active_me.id)
+
+    # Apply server-side status filter
+    status_values = [EventStatus[s] for s in active_statuses if s in EventStatus.__members__]
+    if status_values:
+        query = query.where(Event.status.in_(status_values))
+    else:
+        # Nothing selected → return empty result
+        query = query.where(db.false())
+
+    # Apply server-side ORDER BY (covers all pages, not just current)
+    _asc = sort_dir == "asc"
+    if sort_col == "name":
+        query = query.order_by(Event.name.asc() if _asc else Event.name.desc())
+    elif sort_col == "status":
+        query = query.order_by(Event.status.asc() if _asc else Event.status.desc())
+    elif sort_col == "me_name":
+        me_name_expr = (
+            db.select(case((MasterEvent.is_general.is_(True), None), else_=MasterEvent.name))
+            .where(MasterEvent.id == Event.master_event_id)
+            .correlate(Event)
+            .scalar_subquery()
+        )
+        order_expr = me_name_expr.asc() if _asc else me_name_expr.desc()
+        query = query.order_by(order_expr.nulls_last())
+    elif sort_col == "total":
+        spot_count_sq = (
+            db.select(func.count(EventSpot.id))
+            .where(EventSpot.event_id == Event.id, EventSpot.is_optional.is_(False))
+            .correlate(Event)
+            .scalar_subquery()
+        )
+        query = query.order_by(spot_count_sq.asc() if _asc else spot_count_sq.desc())
+    elif sort_col == "rp":
+        rp_name_sq = (
+            db.select(UserAccount.name)
+            .where(UserAccount.id == Event.responsible_person_id)
+            .correlate(Event)
+            .scalar_subquery()
+        )
+        order_expr = rp_name_sq.asc() if _asc else rp_name_sq.desc()
+        query = query.order_by(order_expr.nulls_last())
+    else:  # start (default)
+        query = query.order_by(Event.start_datetime.asc() if _asc else Event.start_datetime.desc())
 
     pagination = db.paginate(query, page=page, per_page=_PER_PAGE, error_out=False)
     events = pagination.items
@@ -121,6 +200,12 @@ def index() -> str:
         events=events,
         pagination=pagination,
         show_archived=show_archived,
+        active_statuses=active_statuses,
+        default_statuses=_default_statuses,
+        all_statuses=_all_statuses,
+        sort_col=sort_col,
+        sort_dir=sort_dir,
+        active_me=active_me,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
