@@ -1,6 +1,7 @@
 services:
   - name: medcover-web
     type: web
+    region: frankfurt
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerCommand: gunicorn -w 2 -b 0.0.0.0:$PORT "app:create_app()"
@@ -23,6 +24,7 @@ services:
 
   - name: medcover-scheduler
     type: worker
+    region: frankfurt
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerCommand: python scheduler/main.py
@@ -47,3 +49,4 @@ databases:
     databaseName: medcover
     user: medcover
     plan: free
+    region: frankfurt
