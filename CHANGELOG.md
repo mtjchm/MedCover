@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - User archiving: admins can archive departed users, hiding them from all lists and dropdowns while preserving their historical data (closes #123)
-- Archived users cannot log in and are excluded from all assignment/notification queries
+- Archived users cannot log in and are excluded from all live assignment/notification queries
+- Archived users are blocked from requesting a password reset (UI shows same message to prevent enumeration)
 - New permissions: `user.archive` (archive/unarchive) and `user.view_archived` (see archived list) — Admin role only
 - Archived user list accessible via `?archived=1` on the users page (Admin only)
+- Import: new users in the import preview can be marked as archived at creation time (for departed volunteers in historical data)
+- Import: archived users are assignable to imported event spots (historical events may reference people who have since left)
 
 ## [0.11.0] - 2026-05-11
 
