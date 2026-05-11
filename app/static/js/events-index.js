@@ -7,34 +7,28 @@
     if (cfgEl) cfg = JSON.parse(cfgEl.textContent);
   } catch (e) {}
 
-  var FEED_URL_BASE  = cfg.feedUrl  || "";
-  var HAS_DRAFT_PERM = cfg.hasDraftPerm || false;
+  var FEED_URL_BASE   = cfg.feedUrl  || "";
+  var HAS_DRAFT_PERM  = cfg.hasDraftPerm || false;
   var ACTIVE_STATUSES = cfg.activeStatuses || [];
-  var CLAIM_BASE     = cfg.claimBase || "";
-  var ACTIVE_MES     = cfg.activeMes || [];
+  var CLAIM_BASE      = cfg.claimBase || "";
+  var ACTIVE_ME_NAME  = cfg.activeMeName || "";
 
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_ELIG  = "medcover_events_elig";
-  var STORAGE_ME    = "medcover_events_me";
 
   var calendarInitialized = false;
   var calendar = null;
   var allCalendarEvents = null;
   var eligFilter = false;
-  var meFilter = "";
 
-  // ── Per-page JS filters (elig + ME — work on the current paginated page) ──
+  // ── Per-page JS filter (elig only — status + ME are server-side) ──
 
   function loadEligFilter() {
     try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
   }
   function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
-  function loadMeFilter() {
-    try { return localStorage.getItem(STORAGE_ME) || ""; } catch(e) { return ""; }
-  }
-  function saveMeFilter(v) { localStorage.setItem(STORAGE_ME, v || ""); }
 
-  // ── Table row visibility (elig + ME only — status filter is server-side) ──
+  // ── Table row visibility (elig only — status + ME are server-side) ──
 
   function applyLocalFilters() {
     var tbody = document.querySelector("#events-table tbody");
@@ -42,10 +36,8 @@
     var visibleCount = 0;
     tbody.querySelectorAll("tr").forEach(function (row) {
       var eligOk = !eligFilter || row.dataset.eligible === "1";
-      var meOk = !meFilter || row.dataset.me === meFilter;
-      var visible = eligOk && meOk;
-      row.style.display = visible ? "" : "none";
-      if (visible) visibleCount++;
+      row.style.display = eligOk ? "" : "none";
+      if (eligOk) visibleCount++;
     });
     var emptyMsg = document.getElementById("table-empty-msg");
     if (emptyMsg) emptyMsg.classList.toggle('d-none', visibleCount > 0);
@@ -63,26 +55,17 @@
     applyLocalFilters();
   }
 
-  function setMeFilter(value) {
-    meFilter = value || "";
-    saveMeFilter(meFilter);
-    var sel = document.getElementById("me-filter-select");
-    if (sel) sel.value = meFilter;
-    applyLocalFilters();
-    if (calendarInitialized && calendar) calendar.refetchEvents();
-  }
+  // ── ME filter navigation (server-side; select triggers URL change) ──────
 
-  function populateMeSelect() {
-    var sel = document.getElementById("me-filter-select");
-    if (!sel || ACTIVE_MES.length === 0) return;
-    ACTIVE_MES.forEach(function (name) {
-      var opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      sel.appendChild(opt);
-    });
-    sel.value = meFilter;
-    sel.classList.remove("d-none");
+  function navigateToMe(meId) {
+    var params = new URLSearchParams(window.location.search);
+    if (meId) {
+      params.set("me_id", meId);
+    } else {
+      params.delete("me_id");
+    }
+    params.delete("page");
+    window.location.href = window.location.pathname + "?" + params.toString();
   }
 
   // ── View toggle ───────────────────────────────────────────────────────────
@@ -116,7 +99,7 @@
           successCallback(allCalendarEvents.filter(function (e) {
             var statusOk = ACTIVE_STATUSES.includes(e.extendedProps.status_key);
             var eligOk = !eligFilter || e.extendedProps.eligible;
-            var meOk = !meFilter || (e.extendedProps.me_name || "") === meFilter;
+            var meOk = !ACTIVE_ME_NAME || (e.extendedProps.me_name || "") === ACTIVE_ME_NAME;
             return statusOk && eligOk && meOk;
           }));
         } catch (err) { failureCallback(err); }
@@ -202,7 +185,6 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     eligFilter = loadEligFilter();
-    meFilter = loadMeFilter();
     var eligBtn = document.getElementById("btn-elig-filter");
     if (eligBtn) {
       eligBtn.classList.toggle("active", eligFilter);
@@ -225,7 +207,6 @@
       });
     }
 
-    populateMeSelect();
     applyLocalFilters();
 
     var saved = localStorage.getItem(STORAGE_VIEW) || "table";
@@ -270,7 +251,7 @@
 
   // Expose globals used by inline HTML onclick attributes in the template
   window.setView = setView;
-  window.setMeFilter = setMeFilter;
+  window.navigateToMe = navigateToMe;
   window.clearSelection = clearSelection;
   window.submitBulk = submitBulk;
   window.toggleEligFilter = toggleEligFilter;

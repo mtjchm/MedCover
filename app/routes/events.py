@@ -98,12 +98,24 @@ def index() -> str:
     if sort_dir not in ("asc", "desc"):
         sort_dir = "desc"
 
+    # ME filter: filter by master event ID (UUID in URL)
+    me_id_param = request.args.get("me_id", "").strip()
+    active_me: MasterEvent | None = None
+    if me_id_param:
+        active_me = db.session.get(MasterEvent, me_id_param)
+        if active_me and (active_me.is_general or active_me.archived):
+            active_me = None  # ignore general/archived ME params
+
     query = db.select(Event)
 
     if not current_user.has_permission("event.view_draft"):
         query = query.where(Event.status != EventStatus.DRAFT)
     if not show_archived:
         query = query.where(Event.archived.is_(False))
+
+    # Apply ME filter
+    if active_me:
+        query = query.where(Event.master_event_id == active_me.id)
 
     # Apply server-side status filter
     status_values = [EventStatus[s] for s in active_statuses if s in EventStatus.__members__]
@@ -193,6 +205,7 @@ def index() -> str:
         all_statuses=_all_statuses,
         sort_col=sort_col,
         sort_dir=sort_dir,
+        active_me=active_me,
         EventStatus=EventStatus,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
