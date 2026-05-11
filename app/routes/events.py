@@ -81,7 +81,7 @@ def index() -> str:
     _all_statuses = [s.name for s in EventStatus]
     _default_statuses = [
         s.name for s in EventStatus
-        if s not in (EventStatus.DRAFT, EventStatus.CANCELLED)
+        if s not in (EventStatus.DRAFT, EventStatus.CANCELLED, EventStatus.COMPLETED)
     ]
     if "statuses" not in request.args:
         active_statuses = _default_statuses
@@ -92,7 +92,7 @@ def index() -> str:
     # Sort: server-side ORDER BY before pagination
     _VALID_SORT_COLS = {"start", "name", "status", "me_name", "total", "rp"}
     sort_col = request.args.get("sort", "start")
-    sort_dir = request.args.get("dir", "desc")
+    sort_dir = request.args.get("dir", "asc")
     if sort_col not in _VALID_SORT_COLS:
         sort_col = "start"
     if sort_dir not in ("asc", "desc"):

@@ -270,8 +270,8 @@ class TestCalendarFeed:
             db.session.add(event)
             db.session.commit()
 
-        # Table page should include the row (JS filter controls visibility, not server)
-        resp = admin_client.get("/events/")
+        # Table page should include the row when COMPLETED filter is explicitly enabled
+        resp = admin_client.get("/events/?statuses=COMPLETED")
         assert b"Completed Test Event" in resp.data
 
         # Feed should also return the completed event
