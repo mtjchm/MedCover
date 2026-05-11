@@ -86,7 +86,7 @@
   <a href="{{ status_url('COMPLETED') }}" class="btn btn-sm filter-btn-neutral filter-btn {{ 'active' if 'COMPLETED' in active_statuses }}">Dokončena</a>
   <a href="{{ status_url('CANCELLED') }}" class="btn btn-sm btn-outline-secondary filter-btn {{ 'active' if 'CANCELLED' in active_statuses }}">Zrušena</a>
   {% if current_user.has_permission('event.assign_own') %}
-  <button type="button" class="btn btn-sm btn-outline-info ms-2" id="btn-elig-filter">Pro mě</button>
+  <button type="button" class="btn btn-sm btn-outline-info filter-btn ms-2" id="btn-elig-filter">Pro mě</button>
   {% endif %}
   <select id="me-filter-select" class="form-select form-select-sm ms-2 maxw-250 d-none"
           title="Filtrovat podle nadřazené akce" onchange="setMeFilter(this.value)">
