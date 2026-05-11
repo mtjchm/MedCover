@@ -209,7 +209,7 @@
               <span class="badge ms-1 {% if event.event_type == EventType.TRAINING %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ event.event_type.value }}</span>
             {% endif %}
           </td>
-          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | czechday }} {{ event.start_datetime | localdt("%H:%M") }} ({{ event.scheduled_hours | cznum }} h)</span></td>
+          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | czechday }} {{ event.start_datetime | localdt("%H:%M") }} ({{ event.scheduled_hours | cznum(strip=True) }} h)</span></td>
           <td>
             <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
