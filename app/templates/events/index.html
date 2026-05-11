@@ -188,7 +188,7 @@
             {% if event.paid %}<span class="badge bg-success ms-1">Placená</span>{% endif %}
           </td>
           <td>{% if not event.master_event.is_general %}{{ event.master_event.name }}{% else %}—{% endif %}</td>
-          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }}<br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
+          <td class="text-nowrap">{{ event.start_datetime | localdt("%d.%m.%Y") }} <span class="text-muted">{{ event.start_datetime | czechday }}</span><br><span class="text-muted">{{ event.start_datetime | localdt("%H:%M") }}</span></td>
           <td>
             <span class="badge bg-{{ status_colors.get(event.status.value, 'secondary') }} text-wrap maxw-5p5r">
               {% if event.status == EventStatus.CANCELLED %}<s>{% endif %}{{ event.status.value }}{% if event.status == EventStatus.CANCELLED %}</s>{% endif %}
