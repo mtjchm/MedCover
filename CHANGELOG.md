@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.11.0] - 2026-06-03
+## [0.11.0] - 2026-05-11
 
 ### Added
 - Event types: events now have a type — `Zdravotní dozor` (medical cover), `Školení` (training), or `Prezentační akce` (presentation) (closes #69)
