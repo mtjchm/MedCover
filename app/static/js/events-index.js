@@ -15,11 +15,13 @@
 
   var STORAGE_VIEW  = "medcover_events_view";
   var STORAGE_ELIG  = "medcover_events_elig";
+  var STORAGE_DATE  = "medcover_events_cal_date";
 
   var calendarInitialized = false;
   var calendar = null;
   var allCalendarEvents = null;
   var eligFilter = false;
+  var currentCalDate = null;
 
   // ── Per-page JS filter (elig only — status + ME are server-side) ──
 
@@ -27,6 +29,18 @@
     try { return localStorage.getItem(STORAGE_ELIG) === "1"; } catch(e) { return false; }
   }
   function saveEligFilter(v) { localStorage.setItem(STORAGE_ELIG, v ? "1" : "0"); }
+
+  function loadCalendarDate() {
+    try { return localStorage.getItem(STORAGE_DATE) || null; } catch(e) { return null; }
+  }
+  function saveCalendarDate(dateStr) {
+    try { localStorage.setItem(STORAGE_DATE, dateStr); } catch(e) {}
+  }
+  function _localYMD(d) {
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  }
 
   // ── Table row visibility (elig only — status + ME are server-side) ──
 
@@ -86,10 +100,18 @@
     var el = document.getElementById("fullcalendar");
     calendar = new FullCalendar.Calendar(el, {
       initialView: "dayGridMonth",
+      initialDate: loadCalendarDate() || undefined,
       locale: "cs",
       firstDay: 1,
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,listMonth" },
       buttonText: { today: "Dnes", month: "Měsíc", week: "Týden", list: "Seznam" },
+      datesSet: function (info) {
+        // info.start is the first visible grid day (e.g. Mon 27 Apr for May view).
+        // Using the midpoint of the visible range always lands in the correct
+        // displayed month, regardless of which weekday the grid starts on.
+        var mid = new Date((info.start.getTime() + info.end.getTime()) / 2);
+        currentCalDate = _localYMD(new Date(mid.getFullYear(), mid.getMonth(), 1));
+      },
       events: async function (fetchInfo, successCallback, failureCallback) {
         try {
           if (!allCalendarEvents) {
@@ -125,6 +147,9 @@
       height: "auto"
     });
     calendar.render();
+    window.addEventListener("pagehide", function () {
+      if (currentCalDate) saveCalendarDate(currentCalDate);
+    });
   }
 
   // ── Spot pick modal ───────────────────────────────────────────────────────
