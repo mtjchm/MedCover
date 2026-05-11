@@ -891,7 +891,7 @@ def _parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event 
 
     # Validate RP: Viewer-only users cannot be RP (AD17)
     if responsible_person_id:
-        rp_user = db.session.get(UserAccount, int(responsible_person_id))
+        rp_user = db.session.get(UserAccount, responsible_person_id)
         if rp_user:
             rp_role_names = {r.name for r in rp_user.roles}
             if rp_role_names <= {Role.VIEWER}:
