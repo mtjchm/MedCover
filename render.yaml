@@ -7,9 +7,6 @@ services:
     branch: main
     autoDeploy: true
     healthCheckPath: /health
-    buildArgs:
-      - key: GIT_COMMIT
-        generateValue: false  # override at build time via CI if desired
     envVars:
       - key: FLASK_ENV
         value: production
