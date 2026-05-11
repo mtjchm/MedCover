@@ -1,24 +1,41 @@
 {% extends "base.html" %}
 {% from 'macros/help.html' import help_icon %}
-{% from 'macros/badges.html' import badge_warning %}
+{% from 'macros/badges.html' import badge_warning, badge_secondary %}
 {% block title %}{{ user.name }} — MedCover{% endblock %}
 
 {% block content %}
 <div class="mb-3 d-flex justify-content-between align-items-center">
-  <a href="{{ url_for('users.index') }}" class="btn btn-sm btn-outline-secondary">← Zpět na uživatele</a>
+  <a href="{{ url_for('users.index', archived=1 if user.is_archived else None) }}" class="btn btn-sm btn-outline-secondary">← Zpět na uživatele</a>
   <div class="d-flex gap-2">
-    {% if not user.is_active and current_user.has_permission('user.activate') %}
-    <form method="POST" action="{{ url_for('users.activate', user_id=user.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-sm btn-success">Aktivovat</button>
-    </form>
-    {% endif %}
-    {% if user.is_active and current_user.has_permission('user.deactivate') and user.id != current_user.id %}
-    <form method="POST" action="{{ url_for('users.deactivate', user_id=user.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-sm btn-warning"
-              onclick="return confirm('Deaktivovat účet {{ user.name }}?')">Deaktivovat</button>
-    </form>
+    {% if not user.is_archived %}
+      {% if not user.is_active and current_user.has_permission('user.activate') %}
+      <form method="POST" action="{{ url_for('users.activate', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-success">Aktivovat</button>
+      </form>
+      {% endif %}
+      {% if user.is_active and current_user.has_permission('user.deactivate') and user.id != current_user.id %}
+      <form method="POST" action="{{ url_for('users.deactivate', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-warning"
+                onclick="return confirm('Deaktivovat účet {{ user.name }}?')">Deaktivovat</button>
+      </form>
+      {% endif %}
+      {% if current_user.has_permission('user.archive') and user.id != current_user.id %}
+      <form method="POST" action="{{ url_for('users.archive', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Archivovat účet {{ user.name }}? Uživatel bude deaktivován a skryt ze všech seznamů.')">Archivovat</button>
+      </form>
+      {% endif %}
+    {% else %}
+      {% if current_user.has_permission('user.archive') %}
+      <form method="POST" action="{{ url_for('users.unarchive', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-secondary"
+                onclick="return confirm('Obnovit účet {{ user.name }} z archivu?')">Obnovit z archivu</button>
+      </form>
+      {% endif %}
     {% endif %}
   </div>
 </div>
@@ -33,7 +50,9 @@
       <div class="card mb-4">
         <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
           Základní údaje
-          {% if user.is_active %}
+          {% if user.is_archived %}
+            {{ badge_secondary('Archivován') }}
+          {% elif user.is_active %}
             <span class="badge bg-success">Aktivní</span>
           {% else %}
             {{ badge_warning('Neaktivní') }}

@@ -132,6 +132,7 @@ def dashboard() -> str:
         pending_activations = list(db.session.scalars(
             db.select(UserAccount)
             .where(UserAccount.is_active.is_(False))
+            .where(UserAccount.is_archived.is_(False))
             .order_by(UserAccount.created_at)
         ).all())
 

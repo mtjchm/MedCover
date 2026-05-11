@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from flask import (
-    Blueprint, Response, flash,
+    Blueprint, Response, abort, flash,
     redirect, render_template, request, url_for,
 )
 from flask_login import current_user, login_required
@@ -168,6 +168,9 @@ def index() -> str:
     sort = request.args.get("sort", "name")
     sort_dir = request.args.get("dir", "asc")
     role_filter = request.args.get("role", "").strip()  # role name or "" for all
+    show_archived = request.args.get("archived") == "1"
+    if show_archived and not current_user.has_permission("user.view_archived"):
+        abort(403)
 
     if sort not in ("name", "email", "status", "created"):
         sort = "name"
@@ -184,6 +187,10 @@ def index() -> str:
 
     from app.models.user import user_roles as user_roles_table
     query = db.select(UserAccount).order_by(order)
+    if not show_archived:
+        query = query.where(UserAccount.is_archived.is_(False))
+    else:
+        query = query.where(UserAccount.is_archived.is_(True))
     if q:
         query = query.where(
             db.or_(
@@ -215,6 +222,7 @@ def index() -> str:
         sort=sort,
         sort_dir=sort_dir,
         role_filter=role_filter,
+        show_archived=show_archived,
     )
 
 
@@ -344,6 +352,51 @@ def deactivate(user_id: uuid.UUID) -> Response:
     audit("edit", "UserAccount", user.id, f"Účet {user.name} ({user.email}) byl deaktivován", {"is_active": [True, False]})
     db.session.commit()
     flash(f"Účet {user.name} byl deaktivován.", "warning")
+    return redirect(url_for("users.detail", user_id=user_id))
+
+
+@users_bp.route("/<uuid:user_id>/archive", methods=["POST"])
+@login_required
+def archive(user_id: uuid.UUID) -> Response:
+    require_permission("user.archive")
+    user = get_or_404(UserAccount, user_id)
+    if str(user.id) == str(current_user.id):
+        flash("Nelze archivovat vlastní účet.", "danger")
+        return redirect(url_for("users.detail", user_id=user_id))
+    if user.is_archived:
+        flash(f"Účet {user.name} je již archivován.", "warning")
+        return redirect(url_for("users.detail", user_id=user_id))
+    user.is_archived = True
+    user.is_active = False
+    user.version += 1
+    audit(
+        "edit", "UserAccount", user.id,
+        f"Účet {user.name} ({user.email}) byl archivován",
+        {"is_archived": [False, True], "is_active": [True, False]},
+    )
+    db.session.commit()
+    flash(f"Účet {user.name} byl archivován.", "success")
+    return redirect(url_for("users.index"))
+
+
+@users_bp.route("/<uuid:user_id>/unarchive", methods=["POST"])
+@login_required
+def unarchive(user_id: uuid.UUID) -> Response:
+    require_permission("user.archive")
+    user = get_or_404(UserAccount, user_id)
+    if not user.is_archived:
+        flash(f"Účet {user.name} není archivován.", "warning")
+        return redirect(url_for("users.detail", user_id=user_id))
+    user.is_archived = False
+    # Unarchiving does not re-activate — admin must do that explicitly.
+    user.version += 1
+    audit(
+        "edit", "UserAccount", user.id,
+        f"Účet {user.name} ({user.email}) byl obnoven z archivu",
+        {"is_archived": [True, False]},
+    )
+    db.session.commit()
+    flash(f"Účet {user.name} byl obnoven z archivu. Chcete-li obnovit přístup, aktivujte účet.", "success")
     return redirect(url_for("users.detail", user_id=user_id))
 
 

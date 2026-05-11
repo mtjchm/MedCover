@@ -664,6 +664,21 @@ When in doubt about the correct Czech UI label or English code name for a concep
         - Adding a new event type in the future requires only: a new `EventType` enum member, any new nullable columns, and template/route adjustments — no schema redesign.
         - The `post_event_count` column and all reports use a generic label ("Ošetřených / účastníků") that works across types.
 
+- AD20 User Archiving / Lifecycle States
+    - **Status:** Decided
+    - **Context:** Issue #123 — when a volunteer leaves the organisation, their user account must be removed from all active lists and dropdowns without deleting the DB record (assignments, audit log, reports must remain intact).
+    - **Options considered:**
+        - **Delete the user** — destroys historical data; not acceptable.
+        - **Deactivate only (`is_active=False`)** — reuses the existing "pending activation" flag; ambiguous state (does inactive mean new or departed?).
+        - **New `is_archived` flag** — explicit third lifecycle state distinct from pending/active.
+    - **Decision:** Add `is_archived = Boolean (default False, NOT NULL)` to `UserAccount`.
+        - Archiving sets `is_archived=True` AND `is_active=False`. Unarchiving sets `is_archived=False` but does NOT re-activate — admin activates separately (preserves the pending-activation semantic).
+        - `active_users_query()` filters both `is_active=True` AND `is_archived=False` — single choke-point that propagates to all dropdowns.
+        - New permissions: `user.archive` (archive/unarchive actions) and `user.view_archived` (see archived list) — Admin role only.
+        - Archived users are blocked at login with a specific "Váš účet byl archivován" message.
+        - Archived users are excluded from event/assignment notifications and admin digest.
+    - **User lifecycle states:** `pending` (`is_active=False, is_archived=False`) → `active` (`is_active=True, is_archived=False`) → `archived` (`is_active=False, is_archived=True`).
+
 MedCover is a standard three-tier web application:
 
 - **Frontend** — a browser-based web client accessed over the public Internet. Optimised for both desktop and mobile screens.

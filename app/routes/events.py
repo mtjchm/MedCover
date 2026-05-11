@@ -569,13 +569,17 @@ def transition(event_id: int) -> Response:
     # Email notifications
     if target_status == EventStatus.PUBLISHED:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active.is_(True))
+            db.select(UserAccount)
+            .where(UserAccount.is_active.is_(True))
+            .where(UserAccount.is_archived.is_(False))
         ).all()
         for u in active_users:
             mailer.send_event_published(u, event)
     elif target_status == EventStatus.ASSIGNMENTS_OPEN:
         active_users = db.session.scalars(
-            db.select(UserAccount).where(UserAccount.is_active.is_(True))
+            db.select(UserAccount)
+            .where(UserAccount.is_active.is_(True))
+            .where(UserAccount.is_archived.is_(False))
         ).all()
         for u in active_users:
             mailer.send_assignments_opened(u, event)
@@ -1124,7 +1128,7 @@ def set_rp(event_id: int) -> Response:
         abort(400)
 
     user = db.session.get(UserAccount, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.is_archived:
         flash("Uživatel nenalezen nebo není aktivní.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 

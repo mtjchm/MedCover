@@ -14,12 +14,17 @@ from app.models.user import UserAccount
 
 
 def active_users_query():  # type: ignore[no-untyped-def]
-    """Return a :class:`Select` for active users ordered by name.
+    """Return a :class:`Select` for active, non-archived users ordered by name.
 
     Caller is responsible for executing the statement (``db.session.scalars``
     or :func:`active_users_list` for the common eager-loaded list).
     """
-    return db.select(UserAccount).where(UserAccount.is_active.is_(True)).order_by(UserAccount.name)
+    return (
+        db.select(UserAccount)
+        .where(UserAccount.is_active.is_(True))
+        .where(UserAccount.is_archived.is_(False))
+        .order_by(UserAccount.name)
+    )
 
 
 def active_users_list() -> Sequence[UserAccount]:
