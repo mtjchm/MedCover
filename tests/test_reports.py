@@ -223,6 +223,30 @@ class TestUserReport:
         assert b"5,5" in resp.data
         assert b"7" in resp.data
 
+    def test_user_report_sum_row_planned_hours_is_dash(self, app, client):
+        """Sum row for completed events must show — in the planned hours column (issue #108)."""
+        with app.app_context():
+            admin = _make_user("admin_sum@test.com", "Admin Sum", Role.ADMIN)
+            member = _make_user("member_sum@test.com", "Member Sum", Role.MEMBER)
+            member_id = member.id
+
+            me = _make_me("ME Sum")
+            ev = _make_event(me, "Completed Akce", EventStatus.COMPLETED)
+            spot = _make_spot(ev)
+            _make_assignment(spot, member, admin)
+
+        _login(client, "admin_sum@test.com")
+        resp = client.get(f"/reports/user/{member_id}")
+        assert resp.status_code == 200
+        # The tfoot planned-hours cell must be a dash, not a number
+        assert b"Celkem (dokon\xc4\x8den\xc3\xa9 akce)" in resp.data
+        html = resp.data.decode("utf-8")
+        # Locate the tfoot section and confirm it contains the em-dash
+        tfoot_start = html.find("<tfoot")
+        assert tfoot_start != -1
+        tfoot_html = html[tfoot_start:]
+        assert "—" in tfoot_html
+
 
 # ── Per-ME report ─────────────────────────────────────────────────────────────
 
