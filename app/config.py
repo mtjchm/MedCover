@@ -12,12 +12,24 @@ LOGIN_LOCKOUT_MINUTES = 15    # how long the account is locked
 _VERSION_FILE = pathlib.Path(__file__).parent.parent / "VERSION"
 
 
+def _fix_db_url(url: str) -> str:
+    """Translate postgres:// → postgresql:// for SQLAlchemy 2.x compatibility.
+
+    Render (and Heroku) inject DATABASE_URL with the legacy 'postgres://' scheme.
+    SQLAlchemy 2.x only accepts 'postgresql://'.
+    """
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "")
     # Development and production configs require DATABASE_URL to be set.
     # TestingConfig overrides this with TEST_DATABASE_URL so this may be empty
     # during test runs — that is fine as long as TestingConfig is used.
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "")
+    # Render injects DATABASE_URL as postgres:// — _fix_db_url normalises it.
+    SQLALCHEMY_DATABASE_URI = _fix_db_url(os.environ.get("DATABASE_URL", ""))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     WTF_CSRF_ENABLED = True
     DEV_LOGIN_ENABLED = False
@@ -48,10 +60,10 @@ class TestingConfig(Config):
     # Always use the dedicated test database — never the dev/prod DATABASE_URL.
     # This ensures that conftest.py's drop_all() teardown cannot wipe the dev DB.
     SECRET_KEY = os.getenv("SECRET_KEY", "test-secret-not-for-production")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
+    SQLALCHEMY_DATABASE_URI = _fix_db_url(os.getenv(
         "TEST_DATABASE_URL",
         "postgresql://medcover:devpassword@localhost:5432/medcover_test",
-    )
+    ))
     WTF_CSRF_ENABLED = False
 
 
