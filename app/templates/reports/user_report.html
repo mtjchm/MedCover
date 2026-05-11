@@ -175,11 +175,7 @@
     <tfoot class="table-light fw-bold">
       <tr>
         <td colspan="3">Celkem (dokončené akce)</td>
-        <td class="text-end">
-          {%- set ns = namespace(planned=0) -%}
-          {%- for r in rows -%}{%- if r.event.status.value == 'Dokončena' -%}{%- set ns.planned = ns.planned + r.planned_hours -%}{%- endif -%}{%- endfor -%}
-          {{ ns.planned | cznum }}
-        </td>
+        <td class="text-end text-muted">—</td>
         <td class="text-end">{{ stats.hours_served | cznum }}</td>
         <td class="text-end">{{ total_patients }}</td>
       </tr>
