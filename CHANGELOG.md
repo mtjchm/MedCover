@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - User report: planned hours sum cell in the "Celkem (dokončené akce)" footer row now shows "—" instead of a meaningless scheduled-hours total (closes #108)
 - Hour values consistently rounded to 1 decimal place in both HTML views and CSV export; previously HTML showed 1 dp while CSV showed 2 dp for the same value (closes #115)
+- Dashboard "Moje akce" events now reliably sorted by start date; previously they could appear in creation order (closes #113)
+- Pending-activation user names on dashboard are now hyperlinks to the user profile page (closes #105)
 
 ## [0.11.0] - 2026-05-11
 
