@@ -813,3 +813,24 @@ class TestUserArchive:
             db.session.commit()
             ids = [u.id for u in active_users_list()]
             assert uid not in ids
+
+    def test_archived_user_password_reset_silently_denied(self, app, client):
+        """Password reset for an archived user shows same message but sends no email."""
+        uid = self._create_target(app)
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            nonce_before = u.password_reset_nonce
+            u.is_archived = True
+            u.is_active = False
+            db.session.commit()
+        resp = client.post(
+            "/auth/forgot-password",
+            data={"email": "target@archive.test"},
+            follow_redirects=True,
+        )
+        # UI shows normal message (no enumeration)
+        assert "odkaz pro obnovení hesla".encode() in resp.data
+        # Nonce must NOT have changed — no reset token was issued
+        with app.app_context():
+            u = db.session.get(UserAccount, uid)
+            assert u.password_reset_nonce == nonce_before

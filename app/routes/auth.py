@@ -113,7 +113,7 @@ def forgot_password() -> str | Response:
         user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
         # Always show the same message to prevent user enumeration.
         flash("Pokud je e-mail registrován, byl odeslán odkaz pro obnovení hesla.", "info")
-        if user:
+        if user and not user.is_archived:
             import secrets
             from app.config import RESET_TOKEN_MINUTES
 
