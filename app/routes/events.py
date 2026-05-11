@@ -127,7 +127,10 @@ def index() -> str:
 
     # Apply event type filter
     type_values = [EventType[t] for t in active_types if t in EventType.__members__]
-    if type_values and len(type_values) < len(_all_event_types):
+    if not type_values:
+        # Nothing selected → return empty result
+        query = query.where(db.false())
+    elif len(type_values) < len(_all_event_types):
         query = query.where(Event.event_type.in_(type_values))
 
     # Apply server-side status filter
