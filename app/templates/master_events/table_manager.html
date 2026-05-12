@@ -88,11 +88,13 @@
         {% set ec = row.event_color or '' %}
         <td class="text-nowrap small tm-date-cell tm-row-cell" data-event-id="{{ event.id }}"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
           {% if can_edit_event %}
-          <button class="btn btn-link btn-sm p-0 text-muted tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:0.8em; line-height:1;">−</button>
-          {% endif %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:.75rem">−</button>
+            <span>{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
           {{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}
-          {% if can_edit_event %}
-          <button class="btn btn-link btn-sm p-0 text-muted tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:0.8em; line-height:1;">+</button>
           {% endif %}
         </td>
         <td class="small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
