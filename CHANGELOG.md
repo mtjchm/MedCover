@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-12
+
+### Added
+- Tabulkový manažer (Table Manager): new view for managing all events of a Master Event in a single table — inline spot-count editing, event name editing, row colour coding, clone, ±1 day and ±1 hour shifting of dates/times, spot assignment, and draft deletion (closes #147)
+- Czech locale-aware sorting throughout the application: user pickers, master event lists, qualification lists, equipment lists, and JS table columns all use correct Czech alphabet order including diacritics and the `ch` digraph
+- New permission `event.delete_draft`: Admins and Coordinators can delete events in Draft status; delete button on event detail page and in Table Manager
+- Table Manager: row flash highlight after every update to help locate the changed row
+- Table Manager: event row background colour picker stored in event description; colour-coded rows are dark-mode compatible
+- Table Manager: Esc key closes all inline edit popups
+- Table Manager: clicking the date or time text opens a full date/time picker in addition to the ±1 shift buttons
+- Users with `event.assign_other` permission can assign spots at any event stage except Completed and Archived
+
 ### Fixed
-- Admin digest: preferred send hour is now interpreted in the timezone configured in AppSettings (e.g. `Europe/Prague`) instead of UTC; the label in `/admin/digest/` reflects the configured timezone dynamically
-- Admin dashboard: "Čekají na aktivaci" count no longer includes archived users; added "Archivovaní" stat to the Users card (closes #171)
+- Admin digest: preferred send hour is now interpreted in the configured timezone (e.g. `Europe/Prague`) instead of UTC (closes #173)
+- Admin dashboard: "Čekají na aktivaci" count no longer includes archived users; "Archivovaní" stat added to Users card (closes #174)
+- Clone event now copies the full event description including the colour tag
+- Table Manager: pencil edit icons now visible in dark mode on colour-coded rows
 
 ## [0.11.2] - 2026-05-11
 
@@ -126,7 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sslmode=require` enforced for production `DATABASE_URL`
 - Feedback deletion blocked when `DEV_LOGIN_ENABLED=True` (test environment guard)
 
-[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/spidermila/MedCover/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/spidermila/MedCover/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/spidermila/MedCover/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/spidermila/MedCover/compare/v0.10.0...v0.11.0
