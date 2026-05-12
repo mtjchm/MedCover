@@ -19,6 +19,28 @@
     </div>
   </div>
 
+  {# ── v0.13.0 ─────────────────────────────────────────────────────────────── #}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Verze 0.13.0</span>
+      <span class="text-muted small">12. 5. 2026</span>
+    </div>
+    <div class="card-body">
+      <h6 class="text-success">✦ Přidáno</h6>
+      <ul class="small mb-2">
+        <li>Seznam uživatelů: nový sloupec „Poslední přihlášení" — zobrazuje datum a čas posledního úspěšného přihlášení, lze řadit <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+        <li>Přehledy: v kartě „Přehled uživatele" přibyl výběr jiného uživatele — koordinátoři a administrátoři mohou přejít přímo na přehled libovolného aktivního uživatele <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+        <li>Přehledový e-mail: nový blok „Aktivita uživatelů" — zobrazuje počet záznamů auditního logu na uživatele za zvolené časové okno (výchozí 24 h, top 10, seřazeno od nejaktivnějšího) <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+        <li>Přehledový e-mail — Servisní statistiky: nová sekce „Velikosti tabulek" s přehledem velikostí databázových tabulek seřazených od největší (konfigurovatelný počet, výchozí 5) <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+      </ul>
+      <h6 class="text-danger">✦ Opraveno</h6>
+      <ul class="small mb-0">
+        <li>Přehledový e-mail: mazání bloku vracelo chybu 400 (token CSRF byl chybně zahazován kvůli chybějícímu znaku v HTML šabloně) <a href="https://github.com/spidermila/MedCover/pull/179" class="text-muted small" target="_blank">#179</a></li>
+        <li>Přehledový e-mail — Servisní statistiky: počet e-mailů ve frontě ukazoval vždy 0; nyní zobrazuje skutečný počet e-mailů zařazených do fronty ve zvoleném časovém okně <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+      </ul>
+    </div>
+  </div>
+
   {# ── v0.12.0 ─────────────────────────────────────────────────────────────── #}
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
