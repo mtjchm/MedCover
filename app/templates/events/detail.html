@@ -324,8 +324,8 @@
             {# Delete spot (no assignment, editor) #}
             {% if current_user.has_permission('event.edit') and not spot.assignment and event.status not in [EventStatus.COMPLETED, EventStatus.CANCELLED] %}
               <form method="POST" action="{{ url_for('events.delete_spot', event_id=event.id, spot_id=spot.id) }}"
-                    data-confirm="Smazat tuto pozici?"
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    data-confirm="Smazat tuto pozici?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Smazat</button>
               </form>
             {% endif %}
