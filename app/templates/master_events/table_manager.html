@@ -313,8 +313,6 @@ function attachUnassign(btn) {
   if (!btn) return;
   btn.addEventListener("click", function () {
     const assignmentId = this.dataset.assignmentId;
-    const userName = this.dataset.userName;
-    if (!confirm(`Odhlásit „${userName}" z této pozice?`)) return;
     const cell = this.closest("td");
     const spotId = cell.dataset.spotId;
     const bgColor = cell.style.backgroundColor;
