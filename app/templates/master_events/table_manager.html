@@ -401,6 +401,11 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   .catch(() => { timeError.textContent = "Chyba sítě."; timeError.style.display = "block"; });
 });
 
+// Enter key saves in time popup
+[timeDateInput, timeTimeInput].forEach(el => {
+  el.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("tm-time-save").click(); });
+});
+
 // Close time popup on outside click
 document.addEventListener("click", function (e) {
   if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
@@ -473,6 +478,9 @@ document.getElementById("tm-name-save").addEventListener("click", function () {
   })
   .catch(() => { nameError.textContent = "Chyba sítě."; nameError.style.display = "block"; });
 });
+
+// Enter key saves in name popup
+nameInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("tm-name-save").click(); });
 {% endif %}
 
 {% if can_edit_event %}
