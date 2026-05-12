@@ -17,6 +17,7 @@ class ServerStatsBlock(BaseBlock):
         "show_user_count": True,
         "show_event_count": True,
         "show_db_size": True,
+        "show_table_sizes": True,
         "show_scheduler_heartbeat": True,
         "show_outbox_pending": True,
         "show_outbox_peak": True,
@@ -29,7 +30,6 @@ class ServerStatsBlock(BaseBlock):
         from app.models.event import Event
         from app.models.outbox import OutboxEmail
         from app.models.settings import get_settings
-        from app.models.digest import DigestMetricSnapshot
 
         now = datetime.now(timezone.utc)
         data: dict[str, Any] = {"title": config.get("title", self.default_config["title"])}
@@ -49,6 +49,17 @@ class ServerStatsBlock(BaseBlock):
             except Exception:  # noqa: BLE001
                 data["db_size"] = "N/A"
 
+        if config.get("show_table_sizes", True):
+            try:
+                rows = db_session.execute(sa.text("""
+                    SELECT relname, pg_size_pretty(pg_total_relation_size(relid)) AS pretty_size
+                    FROM pg_catalog.pg_statio_user_tables
+                    ORDER BY pg_total_relation_size(relid) DESC
+                """)).fetchall()
+                data["table_sizes"] = [(r[0], r[1]) for r in rows]
+            except Exception:  # noqa: BLE001
+                data["table_sizes"] = []
+
         if config.get("show_scheduler_heartbeat", True):
             settings = get_settings()
             if settings.scheduler_last_seen:
@@ -66,16 +77,17 @@ class ServerStatsBlock(BaseBlock):
             )
 
         if config.get("show_outbox_peak", True):
+            # Count total emails enqueued in the window — accurate regardless
+            # of how quickly the drain loop processes them.  The old approach
+            # (max of periodic snapshots) always returned 0 because emails are
+            # drained every 6 s, long before the 15-min snapshot window.
             peak_hours = int(config.get("peak_hours", 24))
             since = now - timedelta(hours=peak_hours)
-            peak = db_session.scalar(
-                sa.select(sa.func.max(DigestMetricSnapshot.metric_value))
-                .where(
-                    DigestMetricSnapshot.metric_name == "outbox_pending_count",
-                    DigestMetricSnapshot.snapshot_at >= since,
-                )
+            total = db_session.scalar(
+                sa.select(sa.func.count()).select_from(OutboxEmail)
+                .where(OutboxEmail.created_at >= since)
             )
-            data["outbox_peak"] = int(peak) if peak is not None else 0
+            data["outbox_peak"] = int(total) if total is not None else 0
             data["peak_hours"] = peak_hours
 
         return data

@@ -158,9 +158,10 @@
                       ('show_user_count',       'Počet uživatelů',  'Celkový počet aktivních uživatelských účtů.'),
                       ('show_event_count',      'Počet akcí',       'Celkový počet akcí v systému (všechny stavy).'),
                       ('show_db_size',          'Velikost DB',      'Aktuální velikost PostgreSQL databáze.'),
+                      ('show_table_sizes',      'Velikosti tabulek','Přehled velikostí jednotlivých DB tabulek, seřazený od největší.'),
                       ('show_scheduler_heartbeat','Scheduler',      'Čas posledního heartbeatu scheduleru. Upozorní, pokud scheduler neběží.'),
                       ('show_outbox_pending',   'Fronta e-mailů',   'Aktuální počet e-mailů čekajících na odeslání.'),
-                      ('show_outbox_peak',      'Maximum fronty',   'Maximální počet čekajících e-mailů ve zvoleném časovém okně (viz níže).'),
+                      ('show_outbox_peak',      'Objem e-mailů',    'Počet e-mailů zařazených do fronty ve zvoleném časovém okně (viz níže).'),
                   ] %}
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="{{ key }}" value="1"
@@ -173,8 +174,8 @@
                 </div>
                 <div class="col-sm-3 mb-2">
                   <label class="form-label form-label-sm">
-                    Okno pro maximum (hodiny)
-                    {{ help_icon("Počet hodin zpět, ve kterých se hledá maximální délka e-mailové fronty. Záznamy se ukládají každých 15 minut.") }}
+                    Okno pro objem e-mailů (hodiny)
+                    {{ help_icon("Počet hodin zpět, za které se počítá celkový počet e-mailů zařazených do fronty.") }}
                   </label>
                   <input type="number" class="form-control form-control-sm" name="peak_hours"
                          value="{{ cfg.get('peak_hours', 24) }}" min="1" max="720">
