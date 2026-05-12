@@ -644,6 +644,35 @@ def restore(event_id: int) -> Response:
     return redirect(url_for("events.detail", event_id=event_id))
 
 
+@events_bp.post("/<int:event_id>/delete")
+@login_required
+def delete_event(event_id: int) -> Response:
+    require_permission("event.delete_draft")
+
+    from flask import jsonify as _jsonify
+    is_ajax = request.headers.get("X-CSRFToken") and request.accept_mimetypes.accept_json
+
+    event = get_or_404(Event, event_id)
+    if event.status != EventStatus.DRAFT:
+        if is_ajax:
+            return _jsonify({"ok": False, "error": "Smazat lze pouze akce ve stavu Koncept."}), 400
+        flash("Smazat lze pouze akce ve stavu Koncept.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    me_id = event.master_event_id
+    name = event.name
+    audit("delete", "Event", event.id, f"Akce '{name}' smazána (byla ve stavu Koncept)")
+    db.session.delete(event)
+    db.session.commit()
+
+    if is_ajax:
+        return _jsonify({"ok": True})
+    flash(f'Akce \u201e{name}\u201c byla smazána.', "success")
+    if me_id:
+        return redirect(url_for("master_events.detail", me_id=me_id))
+    return redirect(url_for("events.index"))
+
+
 # ── Bulk lifecycle actions ────────────────────────────────────────────────────
 
 # Maps action name → (target_status, required_permission, valid_from_statuses)

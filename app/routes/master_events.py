@@ -343,6 +343,7 @@ def table_manager(me_id: int) -> str:
     can_assign = current_user.has_permission("event.assign_other")
     can_edit_event = current_user.has_permission("event.edit")
     can_create_event = current_user.has_permission("event.create")
+    can_delete_draft = current_user.has_permission("event.delete_draft")
 
     if can_assign:
         _compute_eligible_users(rows, list(active_users_list()))
@@ -356,6 +357,7 @@ def table_manager(me_id: int) -> str:
         can_assign=can_assign,
         can_edit_event=can_edit_event,
         can_create_event=can_create_event,
+        can_delete_draft=can_delete_draft,
     )
 
 

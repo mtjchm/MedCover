@@ -79,6 +79,12 @@
                   data-event-id="{{ event.id }}"
                   title="Klonovat akci" style="font-size:1rem; line-height:1;">⎘</button>
           {% endif %}
+          {% if can_delete_draft and event.status.value == 'draft' %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-delete-btn text-danger"
+                  data-event-id="{{ event.id }}"
+                  data-event-name="{{ event.name | e }}"
+                  title="Smazat akci" style="font-size:1rem; line-height:1;">🗑</button>
+          {% endif %}
           <button class="btn btn-link btn-sm p-0 ms-1 tm-color-btn"
                   data-event-id="{{ event.id }}"
                   title="Barva akce" style="font-size:1rem; line-height:1;">🌈</button>
@@ -639,7 +645,29 @@ document.querySelectorAll(".tm-clone-btn").forEach(btn => {
 });
 {% endif %}
 
-// ── Event row color picker ───────────────────────────────────────────────────
+{% if can_delete_draft %}
+// ── Delete draft event ────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-delete-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    const eventName = this.dataset.eventName;
+    if (!confirm(`Opravdu smazat akci „${eventName}"? Tato akce je nevratná.`)) return;
+    fetch(`/events/${eventId}/delete`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Accept": "application/json" },
+    })
+    .then(r => r.json().catch(() => null).then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok) {
+        location.reload();
+      } else {
+        alert((data && data.error) || "Chyba při mazání akce.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
+{% endif %}
 const colorPopup = document.getElementById("tm-color-popup");
 let _colorEventId = null;
 

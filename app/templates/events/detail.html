@@ -95,6 +95,13 @@
         <button class="btn btn-danger btn-sm">Zrušit akci</button>
       </form>
     {% endif %}
+    {% if event.status == EventStatus.DRAFT and current_user.has_permission('event.delete_draft') %}
+      <form method="POST" action="{{ url_for('events.delete_event', event_id=event.id) }}"
+            onsubmit="return confirm('Opravdu smazat akci „{{ event.name }}"? Tato akce je nevratná.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger btn-sm">🗑 Smazat akci</button>
+      </form>
+    {% endif %}
   </div>
 </div>
 
