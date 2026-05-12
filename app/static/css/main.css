@@ -277,3 +277,17 @@
 
 /* Login page logo */
 .logo-max-h { max-height: 80px; }
+
+/* ── Table Manager — dark-mode colour compatibility ─────────────────────────
+   Spot cells always carry a pastel qual-colour background; row cells may carry
+   a user-picked event colour.  Both are light pastels → force dark text so the
+   content stays readable regardless of the active Bootstrap theme.            */
+[data-bs-theme="dark"] .tm-spot-cell,
+[data-bs-theme="dark"] .tm-row-cell[style*="background"] {
+  color: #212529 !important;
+}
+/* Also ensure child links / buttons are readable on coloured cells */
+[data-bs-theme="dark"] .tm-row-cell[style*="background"] a,
+[data-bs-theme="dark"] .tm-row-cell[style*="background"] .btn-link {
+  color: #212529 !important;
+}
