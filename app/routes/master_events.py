@@ -344,6 +344,8 @@ def table_manager(me_id: int) -> str:
     can_edit_event = current_user.has_permission("event.edit")
     can_create_event = current_user.has_permission("event.create")
     can_delete_draft = current_user.has_permission("event.delete_draft")
+    can_publish = current_user.has_permission("event.publish")
+    can_open_assignments = current_user.has_permission("event.assignments.open")
 
     if can_assign:
         _compute_eligible_users(rows, list(active_users_list()))
@@ -358,6 +360,8 @@ def table_manager(me_id: int) -> str:
         can_edit_event=can_edit_event,
         can_create_event=can_create_event,
         can_delete_draft=can_delete_draft,
+        can_publish=can_publish,
+        can_open_assignments=can_open_assignments,
     )
 
 
@@ -475,6 +479,43 @@ def table_event_update(me_id: int, event_id: int) -> Response:
 
     field = request.form.get("field", "")
     value = request.form.get("value", "").strip()
+
+    # advance_status does not need a value — handle before the empty-value guard
+    if field == "advance_status":
+        from app.models.event import EventStatus
+        _ADVANCE_MAP = {
+            EventStatus.DRAFT: (EventStatus.PUBLISHED, "event.publish"),
+            EventStatus.PUBLISHED: (EventStatus.ASSIGNMENTS_OPEN, "event.assignments.open"),
+        }
+        transition = _ADVANCE_MAP.get(event.status)
+        if transition is None:
+            return jsonify({"ok": False, "error": "Akce není ve stavu, který lze posunout dále."}), 400
+        target_status, required_perm = transition
+        if not current_user.has_permission(required_perm):
+            return jsonify({"ok": False, "error": "Nemáte oprávnění pro tuto operaci."}), 403
+        before_status = event.status.value
+        event.status = target_status
+        event.version += 1
+        audit("status_change", "Event", event.id,
+              f"Stav akce '{event.name}' změněn na '{target_status.value}' (tabulkový manažer)",
+              diff_changes({"status": before_status}, {"status": target_status.value}))
+        db.session.commit()
+        # Email notifications (same as change_status route)
+        import app.mail as mailer
+        from app.models.user import UserAccount
+        active_users = db.session.scalars(
+            db.select(UserAccount)
+            .where(UserAccount.is_active.is_(True))
+            .where(UserAccount.is_archived.is_(False))
+        ).all()
+        if target_status == EventStatus.PUBLISHED:
+            for u in active_users:
+                mailer.send_event_published(u, event)
+        elif target_status == EventStatus.ASSIGNMENTS_OPEN:
+            for u in active_users:
+                mailer.send_assignments_opened(u, event)
+        return jsonify({"ok": True})
+
     if not value:
         return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
 

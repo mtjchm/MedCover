@@ -89,6 +89,12 @@
                   data-event-id="{{ event.id }}"
                   title="Barva akce" style="font-size:1rem; line-height:1;">🌈</button>
           <span class="ms-1">{{ badge_status(event.status.value, status_colors) }}</span>
+          {% if (event.status.name == 'DRAFT' and can_publish) or (event.status.name == 'PUBLISHED' and can_open_assignments) %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-advance-btn text-success"
+                  data-event-id="{{ event.id }}"
+                  data-event-name="{{ event.name | e }}"
+                  title="Posunout do dalšího stavu" style="font-size:1rem; line-height:1;">⏩</button>
+          {% endif %}
         </td>
         {% endif %}
         {% set ec = row.event_color or '' %}
@@ -244,6 +250,15 @@
     {% endfor %}
   </div>
   <button id="tm-color-reset" class="btn btn-link btn-sm p-0 mt-2 text-danger d-block w-100 text-center" style="font-size:.75rem;">✕ Reset barvy</button>
+</div>
+
+{# ── Advance-status confirmation popup ── #}
+<div id="tm-advance-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1070; min-width:200px;">
+  <div class="small mb-2">Posunout <strong id="tm-advance-event-name"></strong> do dalšího stavu?</div>
+  <div class="d-flex gap-2">
+    <button id="tm-advance-confirm" class="btn btn-success btn-sm">Další fáze</button>
+    <button id="tm-advance-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
 </div>
 
 {# ── Inline name-edit popover ── #}
@@ -500,6 +515,8 @@ document.addEventListener("keydown", function (e) {
   if (namePopup.style.display !== "none") closeNameEdit();
   const cp = document.getElementById("tm-color-popup");
   if (cp && cp.style.display !== "none") cp.style.display = "none";
+  const ap = document.getElementById("tm-advance-popup");
+  if (ap && ap.style.display !== "none") ap.style.display = "none";
 });
 
 // Close time popup on outside click
@@ -706,7 +723,61 @@ document.querySelectorAll(".tm-delete-btn").forEach(btn => {
   });
 });
 {% endif %}
-const colorPopup = document.getElementById("tm-color-popup");
+
+{% if can_publish or can_open_assignments %}
+// ── Advance status ────────────────────────────────────────────────────────────
+(function () {
+  const advPopup = document.getElementById("tm-advance-popup");
+  const advEventName = document.getElementById("tm-advance-event-name");
+  let _advEventId = null;
+
+  document.querySelectorAll(".tm-advance-btn").forEach(btn => {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      _advEventId = this.dataset.eventId;
+      advEventName.textContent = this.dataset.eventName;
+      const rect = this.getBoundingClientRect();
+      document.body.appendChild(advPopup);
+      advPopup.style.display = "block";
+      advPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+      advPopup.style.left = (window.scrollX + rect.left) + "px";
+    });
+  });
+
+  document.getElementById("tm-advance-cancel").addEventListener("click", function () {
+    advPopup.style.display = "none";
+    _advEventId = null;
+  });
+
+  document.getElementById("tm-advance-confirm").addEventListener("click", function () {
+    if (!_advEventId) return;
+    const eventId = _advEventId;
+    advPopup.style.display = "none";
+    _advEventId = null;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: "field=advance_status",
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        reloadWithHighlight(eventId);
+      } else {
+        alert(data.error || "Chyba při změně stavu.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+
+  document.addEventListener("click", function (e) {
+    if (advPopup.style.display !== "none" && !advPopup.contains(e.target) && !e.target.closest(".tm-advance-btn")) {
+      advPopup.style.display = "none";
+      _advEventId = null;
+    }
+  });
+})();
+{% endif %}
 let _colorEventId = null;
 
 function applyEventColor(eventId, color) {
