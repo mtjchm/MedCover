@@ -185,7 +185,10 @@ def index() -> str:
         "created":    UserAccount.created_at,
         "last_login": UserAccount.last_login_at,
     }[sort]
-    order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
+    if sort == "last_login":
+        order = sort_col.asc().nulls_last() if sort_dir == "asc" else sort_col.desc().nulls_last()
+    else:
+        order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
 
     from app.models.user import user_roles as user_roles_table
     query = db.select(UserAccount).order_by(order)
