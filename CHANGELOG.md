@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Table Manager: event row background colour picker stored in event description; colour-coded rows are dark-mode compatible
 - Table Manager: Esc key closes all inline edit popups
 - Table Manager: clicking the date or time text opens a full date/time picker in addition to the ±1 shift buttons
+- Table Manager: ⏩ button next to the status badge advances the event to the next stage (Draft → Published → Přihlášky otevřeny) with an inline confirmation showing the target state name
 - Users with `event.assign_other` permission can assign spots at any event stage except Completed and Archived
 
 ### Fixed
