@@ -498,3 +498,123 @@ class TestTableManager:
             data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "2"},
         )
         assert response.status_code == 403
+
+    # ── shift_hour ────────────────────────────────────────────────────────────
+
+    def test_shift_hour_start_plus_one(self, app, admin_client):
+        from app.models.event import Event
+        me_id, event_id, _ = _setup_table_manager(app)
+        with app.app_context():
+            orig_start = db.session.get(Event, event_id).start_datetime
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "shift_hour", "value": "start:1"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            from datetime import timedelta
+            new_start = db.session.get(Event, event_id).start_datetime
+            assert new_start == orig_start + timedelta(hours=1)
+
+    def test_shift_hour_end_minus_one(self, app, admin_client):
+        from app.models.event import Event
+        from datetime import timedelta
+        me_id, event_id, _ = _setup_table_manager(app)
+        with app.app_context():
+            orig_end = db.session.get(Event, event_id).end_datetime
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "shift_hour", "value": "end:-1"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            new_end = db.session.get(Event, event_id).end_datetime
+            assert new_end == orig_end + timedelta(hours=-1)
+
+    def test_shift_hour_invalid_value(self, app, admin_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "shift_hour", "value": "start:bogus"},
+        )
+        assert response.status_code == 400
+
+    def test_shift_hour_invalid_which(self, app, admin_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "shift_hour", "value": "middle:1"},
+        )
+        assert response.status_code == 400
+
+    # ── advance_status ────────────────────────────────────────────────────────
+
+    def _make_draft_event(self, app, me_id: int) -> int:
+        from datetime import datetime, timezone
+        from app.models.event import Event, EventStatus
+        with app.app_context():
+            event = Event(
+                name="Draft TM",
+                master_event_id=me_id,
+                start_datetime=datetime(2030, 8, 1, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 8, 1, 16, 0, tzinfo=timezone.utc),
+                status=EventStatus.DRAFT,
+            )
+            db.session.add(event)
+            db.session.commit()
+            return event.id
+
+    def _make_published_event(self, app, me_id: int) -> int:
+        from datetime import datetime, timezone
+        from app.models.event import Event, EventStatus
+        with app.app_context():
+            event = Event(
+                name="Published TM",
+                master_event_id=me_id,
+                start_datetime=datetime(2030, 8, 2, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 8, 2, 16, 0, tzinfo=timezone.utc),
+                status=EventStatus.PUBLISHED,
+            )
+            db.session.add(event)
+            db.session.commit()
+            return event.id
+
+    def test_advance_draft_to_published(self, app, admin_client):
+        from app.models.event import Event, EventStatus
+        me_id, _, _ = _setup_table_manager(app)
+        event_id = self._make_draft_event(app, me_id)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "advance_status"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            event = db.session.get(Event, event_id)
+            assert event.status == EventStatus.PUBLISHED
+
+    def test_advance_published_to_open(self, app, admin_client):
+        from app.models.event import Event, EventStatus
+        me_id, _, _ = _setup_table_manager(app)
+        event_id = self._make_published_event(app, me_id)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "advance_status"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            event = db.session.get(Event, event_id)
+            assert event.status == EventStatus.ASSIGNMENTS_OPEN
+
+    def test_advance_status_already_open_returns_400(self, app, admin_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        # event is ASSIGNMENTS_OPEN — not advanceable
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "advance_status"},
+        )
+        assert response.status_code == 400
+        assert response.get_json()["ok"] is False
