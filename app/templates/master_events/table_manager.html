@@ -21,6 +21,7 @@
         <th class="text-nowrap">Datum</th>
         <th class="text-nowrap">Kvalifikace</th>
         <th>Akce</th>
+        <th>Popis</th>
         <th class="text-nowrap">Od</th>
         <th class="text-nowrap">Do</th>
         <th class="text-nowrap" title="Počet hodin">Hod.</th>
@@ -33,16 +34,18 @@
     <tbody>
       {% for row in rows %}
       {% set event = row.event %}
+      {% set spot_descs = row.spots | map(attribute='description') | select | unique | list %}
       <tr data-event-id="{{ event.id }}">
-        <td class="text-nowrap small">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
+        <td class="text-nowrap small tm-date-cell" data-event-id="{{ event.id }}">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
         <td class="text-nowrap small">
           <span class="badge text-dark" style="background-color: {{ row.color }}">{{ row.qual_name }}</span>
         </td>
         <td class="small">
-          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none" target="_blank">
+          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none">
             {{ event.name }}
           </a>
         </td>
+        <td class="small text-muted">{{ spot_descs | join(', ') }}</td>
 
         {# ── Od ── #}
         <td class="text-nowrap small tm-time-cell"
@@ -114,9 +117,10 @@
 </div>
 
 {# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
-<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:220px;">
-  <div class="d-flex align-items-center gap-2">
-    <input type="datetime-local" id="tm-time-input" class="form-control form-control-sm" style="width:170px;">
+<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:260px;">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <input type="date" id="tm-time-date-input" class="form-control form-control-sm" style="width:130px;">
+    <input type="time" id="tm-time-time-input" class="form-control form-control-sm" style="width:90px;">
     <button id="tm-time-save" class="btn btn-success btn-sm">Uložit</button>
     <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
@@ -246,7 +250,8 @@ document.querySelectorAll(".tm-unassign-btn").forEach(btn => attachUnassign(btn)
 // ── Inline time editing ──────────────────────────────────────────────────────
 let _activeTimeCell = null;
 const popup = document.getElementById("tm-time-edit-popup");
-const timeInput = document.getElementById("tm-time-input");
+const timeDateInput = document.getElementById("tm-time-date-input");
+const timeTimeInput = document.getElementById("tm-time-time-input");
 const timeError = document.getElementById("tm-time-error");
 
 document.querySelectorAll(".tm-time-cell").forEach(cell => {
@@ -259,15 +264,17 @@ document.querySelectorAll(".tm-time-cell").forEach(cell => {
 
 function openTimeEdit(cell) {
   _activeTimeCell = cell;
-  const rect = cell.getBoundingClientRect();
-  timeInput.value = cell.dataset.value;
+  const val = cell.dataset.value; // "YYYY-MM-DDTHH:MM"
+  timeDateInput.value = val.slice(0, 10);
+  timeTimeInput.value = val.slice(11, 16);
   timeError.style.display = "none";
   timeError.textContent = "";
+  const rect = cell.getBoundingClientRect();
   document.body.appendChild(popup);
   popup.style.display = "block";
   popup.style.top = (window.scrollY + rect.bottom + 4) + "px";
   popup.style.left = (window.scrollX + rect.left) + "px";
-  timeInput.focus();
+  timeTimeInput.focus();
 }
 
 function closeTimeEdit() {
@@ -282,7 +289,7 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   const cell = _activeTimeCell;
   const eventId = cell.dataset.eventId;
   const field = cell.dataset.field;
-  const value = timeInput.value;
+  const value = `${timeDateInput.value}T${timeTimeInput.value}`;
 
   fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
     method: "POST",
@@ -294,10 +301,16 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
     if (data.ok) {
       cell.querySelector(".tm-time-display").textContent = data.display;
       cell.dataset.value = value;
-      // Update hours cell for this event
+      // Update hours cell for this event row
       const row = cell.closest("tr");
       const hoursCell = row.querySelector(".tm-hours-cell");
       if (hoursCell && data.hours) hoursCell.textContent = data.hours;
+      // Update date cells for all rows of this event (start_datetime change only)
+      if (field === "start_datetime" && data.display_date) {
+        document.querySelectorAll(`.tm-date-cell[data-event-id="${eventId}"]`).forEach(dc => {
+          dc.textContent = data.display_date;
+        });
+      }
       closeTimeEdit();
     } else {
       timeError.textContent = data.error || "Chyba při uložení.";

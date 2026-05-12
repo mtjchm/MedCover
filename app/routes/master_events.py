@@ -472,11 +472,19 @@ def table_event_update(me_id: int, event_id: int) -> Response:
     db.session.commit()
 
     display_time = dt.astimezone(_PRAGUE).strftime("%H:%M")
+    display_date = dt.astimezone(_PRAGUE).strftime("%d.%m.")
+    _CZECH_DAYS = ["po", "út", "st", "čt", "pá", "so", "ne"]
+    display_day = _CZECH_DAYS[dt.astimezone(_PRAGUE).weekday()]
     from decimal import Decimal
     delta = event.end_datetime - event.start_datetime
     hours = Decimal(str(round(delta.total_seconds() / 3600, 1)))
 
-    return jsonify({"ok": True, "display": display_time, "hours": str(hours).replace(".", ",")})
+    return jsonify({
+        "ok": True,
+        "display": display_time,
+        "display_date": f"{display_date} {display_day}",
+        "hours": str(hours).replace(".", ","),
+    })
 
 
 @master_events_bp.post("/<int:me_id>/table/spots/update")
