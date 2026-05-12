@@ -291,3 +291,6 @@
 [data-bs-theme="dark"] .tm-row-cell[style*="background"] .btn-link {
   color: #212529 !important;
 }
+[data-bs-theme="dark"] .tm-row-cell[style*="background"] .tm-edit-icon {
+  color: #495057 !important;
+}
