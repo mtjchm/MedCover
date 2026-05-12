@@ -12,7 +12,9 @@ from app.extensions import db, mail
 from app.models.user import UserAccount
 from app.models.settings import get_settings
 from app.models.feedback import UserFeedback
-from app.utils import external_url_for, get_or_404, require_permission
+from sqlalchemy import collate
+
+from app.utils import CS_COLLATION, external_url_for, get_or_404, require_permission
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -277,7 +279,7 @@ def audit_log_list() -> str:
         .where(UserAccount.id.in_(
             db.select(AuditLogEntry.actor_id).where(AuditLogEntry.actor_id.isnot(None)).distinct()
         ))
-        .order_by(UserAccount.name)
+        .order_by(collate(UserAccount.name, CS_COLLATION))
     ).all()
 
     return render_template(

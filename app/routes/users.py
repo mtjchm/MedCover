@@ -18,7 +18,8 @@ from app.models.role import Role
 from app.models.invite import RegistrationInvite
 from app.models.outbox import OutboxEmail
 from app.models.audit import AuditLogEntry
-from app.utils import audit, diff_changes, external_url_for, get_or_404, require_permission
+from sqlalchemy import collate
+from app.utils import CS_COLLATION, czech_sort_key, audit, diff_changes, external_url_for, get_or_404, require_permission
 from app.config import INVITE_TOKEN_HOURS
 from app.constants import MIN_PASSWORD_LENGTH
 
@@ -210,7 +211,7 @@ def index() -> str:
         query.offset((page - 1) * _PAGE_SIZE).limit(_PAGE_SIZE)
     ).all()
     total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
-    roles = db.session.scalars(db.select(Role).order_by(Role.name)).all()
+    roles = db.session.scalars(db.select(Role).order_by(collate(Role.name, CS_COLLATION))).all()
     return render_template(
         "users/index.html",
         users=users,
@@ -231,10 +232,10 @@ def index() -> str:
 def detail(user_id: uuid.UUID) -> str:
     require_permission("user.view")
     user = get_or_404(UserAccount, user_id)
-    roles = db.session.scalars(db.select(Role).order_by(Role.name)).all()
+    roles = db.session.scalars(db.select(Role).order_by(collate(Role.name, CS_COLLATION))).all()
     from app.models.qualification import Qualification
     qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
     return render_template("users/detail.html", user=user, all_roles=roles, all_qualifications=qualifications)
 
@@ -254,7 +255,7 @@ def _apply_role_update(user: UserAccount, role_ids: list[int]) -> None:
 def _apply_qualification_update(user: UserAccount, qual_ids: list[int]) -> None:
     """Assign *qual_ids* to *user* and audit the change. Caller is responsible for version bump."""
     from app.models.qualification import Qualification
-    before_quals = sorted(c.name for c in user.qualifications)
+    before_quals = sorted((c.name for c in user.qualifications), key=czech_sort_key)
     new_creds = db.session.scalars(
         db.select(Qualification).where(
             Qualification.id.in_(qual_ids),
@@ -262,7 +263,7 @@ def _apply_qualification_update(user: UserAccount, qual_ids: list[int]) -> None:
         )
     ).all() if qual_ids else []
     user.qualifications = list(new_creds)
-    after_quals = sorted(c.name for c in user.qualifications)
+    after_quals = sorted((c.name for c in user.qualifications), key=czech_sort_key)
     audit("edit", "UserAccount", user.id, f"Kvalifikace uživatele {user.name} aktualizovány",
           diff_changes({"qualifications": before_quals}, {"qualifications": after_quals}))
 

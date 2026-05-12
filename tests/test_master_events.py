@@ -4,6 +4,7 @@ from __future__ import annotations
 from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.models.audit import AuditLogEntry
+from app.models.role import Role
 
 
 def _make_me(name: str = "Test ME", **kwargs) -> MasterEvent:
@@ -304,3 +305,196 @@ class TestMasterEventArchive:
                 .where(AuditLogEntry.entity_id == str(me_id))
             )
             assert entry is not None
+
+
+# ── Table Manager ─────────────────────────────────────────────────────────────
+
+
+def _setup_table_manager(app):
+    """Create ME with one event (ASSIGNMENTS_OPEN) and one spot. Returns (me_id, event_id, spot_id)."""
+    from datetime import datetime, timezone
+    from app.models.event import Event, EventSpot, EventStatus
+    with app.app_context():
+        me = _make_me("Table Manager ME")
+        event = Event(
+            name="Akce TM",
+            master_event_id=me.id,
+            start_datetime=datetime(2030, 7, 1, 8, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2030, 7, 1, 16, 0, tzinfo=timezone.utc),
+            status=EventStatus.ASSIGNMENTS_OPEN,
+        )
+        db.session.add(event)
+        db.session.flush()
+        spot = EventSpot(event_id=event.id)
+        db.session.add(spot)
+        db.session.commit()
+        return me.id, event.id, spot.id
+
+
+class TestTableManager:
+    def test_page_requires_login(self, app, client):
+        me_id, _, _ = _setup_table_manager(app)
+        response = client.get(f"/master-events/{me_id}/table", follow_redirects=False)
+        assert response.status_code == 302
+        assert "login" in response.headers["Location"]
+
+    def test_admin_can_view_table(self, app, admin_client):
+        me_id, _, _ = _setup_table_manager(app)
+        response = admin_client.get(f"/master-events/{me_id}/table")
+        assert response.status_code == 200
+        assert "Tabulkový manažer".encode() in response.data
+
+    def test_member_can_view_table(self, app, member_client):
+        me_id, _, _ = _setup_table_manager(app)
+        response = member_client.get(f"/master-events/{me_id}/table")
+        assert response.status_code == 200
+
+    def test_table_shows_event_name(self, app, admin_client):
+        me_id, _, _ = _setup_table_manager(app)
+        response = admin_client.get(f"/master-events/{me_id}/table")
+        assert b"Akce TM" in response.data
+
+    def test_404_for_missing_me(self, admin_client):
+        response = admin_client.get("/master-events/99999/table")
+        assert response.status_code == 404
+
+    def test_coordinator_can_assign_spot(self, app, coordinator_client):
+        from app.models.assignment import Assignment
+        from app.models.user import UserAccount
+        from tests.conftest import _make_user
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        with app.app_context():
+            _make_user("tm_member@test.com", "TM Member", Role.MEMBER)
+            u = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "tm_member@test.com"))
+            uid = str(u.id)
+
+        response = coordinator_client.post(
+            f"/master-events/{me_id}/table/assign/{spot_id}",
+            data={"user_id": uid},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["user_name"] == "TM Member"
+        with app.app_context():
+            assignment = db.session.scalar(db.select(Assignment).where(Assignment.spot_id == spot_id))
+            assert assignment is not None
+
+    def test_member_cannot_assign_spot(self, app, member_client):
+        me_id, _, spot_id = _setup_table_manager(app)
+        response = member_client.post(
+            f"/master-events/{me_id}/table/assign/{spot_id}",
+            data={"user_id": "any"},
+        )
+        assert response.status_code == 403
+
+    def test_coordinator_can_unassign_spot(self, app, coordinator_client):
+        from app.models.assignment import Assignment
+        from app.models.user import UserAccount
+        from tests.conftest import _make_user
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        with app.app_context():
+            _make_user("tm_member2@test.com", "TM Member2", Role.MEMBER)
+            u = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "tm_member2@test.com"))
+            assignment = Assignment(spot_id=spot_id, user_id=u.id)
+            db.session.add(assignment)
+            db.session.commit()
+            assignment_id = assignment.id
+
+        response = coordinator_client.post(
+            f"/master-events/{me_id}/table/unassign/{assignment_id}",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        with app.app_context():
+            assert db.session.get(Assignment, assignment_id) is None
+
+    def test_event_time_update(self, app, admin_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "start_datetime", "value": "2030-07-01T09:00"},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["ok"] is True
+        assert data["display"] == "09:00"
+
+    def test_event_time_update_rejects_invalid_order(self, app, admin_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        # Event ends at 16:00 UTC = 18:00 CET; setting start to 19:00 CET should be rejected
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "start_datetime", "value": "2030-07-01T19:00"},
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["ok"] is False
+
+    def test_member_cannot_edit_event_time(self, app, member_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = member_client.post(
+            f"/master-events/{me_id}/table/event/{event_id}/update",
+            data={"field": "start_datetime", "value": "2030-07-01T09:00"},
+        )
+        assert response.status_code == 403
+
+    def test_spot_count_increase(self, app, admin_client):
+        from app.models.event import EventSpot
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "3"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(EventSpot).where(EventSpot.event_id == event_id)
+            )
+            assert count == 3  # was 1, added 2
+
+    def test_spot_count_decrease_unfilled(self, app, admin_client):
+        from app.models.event import EventSpot
+        me_id, event_id, _ = _setup_table_manager(app)
+        # Add a 2nd spot first
+        with app.app_context():
+            db.session.add(EventSpot(event_id=event_id))
+            db.session.commit()
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "1"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(EventSpot).where(EventSpot.event_id == event_id)
+            )
+            assert count == 1
+
+    def test_spot_count_decrease_blocks_if_filled(self, app, admin_client):
+        from app.models.assignment import Assignment
+        from app.models.user import UserAccount
+        from tests.conftest import _make_user
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        with app.app_context():
+            _make_user("tm_fill@test.com", "TM Fill", Role.MEMBER)
+            u = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "tm_fill@test.com"))
+            db.session.add(Assignment(spot_id=spot_id, user_id=u.id))
+            db.session.commit()
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "0"},
+        )
+        assert response.status_code == 409
+        assert response.get_json()["ok"] is False
+
+    def test_member_cannot_update_spot_count(self, app, member_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = member_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "2"},
+        )
+        assert response.status_code == 403

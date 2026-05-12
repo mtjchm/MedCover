@@ -7,6 +7,48 @@ from urllib.parse import urlsplit
 T = TypeVar("T")
 E = TypeVar("E")
 
+# ── Czech locale-aware sorting ────────────────────────────────────────────────
+
+# PostgreSQL ICU collation name to use in all order_by() calls where
+# user-visible names are sorted.  cs-x-icu provides proper Czech alphabet
+# ordering (a á b c č d ď e é ě … ch … ř š … ž) within the DB engine.
+CS_COLLATION = "cs-x-icu"
+
+# Czech alphabet in correct order including digraph 'ch'.
+_CS_ALPHABET: list[str] = [
+    "a", "á", "b", "c", "č", "d", "ď", "e", "é", "ě",
+    "f", "g", "h", "ch", "i", "í", "j", "k", "l", "m",
+    "n", "ň", "o", "ó", "p", "q", "r", "ř", "s", "š",
+    "t", "ť", "u", "ú", "ů", "v", "w", "x", "y", "ý",
+    "z", "ž",
+]
+_CS_RANK: dict[str, int] = {ch: i for i, ch in enumerate(_CS_ALPHABET)}
+_CS_FALLBACK = len(_CS_ALPHABET)
+
+
+def czech_sort_key(text: str) -> list[int]:
+    """Return a sort-key list for Czech locale-aware string comparison.
+
+    Handles the 'ch' digraph (sorts between 'h' and 'i') and all standard
+    Czech diacritic letters.  Use as the ``key=`` argument for Python-level
+    sorts that cannot be pushed to the database.
+
+    Example::
+
+        users.sort(key=lambda u: czech_sort_key(u.name))
+    """
+    s = text.lower()
+    result: list[int] = []
+    i = 0
+    while i < len(s):
+        if s[i] == "c" and i + 1 < len(s) and s[i + 1] == "h":
+            result.append(_CS_RANK["ch"])
+            i += 2
+        else:
+            result.append(_CS_RANK.get(s[i], _CS_FALLBACK + ord(s[i])))
+            i += 1
+    return result
+
 
 def safe_next(next_url: str | None) -> str:
     """Return *next_url* only if same-origin; otherwise fall back to dashboard.

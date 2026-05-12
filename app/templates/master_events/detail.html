@@ -19,6 +19,11 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap justify-content-end">
+    {% if current_user.has_permission('event.view') %}
+      <a href="{{ url_for('master_events.table_manager', me_id=me.id) }}" class="btn btn-outline-primary btn-sm">
+        Tabulkový manažer
+      </a>
+    {% endif %}
     {% if current_user.has_permission('report.view') %}
       <a href="{{ url_for('reports.me_report', me_id=me.id) }}" class="btn btn-outline-info btn-sm">
         Přehled akce
@@ -89,7 +94,7 @@
 <div class="d-flex justify-content-between align-items-center mb-2">
   <h5 class="mb-0">Akce</h5>
   {% if current_user.has_permission('event.create') %}
-    <a href="{{ url_for('events.create') }}" class="btn btn-danger btn-sm">Nová akce</a>
+    <a href="{{ url_for('events.create', master_event_id=me.id) }}" class="btn btn-danger btn-sm">Nová akce</a>
   {% endif %}
 </div>
 

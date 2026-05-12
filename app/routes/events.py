@@ -28,7 +28,7 @@ from __future__ import annotations
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
 
-from sqlalchemy import func, case
+from sqlalchemy import collate, func, case
 from app.extensions import db
 from app.models.event import Event, EventSpot, EventStatus, EventTemplate, EventType
 from app.models.master_event import MasterEvent
@@ -38,7 +38,7 @@ from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.constants import RECORD_MODIFIED_MSG
-from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_master_events_list, active_users_list, rp_eligible_users_list, user_fillable_qual_ids
 import app.mail as mailer
 from zoneinfo import ZoneInfo
@@ -144,7 +144,7 @@ def index() -> str:
     # Apply server-side ORDER BY (covers all pages, not just current)
     _asc = sort_dir == "asc"
     if sort_col == "name":
-        query = query.order_by(Event.name.asc() if _asc else Event.name.desc())
+        query = query.order_by(collate(Event.name, CS_COLLATION).asc() if _asc else collate(Event.name, CS_COLLATION).desc())
     elif sort_col == "status":
         query = query.order_by(Event.status.asc() if _asc else Event.status.desc())
     elif sort_col == "me_name":
@@ -182,13 +182,13 @@ def index() -> str:
     active_named_mes = db.session.scalars(
         db.select(MasterEvent)
         .where(MasterEvent.is_general.is_(False), MasterEvent.archived.is_(False))
-        .order_by(MasterEvent.name)
+        .order_by(collate(MasterEvent.name, CS_COLLATION))
     ).all()
 
     event_templates: list[EventTemplate] = []
     if current_user.has_permission("event.create"):
         event_templates = list(db.session.scalars(
-            db.select(EventTemplate).order_by(EventTemplate.name)
+            db.select(EventTemplate).order_by(collate(EventTemplate.name, CS_COLLATION))
         ).all())
 
     # Map event_id → list of (spot_id, description) for eligible unfilled spots
@@ -317,7 +317,7 @@ def create() -> str | Response:
 
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
-    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
@@ -370,7 +370,7 @@ def create_from_template(template_id: int) -> str | Response:
 
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
-    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
 
     return render_template(
         "events/create.html",
@@ -398,7 +398,7 @@ def detail(event_id: int) -> str | Response:
     all_equipment_types = db.session.scalars(
         db.select(EquipmentType)
         .where(EquipmentType.category != EquipmentCategory.PERSONAL)
-        .order_by(EquipmentType.name)
+        .order_by(collate(EquipmentType.name, CS_COLLATION))
     ).all()
     assigned_item_ids = {ea.equipment_item_id for ea in event.equipment_assignments}
     if assigned_item_ids:
@@ -406,17 +406,17 @@ def detail(event_id: int) -> str | Response:
             db.select(EquipmentItem).where(
                 EquipmentItem.id.notin_(assigned_item_ids),
                 EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
-            ).order_by(EquipmentItem.name)
+            ).order_by(collate(EquipmentItem.name, CS_COLLATION))
         ).all()
     else:
         available_equipment_items = db.session.scalars(
             db.select(EquipmentItem).where(
                 EquipmentItem.equipment_type.has(EquipmentType.category != EquipmentCategory.PERSONAL),
-            ).order_by(EquipmentItem.name)
+            ).order_by(collate(EquipmentItem.name, CS_COLLATION))
         ).all()
 
     all_qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
 
     # Precompute for JS eligibility check: for each qualification R, which qualification IDs can fill it?
@@ -642,6 +642,35 @@ def restore(event_id: int) -> Response:
 
     flash("Akce byla obnovena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
+
+
+@events_bp.post("/<int:event_id>/delete")
+@login_required
+def delete_event(event_id: int) -> Response:
+    require_permission("event.delete_draft")
+
+    from flask import jsonify as _jsonify
+    is_ajax = request.headers.get("X-CSRFToken") and request.accept_mimetypes.accept_json
+
+    event = get_or_404(Event, event_id)
+    if event.status != EventStatus.DRAFT:
+        if is_ajax:
+            return _jsonify({"ok": False, "error": "Smazat lze pouze akce ve stavu Koncept."}), 400
+        flash("Smazat lze pouze akce ve stavu Koncept.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    me_id = event.master_event_id
+    name = event.name
+    audit("delete", "Event", event.id, f"Akce '{name}' smazána (byla ve stavu Koncept)")
+    db.session.delete(event)
+    db.session.commit()
+
+    if is_ajax:
+        return _jsonify({"ok": True})
+    flash(f'Akce \u201e{name}\u201c byla smazána.', "success")
+    if me_id:
+        return redirect(url_for("master_events.detail", me_id=me_id))
+    return redirect(url_for("events.index"))
 
 
 # ── Bulk lifecycle actions ────────────────────────────────────────────────────

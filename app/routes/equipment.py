@@ -19,7 +19,8 @@ from app.extensions import db
 from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
 from app.models.user import UserAccount
 from app.constants import RECORD_MODIFIED_MSG
-from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from sqlalchemy import collate
+from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_users_list
 
 equipment_bp = Blueprint("equipment", __name__, url_prefix="/equipment")
@@ -33,7 +34,7 @@ def index() -> str:
     require_permission("equipment.view")
 
     types = db.session.scalars(
-        db.select(EquipmentType).order_by(EquipmentType.category, EquipmentType.name)
+        db.select(EquipmentType).order_by(EquipmentType.category, collate(EquipmentType.name, CS_COLLATION))
     ).all()
     return render_template("equipment/index.html", types=types)
 
@@ -158,7 +159,7 @@ def items() -> str:
     type_filter = request.args.get("type_id", type=int)
     issued_filter = request.args.get("issued")  # "yes" | "no" | None
 
-    query = db.select(EquipmentItem).order_by(EquipmentItem.name)
+    query = db.select(EquipmentItem).order_by(collate(EquipmentItem.name, CS_COLLATION))
     if type_filter:
         query = query.where(EquipmentItem.type_id == type_filter)
     if issued_filter == "yes":
@@ -167,7 +168,7 @@ def items() -> str:
         query = query.where(EquipmentItem.issued_to_id.is_(None))
 
     equipment_items = db.session.scalars(query).all()
-    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+    types = db.session.scalars(db.select(EquipmentType).order_by(collate(EquipmentType.name, CS_COLLATION))).all()
 
     active_users: list[UserAccount] = []
     if current_user.has_permission("equipment_item.issue_personal"):
@@ -190,7 +191,7 @@ def items() -> str:
 def item_create() -> str | Response:
     require_permission("equipment_item.create")
 
-    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+    types = db.session.scalars(db.select(EquipmentType).order_by(collate(EquipmentType.name, CS_COLLATION))).all()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -238,7 +239,7 @@ def item_edit(item_id: int) -> str | Response:
 
     item = get_or_404(EquipmentItem, item_id)
 
-    types = db.session.scalars(db.select(EquipmentType).order_by(EquipmentType.name)).all()
+    types = db.session.scalars(db.select(EquipmentType).order_by(collate(EquipmentType.name, CS_COLLATION))).all()
 
     if request.method == "POST":
         if check_version_conflict(item, request.form.get("version")):

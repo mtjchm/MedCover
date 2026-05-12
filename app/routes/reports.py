@@ -28,7 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.utils import require_permission
+from app.utils import czech_sort_key, require_permission
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
@@ -103,7 +103,7 @@ def _build_user_stat_rows(
             users[uid] = asgn.user
         user_pairs[uid].append((asgn, ev))
     result = [(users[uid], _compute_user_stats(up, now)) for uid, up in user_pairs.items()]
-    result.sort(key=lambda x: x[0].name)
+    result.sort(key=lambda x: czech_sort_key(x[0].name))
     return result
 
 

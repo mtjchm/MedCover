@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
 from flask_login import login_required
+from sqlalchemy import collate
 
 from app.extensions import db
 from app.models.qualification import Qualification
-from app.utils import audit, diff_changes, get_or_404, require_permission
+from app.utils import CS_COLLATION, audit, diff_changes, get_or_404, require_permission
 
 qualifications_bp = Blueprint("qualifications", __name__, url_prefix="/qualifications")
 
@@ -27,7 +28,7 @@ qualifications_bp = Blueprint("qualifications", __name__, url_prefix="/qualifica
 def index() -> str:
     require_permission("qualification.view")
     qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
     return render_template("qualifications/index.html", qualifications=qualifications)
 
@@ -39,7 +40,7 @@ def index() -> str:
 def create() -> str | Response:
     require_permission("qualification.create")
 
-    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)).all()
+    all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -81,7 +82,7 @@ def edit(cred_id: int) -> str | Response:
     cred = get_or_404(Qualification, cred_id)
 
     all_qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.id != cred_id, Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
 
     if request.method == "POST":

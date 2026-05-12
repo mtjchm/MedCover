@@ -1,0 +1,865 @@
+{% extends "base.html" %}
+{% block title %}Tabulkový manažer — {{ me.name }} — MedCover{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Fixed cols (~900px) + 160px per spot column, clamped between Bootstrap default and 95vw */
+  main.container { max-width: clamp(1140px, {{ 900 + max_spot_cols * 160 }}px, 95vw); }
+  .tm-color-swatch:hover { border-color: #333 !important; transform: scale(1.15); }
+  .tm-color-swatch.active { border-color: #0d6efd !important; }
+</style>
+{% endblock %}
+
+{% from 'macros/badges.html' import badge_status %}
+{% set status_colors = {
+  'Koncept': 'secondary',
+  'Zveřejněná': 'primary',
+  'Přihlášky otevřeny': 'success',
+  'Přihlášky uzavřeny': 'warning',
+  'Dokončena': 'dark',
+  'Zrušena': 'danger'
+} %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="mb-0">Tabulkový manažer</h2>
+    <p class="text-muted mb-0 small">{{ me.name }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if current_user.has_permission('event.create') %}
+    <a href="{{ url_for('events.create', master_event_id=me.id) }}" class="btn btn-danger btn-sm">+ Nová akce</a>
+    {% endif %}
+    <a href="{{ url_for('master_events.detail', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
+  </div>
+</div>
+
+{% if not rows %}
+  <p class="text-muted">Tato nadřazená akce neobsahuje žádné akce.</p>
+{% else %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-bordered align-middle tm-table" id="tm-table">
+    <thead class="table-dark">
+      <tr>
+        <th class="border-0" style="width:1px"></th>
+        <th class="text-nowrap">Datum</th>
+        <th>Akce</th>
+        <th class="text-nowrap">Kvalifikace</th>
+        <th>Popis</th>
+        <th class="text-nowrap">Od</th>
+        <th class="text-nowrap">Do</th>
+        <th class="text-nowrap" title="Počet hodin">Hod.</th>
+        <th class="text-nowrap" title="Počet pozic">Pozic</th>
+        {% for i in range(max_spot_cols) %}
+        <th class="text-nowrap text-center">{{ i + 1 }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(prev_event_id=None, prev_date=None) %}
+      {% for row in rows %}
+      {% set event = row.event %}
+      {% set row_date = event.start_datetime | localdt('%Y-%m-%d') %}
+      {% set spot_descs = row.spots | map(attribute='description') | select | unique | list %}
+      {% if ns.prev_date is not none and row_date != ns.prev_date %}
+        {% set row_class = "tm-sep-day" %}
+      {% elif ns.prev_event_id is not none and event.id != ns.prev_event_id %}
+        {% set row_class = "tm-sep-event" %}
+      {% else %}
+        {% set row_class = "" %}
+      {% endif %}
+      {% set ns.prev_event_id = event.id %}
+      {% set ns.prev_date = row_date %}
+      <tr data-event-id="{{ event.id }}" class="{{ row_class }}">
+        {% if loop.first or rows[loop.index0 - 1].event.id != event.id %}
+        <td class="border-0 align-middle text-center" rowspan="{{ event_row_spans[event.id] }}" style="white-space:nowrap; padding: 2px 4px;">
+          {% if can_create_event %}
+          <button class="btn btn-link btn-sm p-0 tm-clone-btn text-secondary"
+                  data-event-id="{{ event.id }}"
+                  title="Klonovat akci" style="font-size:1rem; line-height:1;">👥</button>
+          {% endif %}
+          {% if can_delete_draft and event.status.name == 'DRAFT' %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-delete-btn text-danger"
+                  data-event-id="{{ event.id }}"
+                  data-event-name="{{ event.name | e }}"
+                  title="Smazat akci" style="font-size:1rem; line-height:1;">🗑</button>
+          {% endif %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-color-btn"
+                  data-event-id="{{ event.id }}"
+                  title="Barva akce" style="font-size:1rem; line-height:1;">🌈</button>
+          <span class="ms-1">{{ badge_status(event.status.value, status_colors) }}</span>
+          {% if (event.status.name == 'DRAFT' and can_publish) or (event.status.name == 'PUBLISHED' and can_open_assignments) %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-advance-btn text-success"
+                  data-event-id="{{ event.id }}"
+                  data-event-name="{{ event.name | e }}"
+                  data-next-status="{% if event.status.name == 'DRAFT' %}Zveřejněná{% else %}Přihlášky otevřeny{% endif %}"
+                  title="Posunout do dalšího stavu" style="font-size:1rem; line-height:1;">⏩</button>
+          {% endif %}
+        </td>
+        {% endif %}
+        {% set ec = row.event_color or '' %}
+        <td class="text-nowrap small tm-date-cell tm-time-cell tm-row-cell"
+            data-event-id="{{ event.id }}"
+            data-field="start_datetime"
+            data-value="{{ event.start_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if ec %}style="background-color:{{ ec }}"{% endif %}>
+          {% if can_edit_event %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:.75rem">−</button>
+            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
+          {{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}
+          {% endif %}
+        </td>
+        <td class="small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
+          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="tm-event-name-display" data-event-id="{{ event.id }}">
+            {{ event.name }}
+          </a>
+          {% if can_edit_event %}
+          <button class="btn btn-link btn-sm p-0 ms-1 text-muted tm-name-edit-btn"
+                  data-event-id="{{ event.id }}"
+                  data-value="{{ event.name }}"
+                  title="Upravit název" style="font-size:.8rem; vertical-align:baseline;">✎</button>
+          {% endif %}
+        </td>
+        <td class="text-nowrap small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
+          <span class="badge text-dark" style="background-color: {{ row.color }}">{{ row.qual_name }}</span>
+        </td>
+        <td class="small text-muted tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>{{ spot_descs | join(', ') }}</td>
+
+        {# ── Od ── #}
+        <td class="text-nowrap small tm-time-cell tm-row-cell"
+            data-event-id="{{ event.id }}"
+            data-field="start_datetime"
+            data-value="{{ event.start_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if ec %}style="background-color:{{ ec }}" {% endif %}>
+          {% if can_edit_event %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="-1" title="−1 hod" style="font-size:.75rem">−</button>
+            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%H:%M') }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="1" title="+1 hod" style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
+          <span class="tm-time-display">{{ event.start_datetime | localdt('%H:%M') }}</span>
+          {% endif %}
+        </td>
+
+        {# ── Do ── #}
+        <td class="text-nowrap small tm-time-cell tm-row-cell"
+            data-event-id="{{ event.id }}"
+            data-field="end_datetime"
+            data-value="{{ event.end_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if ec %}style="background-color:{{ ec }}" {% endif %}>
+          {% if can_edit_event %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="-1" title="−1 hod" style="font-size:.75rem">−</button>
+            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.end_datetime | localdt('%H:%M') }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="1" title="+1 hod" style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
+          <span class="tm-time-display">{{ event.end_datetime | localdt('%H:%M') }}</span>
+          {% endif %}
+        </td>
+
+        {# ── Hod. ── #}
+        <td class="text-nowrap small tm-hours-cell tm-row-cell" data-event-id="{{ event.id }}"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
+          {{ event.scheduled_hours | cznum }}
+        </td>
+
+        {# ── Pozic ── #}
+        <td class="text-nowrap small text-center tm-row-cell"
+            data-event-id="{{ event.id }}"
+            data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+            data-count="{{ row.spots | length }}"
+            {% if ec %}style="background-color:{{ ec }}"{% endif %}>
+          {% if can_edit_event %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm tm-spots-minus py-1 px-1 lh-1"
+                    data-event-id="{{ event.id }}"
+                    data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+                    data-count="{{ row.spots | length }}"
+                    style="font-size:.75rem">−</button>
+            <span class="tm-spots-display">{{ row.spots | length }}</span>
+            <button class="btn btn-outline-secondary btn-sm tm-spots-plus py-1 px-1 lh-1"
+                    data-event-id="{{ event.id }}"
+                    data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+                    data-count="{{ row.spots | length }}"
+                    style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
+          {{ row.spots | length }}
+          {% endif %}
+        </td>
+
+        {# ── Spot cells ── #}
+        {% for spot in row.spots %}
+        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="min-width: 140px; background-color: {{ row.color }}">
+          {% if spot.assignment %}
+            <span class="tm-assigned-name">{{ spot.assignment.user.name }}</span>
+            {% if can_assign %}
+            <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                    data-assignment-id="{{ spot.assignment.id }}"
+                    data-user-name="{{ spot.assignment.user.name }}"
+                    title="Odhlásit">✕</button>
+            {% endif %}
+          {% elif can_assign %}
+            <select class="form-select form-select-sm tm-assign-select"
+                    data-spot-id="{{ spot.id }}"
+                    style="min-width: 130px; font-size: 0.75rem;">
+              <option value="">— přiřadit —</option>
+              {% for user in row.eligible_users %}
+              <option value="{{ user.id }}">{{ user.name }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </td>
+        {% endfor %}
+
+        {# ── Empty padding cells ── #}
+        {% for _ in range(max_spot_cols - (row.spots | length)) %}
+        <td style="background-color: {{ row.color }}"></td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
+<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:280px;">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <input type="date" id="tm-time-date-input" class="form-control form-control-sm" style="width:130px;">
+    <input type="text" id="tm-time-time-input" class="form-control form-control-sm font-monospace"
+           placeholder="HH:MM" maxlength="5" pattern="\d{2}:\d{2}" style="width:70px;">
+    <button id="tm-time-save" class="btn btn-success btn-sm">Uložit</button>
+    <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+  <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
+{# ── Color picker popover ── #}
+<div id="tm-color-popup" style="display:none; position:absolute; z-index:1060; background:#fff; border:1px solid #dee2e6; border-radius:6px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,.15);">
+  <div style="display:grid; grid-template-columns:repeat(3,28px); gap:4px;">
+    {% set _palette = ['#FFCCCC','#FFE0B2','#FFF9C4','#C8F5C8','#B2EBF2','#BBDEFB','#E1BEE7','#F8BBD0','#F5F5F5'] %}
+    {% for c in _palette %}
+    <div class="tm-color-swatch" data-color="{{ c }}"
+         style="width:28px;height:28px;background:{{ c }};border-radius:4px;cursor:pointer;border:2px solid transparent;"
+         title="{{ c }}"></div>
+    {% endfor %}
+  </div>
+  <button id="tm-color-reset" class="btn btn-link btn-sm p-0 mt-2 text-danger d-block w-100 text-center" style="font-size:.75rem;">✕ Reset barvy</button>
+</div>
+
+{# ── Advance-status confirmation popup ── #}
+<div id="tm-advance-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1070; min-width:200px;">
+  <div class="small mb-2">Posunout <strong id="tm-advance-event-name"></strong> do stavu <strong id="tm-advance-next-status" class="text-success"></strong>?</div>
+  <div class="d-flex gap-2">
+    <button id="tm-advance-confirm" class="btn btn-success btn-sm"></button>
+    <button id="tm-advance-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+</div>
+
+{# ── Inline name-edit popover ── #}
+<div id="tm-name-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:320px;">
+  <div class="d-flex align-items-center gap-2">
+    <input type="text" id="tm-name-input" class="form-control form-control-sm" maxlength="200" style="width:220px;">
+    <button id="tm-name-save" class="btn btn-success btn-sm">Uložit</button>
+    <button id="tm-name-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+  <div id="tm-name-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
+{# ── Inline spots-count error toast ── #}
+<div id="tm-spots-error-toast" class="alert alert-danger alert-dismissible position-fixed bottom-0 end-0 m-3" style="display:none; z-index:1060;">
+  <span id="tm-spots-error-msg"></span>
+  <button type="button" class="btn-close" onclick="this.closest('.alert').style.display='none'"></button>
+</div>
+
+{% endif %}
+
+<style>
+.tm-table th, .tm-table td { vertical-align: middle; }
+.tm-time-cell .tm-time-display:hover { color: #0d6efd !important; }
+.tm-time-cell { cursor: default; }
+.tm-sep-event td { border-top: 2px solid #adb5bd !important; }
+.tm-sep-day td { border-top: 3px solid #495057 !important; }
+
+@keyframes tm-flash-kf {
+  0%   { outline: 3px solid #ffc107; outline-offset: -2px; }
+  60%  { outline: 3px solid #ffc107; outline-offset: -2px; }
+  100% { outline: 3px solid transparent; outline-offset: -2px; }
+}
+.tm-row-flash { animation: tm-flash-kf 1.4s ease-out forwards; }
+</style>
+
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+const ME_ID = {{ me.id }};
+
+// ── Flash helpers ─────────────────────────────────────────────────────────────
+function flashRows(eventId) {
+  document.querySelectorAll(`tr[data-event-id="${eventId}"]`).forEach(tr => {
+    tr.classList.remove("tm-row-flash");
+    void tr.offsetWidth; // force reflow to restart animation
+    tr.classList.add("tm-row-flash");
+  });
+}
+
+function reloadWithHighlight(eventId) {
+  const url = new URL(location.href);
+  url.searchParams.set("highlight", eventId);
+  location.href = url.toString();
+}
+
+// On load: flash rows from ?highlight param and clean URL
+(function () {
+  const params = new URLSearchParams(location.search);
+  const eid = params.get("highlight");
+  if (!eid) return;
+  const rows = document.querySelectorAll(`tr[data-event-id="${eid}"]`);
+  rows.forEach(tr => tr.classList.add("tm-row-flash"));
+  const url = new URL(location.href);
+  url.searchParams.delete("highlight");
+  history.replaceState(null, "", url);
+})();
+
+{% if can_assign %}
+// ── Spot assignment ──────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-assign-select").forEach(sel => {
+  sel.addEventListener("change", function () {
+    const userId = this.value;
+    if (!userId) return;
+    const spotId = this.dataset.spotId;
+    const cell = this.closest("td");
+    const originalHtml = cell.innerHTML;
+
+    fetch(`/master-events/${ME_ID}/table/assign/${spotId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `user_id=${encodeURIComponent(userId)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        cell.innerHTML = `
+          <span class="tm-assigned-name">${data.user_name}</span>
+          <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                  data-assignment-id="${data.assignment_id}"
+                  data-user-name="${data.user_name}"
+                  title="Odhlásit">✕</button>`;
+        attachUnassign(cell.querySelector(".tm-unassign-btn"));
+        flashRows(cell.closest("tr").dataset.eventId);
+      } else {
+        alert(data.error || "Chyba při přiřazení.");
+        cell.innerHTML = originalHtml;
+        attachAssign(cell.querySelector(".tm-assign-select"));
+      }
+    })
+    .catch(() => { alert("Chyba sítě."); cell.innerHTML = originalHtml; attachAssign(cell.querySelector(".tm-assign-select")); });
+  });
+});
+
+function attachAssign(sel) {
+  if (!sel) return;
+  sel.addEventListener("change", function () {
+    const userId = this.value;
+    if (!userId) return;
+    const spotId = this.dataset.spotId;
+    const cell = this.closest("td");
+    const originalHtml = cell.innerHTML;
+    fetch(`/master-events/${ME_ID}/table/assign/${spotId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `user_id=${encodeURIComponent(userId)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        cell.innerHTML = `<span class="tm-assigned-name">${data.user_name}</span>
+          <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                  data-assignment-id="${data.assignment_id}" data-user-name="${data.user_name}"
+                  title="Odhlásit">✕</button>`;
+        attachUnassign(cell.querySelector(".tm-unassign-btn"));
+      } else {
+        alert(data.error || "Chyba při přiřazení.");
+        cell.innerHTML = originalHtml;
+        attachAssign(cell.querySelector(".tm-assign-select"));
+      }
+    });
+  });
+}
+
+function attachUnassign(btn) {
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    const assignmentId = this.dataset.assignmentId;
+    const cell = this.closest("td");
+    const spotId = cell.dataset.spotId;
+    const bgColor = cell.style.backgroundColor;
+
+    fetch(`/master-events/${ME_ID}/table/unassign/${assignmentId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        // Reload page to refresh eligible user lists for all rows
+        reloadWithHighlight(cell.closest("tr").dataset.eventId);
+      } else {
+        alert(data.error || "Chyba při odhlášení.");
+      }
+    });
+  });
+}
+
+document.querySelectorAll(".tm-unassign-btn").forEach(btn => attachUnassign(btn));
+{% endif %}
+
+{% if can_edit_event %}
+// ── Inline time editing ──────────────────────────────────────────────────────
+let _activeTimeCell = null;
+const popup = document.getElementById("tm-time-edit-popup");
+const timeDateInput = document.getElementById("tm-time-date-input");
+const timeTimeInput = document.getElementById("tm-time-time-input");
+const timeError = document.getElementById("tm-time-error");
+
+document.querySelectorAll(".tm-time-cell").forEach(cell => {
+  cell.addEventListener("click", function (e) {
+    if (e.target.classList.contains("tm-time-display")) {
+      openTimeEdit(this);
+    }
+  });
+});
+
+function openTimeEdit(cell) {
+  _activeTimeCell = cell;
+  const val = cell.dataset.value; // "YYYY-MM-DDTHH:MM"
+  timeDateInput.value = val.slice(0, 10);
+  timeTimeInput.value = val.slice(11, 16);
+  timeError.style.display = "none";
+  timeError.textContent = "";
+  const rect = cell.getBoundingClientRect();
+  document.body.appendChild(popup);
+  popup.style.display = "block";
+  popup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+  popup.style.left = (window.scrollX + rect.left) + "px";
+  timeTimeInput.focus();
+  timeTimeInput.select();
+}
+
+// Auto-insert colon after 2 digits (e.g. "08" → "08:")
+timeTimeInput.addEventListener("input", function () {
+  const v = this.value.replace(/[^0-9:]/g, "");
+  if (v.length === 2 && !v.includes(":")) this.value = v + ":";
+  else this.value = v;
+});
+
+function closeTimeEdit() {
+  popup.style.display = "none";
+  _activeTimeCell = null;
+}
+
+document.getElementById("tm-time-cancel").addEventListener("click", closeTimeEdit);
+
+document.getElementById("tm-time-save").addEventListener("click", function () {
+  if (!_activeTimeCell) return;
+  const cell = _activeTimeCell;
+  const eventId = cell.dataset.eventId;
+  const field = cell.dataset.field;
+  const timeVal = timeTimeInput.value.trim();
+
+  // Validate HH:MM (24h)
+  if (!/^\d{2}:\d{2}$/.test(timeVal)) {
+    timeError.textContent = "Zadejte čas ve formátu HH:MM (např. 08:30).";
+    timeError.style.display = "block";
+    return;
+  }
+  const [hh, mm] = timeVal.split(":").map(Number);
+  if (hh > 23 || mm > 59) {
+    timeError.textContent = "Neplatný čas.";
+    timeError.style.display = "block";
+    return;
+  }
+
+  const value = `${timeDateInput.value}T${timeVal}`;
+
+  fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `field=${encodeURIComponent(field)}&value=${encodeURIComponent(value)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      reloadWithHighlight(eventId);
+    } else {
+      timeError.textContent = data.error || "Chyba při uložení.";
+      timeError.style.display = "block";
+    }
+  })
+  .catch(() => { timeError.textContent = "Chyba sítě."; timeError.style.display = "block"; });
+});
+
+// Enter key saves in time popup
+[timeDateInput, timeTimeInput].forEach(el => {
+  el.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("tm-time-save").click(); });
+});
+
+// Esc closes whichever popup is open
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  if (popup.style.display !== "none") closeTimeEdit();
+  if (namePopup.style.display !== "none") closeNameEdit();
+  const cp = document.getElementById("tm-color-popup");
+  if (cp && cp.style.display !== "none") cp.style.display = "none";
+  const ap = document.getElementById("tm-advance-popup");
+  if (ap && ap.style.display !== "none") ap.style.display = "none";
+});
+
+// Close time popup on outside click
+document.addEventListener("click", function (e) {
+  if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
+    closeTimeEdit();
+  }
+  if (namePopup.style.display !== "none" && !namePopup.contains(e.target) && !e.target.classList.contains("tm-name-edit-btn")) {
+    closeNameEdit();
+  }
+});
+
+// ── Inline name editing ──────────────────────────────────────────────────────
+let _activeNameBtn = null;
+const namePopup = document.getElementById("tm-name-edit-popup");
+const nameInput = document.getElementById("tm-name-input");
+const nameError = document.getElementById("tm-name-error");
+
+document.querySelectorAll(".tm-name-edit-btn").forEach(btn => {
+  btn.addEventListener("click", function (e) {
+    e.preventDefault();
+    _activeNameBtn = this;
+    nameInput.value = this.dataset.value;
+    nameError.style.display = "none";
+    nameError.textContent = "";
+    const rect = this.getBoundingClientRect();
+    document.body.appendChild(namePopup);
+    namePopup.style.display = "block";
+    namePopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    namePopup.style.left = (window.scrollX + rect.left) + "px";
+    nameInput.focus();
+    nameInput.select();
+  });
+});
+
+function closeNameEdit() {
+  namePopup.style.display = "none";
+  _activeNameBtn = null;
+}
+
+document.getElementById("tm-name-cancel").addEventListener("click", closeNameEdit);
+
+document.getElementById("tm-name-save").addEventListener("click", function () {
+  if (!_activeNameBtn) return;
+  const eventId = _activeNameBtn.dataset.eventId;
+  const value = nameInput.value.trim();
+  if (!value) {
+    nameError.textContent = "Název nesmí být prázdný.";
+    nameError.style.display = "block";
+    return;
+  }
+  fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `field=name&value=${encodeURIComponent(value)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      // Update all name cells for this event (multiple rows share the same event)
+      document.querySelectorAll(`.tm-event-name-display[data-event-id="${eventId}"]`).forEach(el => {
+        el.textContent = data.display;
+      });
+      document.querySelectorAll(`.tm-name-edit-btn[data-event-id="${eventId}"]`).forEach(el => {
+        el.dataset.value = data.display;
+      });
+      closeNameEdit();
+      flashRows(eventId);
+    } else {
+      nameError.textContent = data.error || "Chyba při uložení.";
+      nameError.style.display = "block";
+    }
+  })
+  .catch(() => { nameError.textContent = "Chyba sítě."; nameError.style.display = "block"; });
+});
+
+// Enter key saves in name popup
+nameInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("tm-name-save").click(); });
+{% endif %}
+
+{% if can_edit_event %}
+// ── Day shift ±1 buttons ──────────────────────────────────────────────────────
+document.querySelectorAll(".tm-day-shift-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    const delta = this.dataset.delta;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `field=shift_day&value=${encodeURIComponent(delta)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        reloadWithHighlight(eventId);
+      } else {
+        alert(data.error || "Chyba při posunu data.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
+// ── Hour shift ±1 buttons ─────────────────────────────────────────────────────
+document.querySelectorAll(".tm-hour-shift-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    const which = this.dataset.which;   // "start" or "end"
+    const delta = this.dataset.delta;   // "-1" or "1"
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `field=shift_hour&value=${encodeURIComponent(which + ":" + delta)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        reloadWithHighlight(eventId);
+      } else {
+        alert(data.error || "Chyba při posunu času.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
+// ── Spot count ± buttons ─────────────────────────────────────────────────────
+function spotsAdjust(btn, delta) {
+  const eventId = btn.dataset.eventId;
+  const qualIdsJson = btn.dataset.qualIdsJson;
+  const newCount = parseInt(btn.dataset.count) + delta;
+  if (newCount < 0) return;
+
+  fetch(`/master-events/${ME_ID}/table/spots/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `event_id=${encodeURIComponent(eventId)}&qual_ids_json=${encodeURIComponent(qualIdsJson)}&new_count=${encodeURIComponent(newCount)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      reloadWithHighlight(eventId);
+    } else {
+      const errEl = document.getElementById("tm-spots-error-msg");
+      const toast = document.getElementById("tm-spots-error-toast");
+      errEl.textContent = data.error || "Chyba při ukládání.";
+      toast.style.display = "block";
+    }
+  })
+  .catch(() => {
+    document.getElementById("tm-spots-error-msg").textContent = "Chyba sítě.";
+    document.getElementById("tm-spots-error-toast").style.display = "block";
+  });
+}
+
+document.querySelectorAll(".tm-spots-minus").forEach(btn => {
+  btn.addEventListener("click", () => spotsAdjust(btn, -1));
+});
+document.querySelectorAll(".tm-spots-plus").forEach(btn => {
+  btn.addEventListener("click", () => spotsAdjust(btn, +1));
+});
+{% endif %}
+
+{% if can_create_event %}
+// ── Clone event ──────────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-clone-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/clone`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        reloadWithHighlight(data.new_event_id);
+      } else {
+        alert(data.error || "Chyba při klonování akce.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
+{% endif %}
+
+{% if can_delete_draft %}
+// ── Delete draft event ────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-delete-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    const eventName = this.dataset.eventName;
+    if (!confirm(`Opravdu smazat akci „${eventName}"? Tato akce je nevratná.`)) return;
+    fetch(`/events/${eventId}/delete`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Accept": "application/json" },
+    })
+    .then(r => r.json().catch(() => null).then(data => ({ ok: r.ok, data })))
+    .then(({ ok, data }) => {
+      if (ok) {
+        location.reload();
+      } else {
+        alert((data && data.error) || "Chyba při mazání akce.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
+{% endif %}
+
+{% if can_publish or can_open_assignments %}
+// ── Advance status ────────────────────────────────────────────────────────────
+(function () {
+  const advPopup = document.getElementById("tm-advance-popup");
+  const advEventName = document.getElementById("tm-advance-event-name");
+  const advNextStatus = document.getElementById("tm-advance-next-status");
+  const advConfirmBtn = document.getElementById("tm-advance-confirm");
+  let _advEventId = null;
+
+  document.querySelectorAll(".tm-advance-btn").forEach(btn => {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      _advEventId = this.dataset.eventId;
+      advEventName.textContent = this.dataset.eventName;
+      advNextStatus.textContent = this.dataset.nextStatus;
+      advConfirmBtn.textContent = this.dataset.nextStatus;
+      const rect = this.getBoundingClientRect();
+      document.body.appendChild(advPopup);
+      advPopup.style.display = "block";
+      advPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+      advPopup.style.left = (window.scrollX + rect.left) + "px";
+    });
+  });
+
+  document.getElementById("tm-advance-cancel").addEventListener("click", function () {
+    advPopup.style.display = "none";
+    _advEventId = null;
+  });
+
+  document.getElementById("tm-advance-confirm").addEventListener("click", function () {
+    if (!_advEventId) return;
+    const eventId = _advEventId;
+    advPopup.style.display = "none";
+    _advEventId = null;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: "field=advance_status",
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        reloadWithHighlight(eventId);
+      } else {
+        alert(data.error || "Chyba při změně stavu.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+
+  document.addEventListener("click", function (e) {
+    if (advPopup.style.display !== "none" && !advPopup.contains(e.target) && !e.target.closest(".tm-advance-btn")) {
+      advPopup.style.display = "none";
+      _advEventId = null;
+    }
+  });
+})();
+{% endif %}
+let _colorEventId = null;
+
+function applyEventColor(eventId, color) {
+  document.querySelectorAll(`tr[data-event-id="${eventId}"] td.tm-row-cell`).forEach(td => {
+    td.style.backgroundColor = color || "";
+  });
+  if (_colorEventId === eventId) {
+    document.querySelectorAll(".tm-color-swatch").forEach(s => {
+      s.classList.toggle("active", s.dataset.color.toUpperCase() === (color || "").toUpperCase());
+    });
+  }
+}
+
+function saveEventColor(eventId, color) {
+  fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `field=color&value=${encodeURIComponent(color)}`,
+  }).catch(() => {});  // best-effort; color is visible immediately
+}
+
+document.querySelectorAll(".tm-color-btn").forEach(btn => {
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    _colorEventId = this.dataset.eventId;
+    // Detect current color from first row-cell of this event
+    const firstCell = document.querySelector(`tr[data-event-id="${_colorEventId}"] td.tm-row-cell`);
+    const current = firstCell ? firstCell.style.backgroundColor : "";
+    // Convert rgb(...) back to hex for active swatch detection
+    document.querySelectorAll(".tm-color-swatch").forEach(s => s.classList.remove("active"));
+    if (current) {
+      document.querySelectorAll(".tm-color-swatch").forEach(s => {
+        if (s.dataset.color) {
+          // Simple comparison after normalising via a temp element
+          const tmp = document.createElement("div");
+          tmp.style.backgroundColor = s.dataset.color;
+          document.body.appendChild(tmp);
+          const rgb = getComputedStyle(tmp).backgroundColor;
+          document.body.removeChild(tmp);
+          if (rgb === current) s.classList.add("active");
+        }
+      });
+    }
+    const rect = this.getBoundingClientRect();
+    document.body.appendChild(colorPopup);
+    colorPopup.style.display = "block";
+    colorPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    colorPopup.style.left = (window.scrollX + rect.left) + "px";
+  });
+});
+
+document.querySelectorAll(".tm-color-swatch").forEach(swatch => {
+  swatch.addEventListener("click", function () {
+    if (!_colorEventId) return;
+    const color = this.dataset.color;
+    applyEventColor(_colorEventId, color);
+    saveEventColor(_colorEventId, color);
+    flashRows(_colorEventId);
+    colorPopup.style.display = "none";
+    _colorEventId = null;
+  });
+});
+
+document.getElementById("tm-color-reset").addEventListener("click", function () {
+  if (!_colorEventId) return;
+  applyEventColor(_colorEventId, "");
+  saveEventColor(_colorEventId, "");
+  flashRows(_colorEventId);
+  colorPopup.style.display = "none";
+  _colorEventId = null;
+});
+
+document.addEventListener("click", function (e) {
+  if (colorPopup.style.display !== "none" && !colorPopup.contains(e.target) && !e.target.classList.contains("tm-color-btn")) {
+    colorPopup.style.display = "none";
+    _colorEventId = null;
+  }
+});
+</script>
+{% endblock %}

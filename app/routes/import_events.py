@@ -19,7 +19,8 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.utils import audit, require_permission
+from sqlalchemy import collate
+from app.utils import CS_COLLATION, audit, require_permission
 from app.models.assignment import Assignment, DebriefingRecord
 from app.models.event import Event, EventSpot, EventStatus, EventType
 from app.models.master_event import MasterEvent
@@ -185,14 +186,14 @@ def events_preview() -> str | Response:
 
     # ── Load DB lookups ─────────────────────────────────────────────────────
     all_users = list(db.session.scalars(
-        db.select(UserAccount).order_by(UserAccount.name)
+        db.select(UserAccount).order_by(collate(UserAccount.name, CS_COLLATION))
     ).all())
     active_users = [u for u in all_users if u.is_active]
     master_events = list(db.session.scalars(
-        db.select(MasterEvent).order_by(MasterEvent.name)
+        db.select(MasterEvent).order_by(collate(MasterEvent.name, CS_COLLATION))
     ).all())
     qualifications = list(db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all())
 
     # ── Process users for preview ────────────────────────────────────────────
