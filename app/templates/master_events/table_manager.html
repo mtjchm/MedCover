@@ -147,10 +147,11 @@
 </div>
 
 {# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
-<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:260px;">
+<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:280px;">
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <input type="date" id="tm-time-date-input" class="form-control form-control-sm" style="width:130px;">
-    <input type="time" id="tm-time-time-input" class="form-control form-control-sm" style="width:90px;">
+    <input type="text" id="tm-time-time-input" class="form-control form-control-sm font-monospace"
+           placeholder="HH:MM" maxlength="5" pattern="\d{2}:\d{2}" style="width:70px;">
     <button id="tm-time-save" class="btn btn-success btn-sm">Uložit</button>
     <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
@@ -300,7 +301,15 @@ function openTimeEdit(cell) {
   popup.style.top = (window.scrollY + rect.bottom + 4) + "px";
   popup.style.left = (window.scrollX + rect.left) + "px";
   timeTimeInput.focus();
+  timeTimeInput.select();
 }
+
+// Auto-insert colon after 2 digits (e.g. "08" → "08:")
+timeTimeInput.addEventListener("input", function () {
+  const v = this.value.replace(/[^0-9:]/g, "");
+  if (v.length === 2 && !v.includes(":")) this.value = v + ":";
+  else this.value = v;
+});
 
 function closeTimeEdit() {
   popup.style.display = "none";
@@ -314,7 +323,22 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   const cell = _activeTimeCell;
   const eventId = cell.dataset.eventId;
   const field = cell.dataset.field;
-  const value = `${timeDateInput.value}T${timeTimeInput.value}`;
+  const timeVal = timeTimeInput.value.trim();
+
+  // Validate HH:MM (24h)
+  if (!/^\d{2}:\d{2}$/.test(timeVal)) {
+    timeError.textContent = "Zadejte čas ve formátu HH:MM (např. 08:30).";
+    timeError.style.display = "block";
+    return;
+  }
+  const [hh, mm] = timeVal.split(":").map(Number);
+  if (hh > 23 || mm > 59) {
+    timeError.textContent = "Neplatný čas.";
+    timeError.style.display = "block";
+    return;
+  }
+
+  const value = `${timeDateInput.value}T${timeVal}`;
 
   fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
     method: "POST",
@@ -324,19 +348,7 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
-      cell.querySelector(".tm-time-display").textContent = data.display;
-      cell.dataset.value = value;
-      // Update hours cell for this event row
-      const row = cell.closest("tr");
-      const hoursCell = row.querySelector(".tm-hours-cell");
-      if (hoursCell && data.hours) hoursCell.textContent = data.hours;
-      // Update date cells for all rows of this event (start_datetime change only)
-      if (field === "start_datetime" && data.display_date) {
-        document.querySelectorAll(`.tm-date-cell[data-event-id="${eventId}"]`).forEach(dc => {
-          dc.textContent = data.display_date;
-        });
-      }
-      closeTimeEdit();
+      location.reload();
     } else {
       timeError.textContent = data.error || "Chyba při uložení.";
       timeError.style.display = "block";
