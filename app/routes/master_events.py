@@ -386,8 +386,8 @@ def table_assign(me_id: int, spot_id: int) -> Response:
     if event is None or event.master_event_id != me_id:
         return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
 
-    if event.status not in (EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED):
-        return jsonify({"ok": False, "error": "Přiřazení není možné v aktuálním stavu akce."}), 409
+    if event.status == EventStatus.COMPLETED or event.archived:
+        return jsonify({"ok": False, "error": "Přiřazení není možné — akce je dokončena nebo archivována."}), 409
 
     if spot.assignment is not None:
         return jsonify({"ok": False, "error": "Tato pozice je již obsazena."}), 409
@@ -437,8 +437,8 @@ def table_unassign(me_id: int, assignment_id: int) -> Response:
     if event is None or event.master_event_id != me_id:
         return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
 
-    if event.status == EventStatus.COMPLETED:
-        return jsonify({"ok": False, "error": "Nelze odhlásit uživatele z dokončené akce."}), 409
+    if event.status == EventStatus.COMPLETED or event.archived:
+        return jsonify({"ok": False, "error": "Nelze odhlásit uživatele z dokončené nebo archivované akce."}), 409
 
     user_name = assignment.user.name
     audit("delete", "Assignment", assignment.id,
