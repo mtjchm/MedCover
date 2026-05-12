@@ -388,3 +388,81 @@ class TestCreateEventFromTemplate:
             event = db.session.scalar(db.select(Event).where(Event.name == "Spot Count Event"))
             assert event is not None
             assert len(event.spots) == 2
+
+
+# ── Template lint ─────────────────────────────────────────────────────────────
+
+class TestTemplateLint:
+    """Static checks on Jinja2 HTML templates to catch common mistakes."""
+
+    def _strip_quoted(self, s: str) -> str:
+        """Remove quoted attribute values so > inside values don't fool the parser."""
+        import re
+        s = re.sub(r'"[^"]*"', '""', s)
+        s = re.sub(r"'[^']*'", "''", s)
+        return s
+
+    def test_all_form_tags_are_closed(self):
+        """Every <form …> opening tag must end with > before the next element.
+
+        A missing > causes the browser to treat child elements (e.g. hidden
+        csrf_token inputs) as malformed attributes, silently dropping them.
+        This was the root cause of the digest-block delete CSRF 400 (PR #179).
+        """
+        import re
+        from pathlib import Path
+
+        template_dir = Path(__file__).parent.parent / "app" / "templates"
+        issues = []
+
+        for tmpl in sorted(template_dir.rglob("*.html")):
+            lines = tmpl.read_text().splitlines()
+            i = 0
+            while i < len(lines):
+                if re.search(r"<form\b", lines[i], re.IGNORECASE):
+                    block = lines[i]
+                    start_line = i + 1
+                    j = i + 1
+                    # Collect continuation lines until > found (cap at 20 lines)
+                    while ">" not in self._strip_quoted(block) and j < min(i + 20, len(lines)):
+                        block += "\n" + lines[j]
+                        j += 1
+                    if ">" not in self._strip_quoted(block):
+                        rel = tmpl.relative_to(template_dir)
+                        issues.append(f"{rel}:{start_line}")
+                    i = j
+                else:
+                    i += 1
+
+        assert not issues, (
+            "Found <form> tags missing their closing >:\n"
+            + "\n".join(f"  {loc}" for loc in issues)
+        )
+
+    def test_all_post_forms_have_csrf_token(self):
+        """Every POST form in a template must contain csrf_token.
+
+        Checks the raw template source — catches missing tokens before
+        they reach production. Complements the dynamic CSRF validation
+        done by Flask-WTF at request time.
+        """
+        import re
+        from pathlib import Path
+
+        template_dir = Path(__file__).parent.parent / "app" / "templates"
+        issues = []
+
+        for tmpl in sorted(template_dir.rglob("*.html")):
+            content = tmpl.read_text()
+            for part in re.split(r"<form\b", content, flags=re.IGNORECASE)[1:]:
+                close = part.find("</form")
+                block = part[:close] if close != -1 else part[:2000]
+                if re.search(r'method\s*=\s*["\']?post', block, re.IGNORECASE):
+                    if "csrf_token" not in block:
+                        rel = tmpl.relative_to(template_dir)
+                        issues.append(str(rel))
+
+        assert not issues, (
+            "POST forms missing csrf_token:\n"
+            + "\n".join(f"  {p}" for p in issues)
+        )
