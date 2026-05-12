@@ -8,6 +8,16 @@
 </style>
 {% endblock %}
 
+{% from 'macros/badges.html' import badge_status %}
+{% set status_colors = {
+  'Koncept': 'secondary',
+  'Zveřejněná': 'primary',
+  'Přihlášky otevřeny': 'success',
+  'Přihlášky uzavřeny': 'warning',
+  'Dokončena': 'dark',
+  'Zrušena': 'danger'
+} %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
@@ -30,6 +40,7 @@
   <table class="table table-sm table-bordered align-middle tm-table" id="tm-table">
     <thead class="table-dark">
       <tr>
+        <th class="border-0" style="width:1px"></th>
         <th class="text-nowrap">Datum</th>
         <th>Akce</th>
         <th class="text-nowrap">Kvalifikace</th>
@@ -59,6 +70,16 @@
       {% set ns.prev_event_id = event.id %}
       {% set ns.prev_date = row_date %}
       <tr data-event-id="{{ event.id }}" class="{{ row_class }}">
+        {% if loop.first or rows[loop.index0 - 1].event.id != event.id %}
+        <td class="border-0 align-middle text-center" rowspan="{{ event_row_spans[event.id] }}" style="white-space:nowrap; padding: 2px 4px;">
+          {% if can_create_event %}
+          <button class="btn btn-link btn-sm p-0 tm-clone-btn text-secondary"
+                  data-event-id="{{ event.id }}"
+                  title="Klonovat akci" style="font-size:1rem; line-height:1;">⎘</button>
+          {% endif %}
+          <span class="ms-1">{{ badge_status(event.status.value, status_colors) }}</span>
+        </td>
+        {% endif %}
         <td class="text-nowrap small tm-date-cell" data-event-id="{{ event.id }}">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
         <td class="small">
           <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none tm-event-name-display" data-event-id="{{ event.id }}">
@@ -489,6 +510,28 @@ document.querySelectorAll(".tm-spots-minus").forEach(btn => {
 });
 document.querySelectorAll(".tm-spots-plus").forEach(btn => {
   btn.addEventListener("click", () => spotsAdjust(btn, +1));
+});
+{% endif %}
+
+{% if can_create_event %}
+// ── Clone event ──────────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-clone-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/clone`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        location.reload();
+      } else {
+        alert(data.error || "Chyba při klonování akce.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
 });
 {% endif %}
 </script>

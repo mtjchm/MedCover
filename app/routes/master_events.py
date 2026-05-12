@@ -313,8 +313,13 @@ def table_manager(me_id: int) -> str:
 
     rows, max_spot_cols = _build_table_rows(list(events))
 
+    # Compute how many rows each event occupies (for rowspan in utility column)
+    from collections import Counter as _Counter
+    event_row_spans: dict[int, int] = dict(_Counter(r["event"].id for r in rows))
+
     can_assign = current_user.has_permission("event.assign_other")
     can_edit_event = current_user.has_permission("event.edit")
+    can_create_event = current_user.has_permission("event.create")
 
     if can_assign:
         _compute_eligible_users(rows, list(active_users_list()))
@@ -324,8 +329,10 @@ def table_manager(me_id: int) -> str:
         me=me,
         rows=rows,
         max_spot_cols=max_spot_cols,
+        event_row_spans=event_row_spans,
         can_assign=can_assign,
         can_edit_event=can_edit_event,
+        can_create_event=can_create_event,
     )
 
 
@@ -576,5 +583,43 @@ def table_spots_update(me_id: int) -> Response:
         audit("edit", "Event", event.id,
               f"Odebráno {to_remove}× pozice ({qual_names}) — tabulkový manažer")
 
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@master_events_bp.post("/<int:me_id>/table/event/<int:event_id>/clone")
+@login_required
+def table_event_clone(me_id: int, event_id: int) -> Response:
+    """Clone an event (same ME, same spots, DRAFT status, name + ' kopie')."""
+    require_permission("event.create")
+
+    from app.models.event import Event, EventSpot, EventStatus
+
+    source = db.session.get(Event, event_id)
+    if source is None or source.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    clone = Event(
+        name=f"{source.name} kopie",
+        master_event_id=source.master_event_id,
+        start_datetime=source.start_datetime,
+        end_datetime=source.end_datetime,
+        event_type=source.event_type,
+        responsible_person_id=source.responsible_person_id,
+        status=EventStatus.DRAFT,
+    )
+    db.session.add(clone)
+    db.session.flush()
+
+    for spot in source.spots:
+        new_spot = EventSpot(
+            event_id=clone.id,
+            description=spot.description,
+        )
+        new_spot.required_qualifications = list(spot.required_qualifications)
+        db.session.add(new_spot)
+
+    audit("create", "Event", clone.id,
+          f"Klonována akce '{source.name}' → '{clone.name}' (tabulkový manažer)")
     db.session.commit()
     return jsonify({"ok": True})
