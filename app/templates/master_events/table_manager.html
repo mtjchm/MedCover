@@ -92,11 +92,15 @@
         </td>
         {% endif %}
         {% set ec = row.event_color or '' %}
-        <td class="text-nowrap small tm-date-cell tm-row-cell" data-event-id="{{ event.id }}"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
+        <td class="text-nowrap small tm-date-cell tm-time-cell tm-row-cell"
+            data-event-id="{{ event.id }}"
+            data-field="start_datetime"
+            data-value="{{ event.start_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if ec %}style="background-color:{{ ec }}"{% endif %}>
           {% if can_edit_event %}
           <div class="d-flex align-items-center justify-content-center gap-1">
             <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:.75rem">−</button>
-            <span>{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
+            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
             <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:.75rem">+</button>
           </div>
           {% else %}
