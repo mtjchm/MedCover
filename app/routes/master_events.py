@@ -15,6 +15,7 @@ Table Manager (/<me_id>/table):
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -219,6 +220,26 @@ _ROW_COLORS = [
 ]
 _PRAGUE = ZoneInfo("Europe/Prague")
 
+_TM_COLOR_RE = re.compile(r'\[color:(#[0-9A-Fa-f]{6})\]', re.IGNORECASE)
+_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
+
+
+def _parse_tm_color(description: str | None) -> str | None:
+    """Return the [color:#XXXXXX] hex value embedded in an event description, or None."""
+    if not description:
+        return None
+    m = _TM_COLOR_RE.search(description)
+    return m.group(1).upper() if m else None
+
+
+def _set_tm_color(description: str | None, color: str | None) -> str | None:
+    """Insert/replace/remove the [color:] tag in an event description."""
+    base = _TM_COLOR_RE.sub("", description or "").strip()
+    if color:
+        tag = f"[color:{color.upper()}]"
+        return f"{base} {tag}".strip() if base else tag
+    return base or None
+
 
 def _build_table_rows(events: list) -> tuple[list[dict], int]:
     """Build sorted (event × qualification) rows and compute max spot column count."""
@@ -244,6 +265,7 @@ def _build_table_rows(events: list) -> tuple[list[dict], int]:
                 "qual_name": qual_name,
                 "spots": spots,
                 "color": "",
+                "event_color": _parse_tm_color(event.description),
             })
 
     rows.sort(key=lambda r: (
@@ -464,6 +486,16 @@ def table_event_update(me_id: int, event_id: int) -> Response:
               diff_changes(before, {"name": value}))
         db.session.commit()
         return jsonify({"ok": True, "display": value})
+
+    if field == "color":
+        # value is hex color like #FFCCCC, or empty string to reset
+        color = value if _HEX_RE.match(value) else None
+        event.description = _set_tm_color(event.description, color)
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Nastavena barva řádku (tabulkový manažer): {color or 'reset'}")
+        db.session.commit()
+        return jsonify({"ok": True, "color": color or ""})
 
     try:
         dt = datetime.fromisoformat(value).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
