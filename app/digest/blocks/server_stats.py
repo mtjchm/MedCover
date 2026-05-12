@@ -18,6 +18,7 @@ class ServerStatsBlock(BaseBlock):
         "show_event_count": True,
         "show_db_size": True,
         "show_table_sizes": True,
+        "max_table_rows": 5,
         "show_scheduler_heartbeat": True,
         "show_outbox_pending": True,
         "show_outbox_peak": True,
@@ -51,11 +52,13 @@ class ServerStatsBlock(BaseBlock):
 
         if config.get("show_table_sizes", True):
             try:
+                max_table_rows = int(config.get("max_table_rows", 5))
                 rows = db_session.execute(sa.text("""
                     SELECT relname, pg_size_pretty(pg_total_relation_size(relid)) AS pretty_size
                     FROM pg_catalog.pg_statio_user_tables
                     ORDER BY pg_total_relation_size(relid) DESC
-                """)).fetchall()
+                    LIMIT :limit
+                """), {"limit": max_table_rows}).fetchall()
                 data["table_sizes"] = [(r[0], r[1]) for r in rows]
             except Exception:  # noqa: BLE001
                 data["table_sizes"] = []

@@ -195,6 +195,7 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
                     "show_scheduler_heartbeat", "show_outbox_pending", "show_outbox_peak"):
             config[key] = bool(form.get(key))
         config["peak_hours"] = max(1, form.get("peak_hours", type=int) or 24)
+        config["max_table_rows"] = max(1, min(50, form.get("max_table_rows", type=int) or 5))
 
     elif block_type == "audit_log":
         config["hours"] = max(1, form.get("hours", type=int) or 24)
