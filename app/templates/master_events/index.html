@@ -54,6 +54,10 @@
           {{ me.events.count() }}
         </td>
         <td class="text-end">
+          {% if current_user.has_permission('event.view') %}
+            <a href="{{ url_for('master_events.table_manager', me_id=me.id) }}"
+               class="btn btn-outline-primary btn-sm">Tabulkový manažer</a>
+          {% endif %}
           {% if current_user.has_permission('master_event.edit') and not me.archived %}
             <a href="{{ url_for('master_events.edit', me_id=me.id) }}"
                class="btn btn-outline-secondary btn-sm">Upravit</a>
