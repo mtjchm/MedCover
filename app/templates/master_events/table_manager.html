@@ -73,13 +73,27 @@
         </td>
 
         {# ── Pozic ── #}
-        <td class="text-nowrap small text-center tm-spots-cell"
+        <td class="text-nowrap small text-center"
             data-event-id="{{ event.id }}"
             data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
-            data-count="{{ row.spots | length }}"
-            {% if can_edit_event %}title="Kliknutím upravit"{% endif %}>
-          <span class="tm-spots-display">{{ row.spots | length }}</span>
-          {% if can_edit_event %}<span class="tm-edit-icon ms-1 text-muted small" style="cursor:pointer">✎</span>{% endif %}
+            data-count="{{ row.spots | length }}">
+          {% if can_edit_event %}
+          <div class="d-flex align-items-center justify-content-center gap-1">
+            <button class="btn btn-outline-secondary btn-sm tm-spots-minus py-0 px-1 lh-1"
+                    data-event-id="{{ event.id }}"
+                    data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+                    data-count="{{ row.spots | length }}"
+                    style="font-size:.75rem">−</button>
+            <span class="tm-spots-display">{{ row.spots | length }}</span>
+            <button class="btn btn-outline-secondary btn-sm tm-spots-plus py-0 px-1 lh-1"
+                    data-event-id="{{ event.id }}"
+                    data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+                    data-count="{{ row.spots | length }}"
+                    style="font-size:.75rem">+</button>
+          </div>
+          {% else %}
+          {{ row.spots | length }}
+          {% endif %}
         </td>
 
         {# ── Spot cells ── #}
@@ -128,14 +142,9 @@
 </div>
 
 {# ── Inline spots-count-edit popover ── #}
-<div id="tm-spots-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:200px;">
-  <div class="d-flex align-items-center gap-2">
-    <label class="small text-nowrap mb-0">Počet pozic:</label>
-    <input type="number" id="tm-spots-input" class="form-control form-control-sm" min="0" max="50" style="width:70px;">
-    <button id="tm-spots-save" class="btn btn-success btn-sm">Uložit</button>
-    <button id="tm-spots-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
-  </div>
-  <div id="tm-spots-error" class="text-danger small mt-1" style="display:none;"></div>
+<div id="tm-spots-error-toast" class="alert alert-danger alert-dismissible position-fixed bottom-0 end-0 m-3" style="display:none; z-index:1060;">
+  <span id="tm-spots-error-msg"></span>
+  <button type="button" class="btn-close" onclick="this.closest('.alert').style.display='none'"></button>
 </div>
 
 {% endif %}
@@ -144,8 +153,6 @@
 .tm-table th, .tm-table td { vertical-align: middle; }
 .tm-time-cell:hover .tm-edit-icon { color: #0d6efd !important; }
 .tm-time-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
-.tm-spots-cell:hover .tm-edit-icon { color: #0d6efd !important; }
-.tm-spots-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
 </style>
 
 <script>
@@ -320,53 +327,21 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   .catch(() => { timeError.textContent = "Chyba sítě."; timeError.style.display = "block"; });
 });
 
-// Close popup on outside click
+// Close time popup on outside click
 document.addEventListener("click", function (e) {
   if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
     closeTimeEdit();
-  }
-  if (spotsPopup.style.display !== "none" && !spotsPopup.contains(e.target) && !e.target.closest(".tm-spots-cell")) {
-    closeSpotsEdit();
   }
 });
 {% endif %}
 
 {% if can_edit_event %}
-// ── Spot count editing ───────────────────────────────────────────────────────
-let _activeSpotsCell = null;
-const spotsPopup = document.getElementById("tm-spots-edit-popup");
-const spotsInput = document.getElementById("tm-spots-input");
-const spotsError = document.getElementById("tm-spots-error");
-
-document.querySelectorAll(".tm-spots-cell").forEach(cell => {
-  cell.addEventListener("click", function () {
-    _activeSpotsCell = this;
-    spotsInput.value = this.dataset.count;
-    spotsError.style.display = "none";
-    spotsError.textContent = "";
-    const rect = this.getBoundingClientRect();
-    document.body.appendChild(spotsPopup);
-    spotsPopup.style.display = "block";
-    spotsPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
-    spotsPopup.style.left = (window.scrollX + rect.left) + "px";
-    spotsInput.focus();
-    spotsInput.select();
-  });
-});
-
-function closeSpotsEdit() {
-  spotsPopup.style.display = "none";
-  _activeSpotsCell = null;
-}
-
-document.getElementById("tm-spots-cancel").addEventListener("click", closeSpotsEdit);
-
-document.getElementById("tm-spots-save").addEventListener("click", function () {
-  if (!_activeSpotsCell) return;
-  const cell = _activeSpotsCell;
-  const eventId = cell.dataset.eventId;
-  const qualIdsJson = cell.dataset.qualIdsJson;
-  const newCount = spotsInput.value;
+// ── Spot count ± buttons ─────────────────────────────────────────────────────
+function spotsAdjust(btn, delta) {
+  const eventId = btn.dataset.eventId;
+  const qualIdsJson = btn.dataset.qualIdsJson;
+  const newCount = parseInt(btn.dataset.count) + delta;
+  if (newCount < 0) return;
 
   fetch(`/master-events/${ME_ID}/table/spots/update`, {
     method: "POST",
@@ -378,11 +353,23 @@ document.getElementById("tm-spots-save").addEventListener("click", function () {
     if (data.ok) {
       location.reload();
     } else {
-      spotsError.textContent = data.error || "Chyba při ukládání.";
-      spotsError.style.display = "block";
+      const errEl = document.getElementById("tm-spots-error-msg");
+      const toast = document.getElementById("tm-spots-error-toast");
+      errEl.textContent = data.error || "Chyba při ukládání.";
+      toast.style.display = "block";
     }
   })
-  .catch(() => { spotsError.textContent = "Chyba sítě."; spotsError.style.display = "block"; });
+  .catch(() => {
+    document.getElementById("tm-spots-error-msg").textContent = "Chyba sítě.";
+    document.getElementById("tm-spots-error-toast").style.display = "block";
+  });
+}
+
+document.querySelectorAll(".tm-spots-minus").forEach(btn => {
+  btn.addEventListener("click", () => spotsAdjust(btn, -1));
+});
+document.querySelectorAll(".tm-spots-plus").forEach(btn => {
+  btn.addEventListener("click", () => spotsAdjust(btn, +1));
 });
 {% endif %}
 </script>
