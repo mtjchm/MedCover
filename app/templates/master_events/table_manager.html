@@ -3,7 +3,8 @@
 
 {% block extra_head %}
 <style>
-  main.container { max-width: 95vw; }
+  /* Fixed cols (~900px) + 160px per spot column, clamped between Bootstrap default and 95vw */
+  main.container { max-width: clamp(1140px, {{ 900 + max_spot_cols * 160 }}px, 95vw); }
 </style>
 {% endblock %}
 
