@@ -19,8 +19,8 @@ class DigestSchedule(db.Model):  # type: ignore[misc]
     # How often to send (hours).  Options: 6, 12, 24, 48, 72, 168.
     frequency_hours = db.Column(db.Integer, nullable=False, default=24, server_default="24")
 
-    # Preferred UTC hour (0–23) at which to send.
-    preferred_hour_utc = db.Column(db.Integer, nullable=False, default=7, server_default="7")
+    # Preferred Prague (CET/CEST) hour (0–23) at which to send.
+    preferred_hour = db.Column(db.Integer, nullable=False, default=7, server_default="7")
 
     last_sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
 

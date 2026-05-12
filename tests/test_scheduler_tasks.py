@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -10,6 +11,7 @@ from app.models.digest import get_digest_schedule
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.role import Role
+from app.models.settings import get_settings
 from app.models.user import UserAccount
 from tests.conftest import _make_user
 
@@ -143,8 +145,8 @@ def test_run_admin_digest_no_eligible_recipients(app):
 
     with app.app_context():
         schedule = get_digest_schedule()
-        hour = schedule.preferred_hour_utc
-        now = datetime(2025, 6, 1, hour, 0, tzinfo=timezone.utc)
+        hour = schedule.preferred_hour
+        now = datetime(2025, 6, 1, hour, 0, tzinfo=ZoneInfo(get_settings().timezone))
         schedule.enabled = True
         schedule.last_sent_at = None
         db.session.commit()

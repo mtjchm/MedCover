@@ -3,9 +3,16 @@ from __future__ import annotations
 
 import re
 import sqlalchemy as sa
+from zoneinfo import ZoneInfo
 
 from app.extensions import db
 from app.models.digest import DigestBlock, DigestMetricSnapshot, DigestSchedule, get_digest_schedule
+from app.models.settings import get_settings
+
+
+def _local_tz(app_ctx) -> ZoneInfo:
+    """Return the ZoneInfo matching AppSettings.timezone."""
+    return ZoneInfo(get_settings().timezone)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -146,25 +153,26 @@ def test_run_admin_digest_skips_when_disabled(app: object) -> None:
         schedule = get_digest_schedule()
         schedule.enabled = False
         db.session.commit()
-        now = datetime(2025, 1, 1, schedule.preferred_hour_utc, 0, tzinfo=timezone.utc)
+        now = datetime(2025, 1, 1, schedule.preferred_hour, 0, tzinfo=timezone.utc)
         result = run_admin_digest(db.session, now=now)
 
     assert result is False
 
 
 def test_run_admin_digest_skips_wrong_hour(app: object) -> None:
-    """run_admin_digest should skip if current hour != preferred_hour_utc."""
+    """run_admin_digest should skip if current local hour != preferred_hour."""
     from app.scheduler_tasks import run_admin_digest
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     with app.app_context():
+        tz = _local_tz(app)
         schedule = get_digest_schedule()
         schedule.enabled = True
-        schedule.preferred_hour_utc = 7
+        schedule.preferred_hour = 7
         schedule.last_sent_at = None
         db.session.commit()
-        wrong_hour = 8  # 7 + 1
-        now = datetime(2025, 1, 1, wrong_hour, 0, tzinfo=timezone.utc)
+        wrong_hour = 8  # 7 + 1 in local time
+        now = datetime(2025, 1, 1, wrong_hour, 0, tzinfo=tz)
         result = run_admin_digest(db.session, now=now)
 
     assert result is False
@@ -173,12 +181,13 @@ def test_run_admin_digest_skips_wrong_hour(app: object) -> None:
 def test_run_admin_digest_skips_too_soon(app: object) -> None:
     """run_admin_digest should skip if last_sent_at is too recent."""
     from app.scheduler_tasks import run_admin_digest
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     with app.app_context():
+        tz = _local_tz(app)
         schedule = get_digest_schedule()
-        hour = schedule.preferred_hour_utc
-        now = datetime(2025, 6, 1, hour, 0, tzinfo=timezone.utc)
+        hour = schedule.preferred_hour
+        now = datetime(2025, 6, 1, hour, 0, tzinfo=tz)
         schedule.enabled = True
         schedule.last_sent_at = now - timedelta(hours=schedule.frequency_hours - 1)
         db.session.commit()
@@ -191,12 +200,13 @@ def test_run_admin_digest_enqueues_when_due(app: object, admin_client: object) -
     """run_admin_digest should enqueue emails when schedule is enabled and due."""
     from app.scheduler_tasks import run_admin_digest
     from app.models.outbox import OutboxEmail
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     with app.app_context():
+        tz = _local_tz(app)
         schedule = get_digest_schedule()
-        hour = schedule.preferred_hour_utc
-        now = datetime(2025, 6, 1, hour, 0, tzinfo=timezone.utc)
+        hour = schedule.preferred_hour
+        now = datetime(2025, 6, 1, hour, 0, tzinfo=tz)
         schedule.enabled = True
         schedule.last_sent_at = None
         db.session.commit()
@@ -244,7 +254,7 @@ def test_digest_save_persists(app: object, admin_client: object) -> None:
         "csrf_token": csrf,
         "enabled": "1",
         "frequency_hours": "12",
-        "preferred_hour_utc": "8",
+        "preferred_hour": "8",
         "email_subject": "Test Subject",
         "version": str(version),
     }, follow_redirects=True)
@@ -273,7 +283,7 @@ def test_save_stale_version_flashes_danger(app, admin_client):
         "csrf_token": csrf,
         "enabled": "1",
         "frequency_hours": "24",
-        "preferred_hour_utc": "7",
+        "preferred_hour": "7",
         "email_subject": "X",
         "version": "9999",  # stale
     }, follow_redirects=True)

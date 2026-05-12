@@ -62,7 +62,7 @@ def save() -> Response:
 
     schedule.enabled = bool(request.form.get("enabled"))
     schedule.frequency_hours = int(request.form.get("frequency_hours", 24))
-    schedule.preferred_hour_utc = max(0, min(23, int(request.form.get("preferred_hour_utc", 7))))
+    schedule.preferred_hour = max(0, min(23, int(request.form.get("preferred_hour", 7))))
     schedule.email_subject = request.form.get("email_subject", "").strip() or "MedCover — Přehledový e-mail"
     schedule.header_html = request.form.get("header_html", "").strip() or None
     schedule.footer_html = request.form.get("footer_html", "").strip() or None
