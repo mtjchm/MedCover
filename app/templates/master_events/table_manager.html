@@ -86,7 +86,15 @@
         </td>
         {% endif %}
         {% set ec = row.event_color or '' %}
-        <td class="text-nowrap small tm-date-cell tm-row-cell" data-event-id="{{ event.id }}"{% if ec %} style="background-color:{{ ec }}"{% endif %}>{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
+        <td class="text-nowrap small tm-date-cell tm-row-cell" data-event-id="{{ event.id }}"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
+          {% if can_edit_event %}
+          <button class="btn btn-link btn-sm p-0 text-muted tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:0.8em; line-height:1;">−</button>
+          {% endif %}
+          {{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}
+          {% if can_edit_event %}
+          <button class="btn btn-link btn-sm p-0 text-muted tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:0.8em; line-height:1;">+</button>
+          {% endif %}
+        </td>
         <td class="small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
           <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none tm-event-name-display" data-event-id="{{ event.id }}">
             {{ event.name }}
@@ -504,6 +512,27 @@ nameInput.addEventListener("keydown", e => { if (e.key === "Enter") document.get
 {% endif %}
 
 {% if can_edit_event %}
+// ── Day shift ±1 buttons ──────────────────────────────────────────────────────
+document.querySelectorAll(".tm-day-shift-btn").forEach(btn => {
+  btn.addEventListener("click", function () {
+    const eventId = this.dataset.eventId;
+    const delta = this.dataset.delta;
+    fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `field=shift_day&value=${encodeURIComponent(delta)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        location.reload();
+      } else {
+        alert(data.error || "Chyba při posunu data.");
+      }
+    })
+    .catch(() => alert("Chyba sítě."));
+  });
+});
 // ── Spot count ± buttons ─────────────────────────────────────────────────────
 function spotsAdjust(btn, delta) {
   const eventId = btn.dataset.eventId;

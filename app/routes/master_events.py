@@ -488,6 +488,25 @@ def table_event_update(me_id: int, event_id: int) -> Response:
         db.session.commit()
         return jsonify({"ok": True, "display": value})
 
+    if field == "shift_day":
+        try:
+            delta_days = int(value)
+        except ValueError:
+            return jsonify({"ok": False, "error": "Neplatná hodnota posunu."}), 400
+        if delta_days not in (-1, 1):
+            return jsonify({"ok": False, "error": "Povolené hodnoty: -1 nebo 1."}), 400
+        from datetime import timedelta
+        before = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
+        event.start_datetime += timedelta(days=delta_days)
+        event.end_datetime += timedelta(days=delta_days)
+        after = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Posunut datum akce '{event.name}' o {delta_days:+d} den (tabulkový manažer)",
+              diff_changes(before, after))
+        db.session.commit()
+        return jsonify({"ok": True})
+
     if field == "color":
         # value is hex color like #FFCCCC, or empty string to reset
         color = value if _HEX_RE.match(value) else None
