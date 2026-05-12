@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Tabulkový manažer — {{ me.name }} — MedCover{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="mb-0">Tabulkový manažer</h2>
+    <p class="text-muted mb-0 small">{{ me.name }}</p>
+  </div>
+  <a href="{{ url_for('master_events.detail', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
+</div>
+
+{% if not rows %}
+  <p class="text-muted">Tato nadřazená akce neobsahuje žádné akce.</p>
+{% else %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-bordered align-middle tm-table" id="tm-table">
+    <thead class="table-dark">
+      <tr>
+        <th class="text-nowrap">Datum</th>
+        <th class="text-nowrap">Kvalifikace</th>
+        <th>Akce</th>
+        <th class="text-nowrap">Od</th>
+        <th class="text-nowrap">Do</th>
+        <th class="text-nowrap" title="Počet hodin">Hod.</th>
+        <th class="text-nowrap" title="Počet pozic">Pozic</th>
+        {% for i in range(max_spot_cols) %}
+        <th class="text-nowrap text-center">{{ i + 1 }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set event = row.event %}
+      <tr data-event-id="{{ event.id }}">
+        <td class="text-nowrap small">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
+        <td class="text-nowrap small">
+          <span class="badge text-dark" style="background-color: {{ row.color }}">{{ row.qual_name }}</span>
+        </td>
+        <td class="small">
+          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none" target="_blank">
+            {{ event.name }}
+          </a>
+        </td>
+
+        {# ── Od ── #}
+        <td class="text-nowrap small tm-time-cell"
+            data-event-id="{{ event.id }}"
+            data-field="start_datetime"
+            data-value="{{ event.start_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if can_edit_event %}title="Kliknutím upravit"{% endif %}>
+          <span class="tm-time-display">{{ event.start_datetime | localdt('%H:%M') }}</span>
+          {% if can_edit_event %}<span class="tm-edit-icon ms-1 text-muted small" style="cursor:pointer">✎</span>{% endif %}
+        </td>
+
+        {# ── Do ── #}
+        <td class="text-nowrap small tm-time-cell"
+            data-event-id="{{ event.id }}"
+            data-field="end_datetime"
+            data-value="{{ event.end_datetime | localdt('%Y-%m-%dT%H:%M') }}"
+            {% if can_edit_event %}title="Kliknutím upravit"{% endif %}>
+          <span class="tm-time-display">{{ event.end_datetime | localdt('%H:%M') }}</span>
+          {% if can_edit_event %}<span class="tm-edit-icon ms-1 text-muted small" style="cursor:pointer">✎</span>{% endif %}
+        </td>
+
+        {# ── Hod. ── #}
+        <td class="text-nowrap small tm-hours-cell" data-event-id="{{ event.id }}">
+          {{ event.scheduled_hours | cznum }}
+        </td>
+
+        {# ── Pozic ── #}
+        <td class="text-nowrap small text-center">{{ row.spots | length }}</td>
+
+        {# ── Spot cells ── #}
+        {% for spot in row.spots %}
+        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="min-width: 140px; background-color: {{ row.color }}">
+          {% if spot.assignment %}
+            <span class="tm-assigned-name">{{ spot.assignment.user.name }}</span>
+            {% if can_assign %}
+            <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                    data-assignment-id="{{ spot.assignment.id }}"
+                    data-user-name="{{ spot.assignment.user.name }}"
+                    title="Odhlásit">✕</button>
+            {% endif %}
+          {% elif can_assign %}
+            <select class="form-select form-select-sm tm-assign-select"
+                    data-spot-id="{{ spot.id }}"
+                    style="min-width: 130px; font-size: 0.75rem;">
+              <option value="">— přiřadit —</option>
+              {% for user in row.eligible_users %}
+              <option value="{{ user.id }}">{{ user.name }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </td>
+        {% endfor %}
+
+        {# ── Empty padding cells ── #}
+        {% for _ in range(max_spot_cols - (row.spots | length)) %}
+        <td style="background-color: {{ row.color }}"></td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
+<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:220px;">
+  <div class="d-flex align-items-center gap-2">
+    <input type="datetime-local" id="tm-time-input" class="form-control form-control-sm" style="width:170px;">
+    <button id="tm-time-save" class="btn btn-success btn-sm">Uložit</button>
+    <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+  <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
+{% endif %}
+
+<style>
+.tm-table th, .tm-table td { vertical-align: middle; }
+.tm-time-cell:hover .tm-edit-icon { color: #0d6efd !important; }
+.tm-time-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
+</style>
+
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+const ME_ID = {{ me.id }};
+
+{% if can_assign %}
+// ── Spot assignment ──────────────────────────────────────────────────────────
+document.querySelectorAll(".tm-assign-select").forEach(sel => {
+  sel.addEventListener("change", function () {
+    const userId = this.value;
+    if (!userId) return;
+    const spotId = this.dataset.spotId;
+    const cell = this.closest("td");
+    const originalHtml = cell.innerHTML;
+
+    fetch(`/master-events/${ME_ID}/table/assign/${spotId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `user_id=${encodeURIComponent(userId)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        cell.innerHTML = `
+          <span class="tm-assigned-name">${data.user_name}</span>
+          <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                  data-assignment-id="${data.assignment_id}"
+                  data-user-name="${data.user_name}"
+                  title="Odhlásit">✕</button>`;
+        attachUnassign(cell.querySelector(".tm-unassign-btn"));
+      } else {
+        alert(data.error || "Chyba při přiřazení.");
+        cell.innerHTML = originalHtml;
+        attachAssign(cell.querySelector(".tm-assign-select"));
+      }
+    })
+    .catch(() => { alert("Chyba sítě."); cell.innerHTML = originalHtml; attachAssign(cell.querySelector(".tm-assign-select")); });
+  });
+});
+
+function attachAssign(sel) {
+  if (!sel) return;
+  sel.addEventListener("change", function () {
+    const userId = this.value;
+    if (!userId) return;
+    const spotId = this.dataset.spotId;
+    const cell = this.closest("td");
+    const originalHtml = cell.innerHTML;
+    fetch(`/master-events/${ME_ID}/table/assign/${spotId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      body: `user_id=${encodeURIComponent(userId)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        cell.innerHTML = `<span class="tm-assigned-name">${data.user_name}</span>
+          <button class="btn btn-sm p-0 ms-1 text-danger tm-unassign-btn"
+                  data-assignment-id="${data.assignment_id}" data-user-name="${data.user_name}"
+                  title="Odhlásit">✕</button>`;
+        attachUnassign(cell.querySelector(".tm-unassign-btn"));
+      } else {
+        alert(data.error || "Chyba při přiřazení.");
+        cell.innerHTML = originalHtml;
+        attachAssign(cell.querySelector(".tm-assign-select"));
+      }
+    });
+  });
+}
+
+function attachUnassign(btn) {
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    const assignmentId = this.dataset.assignmentId;
+    const userName = this.dataset.userName;
+    if (!confirm(`Odhlásit „${userName}" z této pozice?`)) return;
+    const cell = this.closest("td");
+    const spotId = cell.dataset.spotId;
+    const bgColor = cell.style.backgroundColor;
+
+    fetch(`/master-events/${ME_ID}/table/unassign/${assignmentId}`, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF_TOKEN },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        // Reload page to refresh eligible user lists for all rows
+        location.reload();
+      } else {
+        alert(data.error || "Chyba při odhlášení.");
+      }
+    });
+  });
+}
+
+document.querySelectorAll(".tm-unassign-btn").forEach(btn => attachUnassign(btn));
+{% endif %}
+
+{% if can_edit_event %}
+// ── Inline time editing ──────────────────────────────────────────────────────
+let _activeTimeCell = null;
+const popup = document.getElementById("tm-time-edit-popup");
+const timeInput = document.getElementById("tm-time-input");
+const timeError = document.getElementById("tm-time-error");
+
+document.querySelectorAll(".tm-time-cell").forEach(cell => {
+  cell.addEventListener("click", function (e) {
+    if (e.target.classList.contains("tm-edit-icon") || e.target.tagName !== "BUTTON") {
+      openTimeEdit(this);
+    }
+  });
+});
+
+function openTimeEdit(cell) {
+  _activeTimeCell = cell;
+  const rect = cell.getBoundingClientRect();
+  timeInput.value = cell.dataset.value;
+  timeError.style.display = "none";
+  timeError.textContent = "";
+  document.body.appendChild(popup);
+  popup.style.display = "block";
+  popup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+  popup.style.left = (window.scrollX + rect.left) + "px";
+  timeInput.focus();
+}
+
+function closeTimeEdit() {
+  popup.style.display = "none";
+  _activeTimeCell = null;
+}
+
+document.getElementById("tm-time-cancel").addEventListener("click", closeTimeEdit);
+
+document.getElementById("tm-time-save").addEventListener("click", function () {
+  if (!_activeTimeCell) return;
+  const cell = _activeTimeCell;
+  const eventId = cell.dataset.eventId;
+  const field = cell.dataset.field;
+  const value = timeInput.value;
+
+  fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `field=${encodeURIComponent(field)}&value=${encodeURIComponent(value)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      cell.querySelector(".tm-time-display").textContent = data.display;
+      cell.dataset.value = value;
+      // Update hours cell for this event
+      const row = cell.closest("tr");
+      const hoursCell = row.querySelector(".tm-hours-cell");
+      if (hoursCell && data.hours) hoursCell.textContent = data.hours;
+      closeTimeEdit();
+    } else {
+      timeError.textContent = data.error || "Chyba při uložení.";
+      timeError.style.display = "block";
+    }
+  })
+  .catch(() => { timeError.textContent = "Chyba sítě."; timeError.style.display = "block"; });
+});
+
+// Close popup on outside click
+document.addEventListener("click", function (e) {
+  if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
+    closeTimeEdit();
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

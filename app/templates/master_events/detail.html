@@ -19,6 +19,11 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2 flex-wrap justify-content-end">
+    {% if current_user.has_permission('event.view') %}
+      <a href="{{ url_for('master_events.table_manager', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">
+        Tabulkový manažer
+      </a>
+    {% endif %}
     {% if current_user.has_permission('report.view') %}
       <a href="{{ url_for('reports.me_report', me_id=me.id) }}" class="btn btn-outline-info btn-sm">
         Přehled akce

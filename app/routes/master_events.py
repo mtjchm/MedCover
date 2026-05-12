@@ -6,12 +6,22 @@ Permissions:
   master_event.create  — create
   master_event.edit    — edit
   master_event.archive / master_event.unarchive — archive toggle
+
+Table Manager (/<me_id>/table):
+  Viewing requires event.view
+  Spot assignment/unassignment requires event.assign_other
+  Event time editing requires event.edit
 """
 
 from __future__ import annotations
 
-from flask import Blueprint, Response, render_template, redirect, url_for, flash, request
-from flask_login import login_required
+from collections import defaultdict
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from flask import Blueprint, Response, jsonify, render_template, redirect, url_for, flash, request
+from flask_login import login_required, current_user
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.master_event import MasterEvent
@@ -193,3 +203,277 @@ def unarchive(me_id: int) -> Response:
 
     flash(f'Nadřazená akce „{me.name}" byla obnovena z archivu.',  'success')
     return redirect(url_for("master_events.detail", me_id=me_id))
+
+
+# ── Table Manager ─────────────────────────────────────────────────────────────
+
+_ROW_COLORS = [
+    "#d1ece8",
+    "#cce5ff",
+    "#ffd6e0",
+    "#fff3cd",
+    "#e2d9f3",
+    "#d9f2d9",
+    "#ffe5b4",
+    "#c8e6fa",
+]
+_PRAGUE = ZoneInfo("Europe/Prague")
+
+
+def _build_table_rows(events: list) -> tuple[list[dict], int]:
+    """Build sorted (event × qualification) rows and compute max spot column count."""
+    from app.models.event import EventSpot  # noqa: F401 (type reference only)
+
+    rows: list[dict] = []
+    for event in events:
+        spots_by_qual: dict[frozenset, list] = defaultdict(list)
+        for spot in event.spots:
+            qual_ids = frozenset(q.id for q in spot.required_qualifications if not q.is_deleted)
+            spots_by_qual[qual_ids].append(spot)
+
+        for qual_ids, spots in spots_by_qual.items():
+            qual_objs = sorted(
+                [q for q in spots[0].required_qualifications if not q.is_deleted],
+                key=lambda q: q.name,
+            )
+            qual_name = ", ".join(q.name for q in qual_objs) if qual_objs else "—"
+            rows.append({
+                "event": event,
+                "qual_ids": qual_ids,
+                "qual_objs": qual_objs,
+                "qual_name": qual_name,
+                "spots": spots,
+                "color": "",
+            })
+
+    rows.sort(key=lambda r: (
+        r["event"].start_datetime.astimezone(_PRAGUE).date(),
+        r["event"].name,
+        r["event"].start_datetime,
+        r["qual_name"],
+    ))
+
+    color_map: dict[frozenset, str] = {}
+    for row in rows:
+        qkey = row["qual_ids"]
+        if qkey not in color_map:
+            color_map[qkey] = _ROW_COLORS[len(color_map) % len(_ROW_COLORS)]
+        row["color"] = color_map[qkey]
+
+    max_spot_cols = max((len(r["spots"]) for r in rows), default=0)
+    return rows, max_spot_cols
+
+
+def _compute_eligible_users(rows: list[dict], all_users: list) -> None:
+    """Annotate each row with ``eligible_users`` list (users who can fill those spots)."""
+    from app.models.qualification import Qualification
+
+    all_quals = db.session.scalars(
+        db.select(Qualification).where(Qualification.is_deleted.is_(False))
+    ).all()
+    parents_map: dict[int, list[int]] = {q.id: [p.id for p in q.parents] for q in all_quals}
+
+    def _can_fill(uq_ids: set[int], target: int, visited: frozenset[int]) -> bool:
+        if target in visited:
+            return False
+        if target in uq_ids:
+            return True
+        return any(_can_fill(uq_ids, pid, visited | {target}) for pid in parents_map.get(target, []))
+
+    # Cache fillable IDs per user (computed once over the full qual graph)
+    user_fillable: dict = {}
+    for user in all_users:
+        uq_ids = {q.id for q in user.qualifications if not q.is_deleted}
+        user_fillable[user.id] = {q.id for q in all_quals if _can_fill(uq_ids, q.id, frozenset())}
+
+    eligible_cache: dict[frozenset, list] = {}
+    for row in rows:
+        qkey = row["qual_ids"]
+        if qkey not in eligible_cache:
+            if not qkey:
+                eligible_cache[qkey] = list(all_users)
+            else:
+                eligible_cache[qkey] = [u for u in all_users if qkey <= user_fillable[u.id]]
+        row["eligible_users"] = eligible_cache[qkey]
+
+
+@master_events_bp.get("/<int:me_id>/table")
+@login_required
+def table_manager(me_id: int) -> str:
+    require_permission("event.view")
+
+    me = get_or_404(MasterEvent, me_id)
+
+    from app.models.event import Event
+    events = db.session.scalars(
+        db.select(Event)
+        .where(Event.master_event_id == me_id)
+        .order_by(Event.start_datetime)
+    ).all()
+
+    rows, max_spot_cols = _build_table_rows(list(events))
+
+    can_assign = current_user.has_permission("event.assign_other")
+    can_edit_event = current_user.has_permission("event.edit")
+
+    if can_assign:
+        _compute_eligible_users(rows, list(active_users_list()))
+
+    return render_template(
+        "master_events/table_manager.html",
+        me=me,
+        rows=rows,
+        max_spot_cols=max_spot_cols,
+        can_assign=can_assign,
+        can_edit_event=can_edit_event,
+    )
+
+
+@master_events_bp.post("/<int:me_id>/table/assign/<int:spot_id>")
+@login_required
+def table_assign(me_id: int, spot_id: int) -> Response:
+    require_permission("event.assign_other")
+
+    from app.models.event import Event, EventSpot, EventStatus
+    from app.models.assignment import Assignment
+    from app.models.user import UserAccount
+    from app.routes.assignments import _auto_assign_rp, _auto_close_if_full
+
+    user_id = request.form.get("user_id", "").strip()
+    if not user_id:
+        return jsonify({"ok": False, "error": "Vyberte uživatele."}), 400
+
+    user = db.session.get(UserAccount, user_id)
+    if user is None or not user.is_active or user.is_archived:
+        return jsonify({"ok": False, "error": "Uživatel nenalezen nebo není aktivní."}), 400
+
+    spot = db.session.scalar(
+        db.select(EventSpot).where(EventSpot.id == spot_id).with_for_update()
+    )
+    if spot is None:
+        return jsonify({"ok": False, "error": "Pozice nenalezena."}), 404
+
+    event = db.session.get(Event, spot.event_id)
+    if event is None or event.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    if event.status not in (EventStatus.ASSIGNMENTS_OPEN, EventStatus.ASSIGNMENTS_CLOSED):
+        return jsonify({"ok": False, "error": "Přiřazení není možné v aktuálním stavu akce."}), 409
+
+    if spot.assignment is not None:
+        return jsonify({"ok": False, "error": "Tato pozice je již obsazena."}), 409
+
+    existing = db.session.scalar(
+        db.select(Assignment)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id == event.id, Assignment.user_id == user.id)
+    )
+    if existing:
+        return jsonify({"ok": False, "error": f"Uživatel {user.name} je již přihlášen na tuto akci."}), 409
+
+    assignment = Assignment(spot_id=spot_id, user_id=user.id, assigned_by_id=current_user.id)
+    db.session.add(assignment)
+    db.session.flush()
+    audit("create", "Assignment", assignment.id,
+          f"Koordinátor přiřadil '{user.name}' na akci '{event.name}' (tabulkový manažer)")
+    _auto_assign_rp(event, user)
+    _auto_close_if_full(event)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": "Tato pozice byla právě obsazena někým jiným."}), 409
+
+    import app.mail as mailer
+    mailer.send_assignment_confirmed(user, event)
+
+    return jsonify({"ok": True, "user_name": user.name, "assignment_id": assignment.id})
+
+
+@master_events_bp.post("/<int:me_id>/table/unassign/<int:assignment_id>")
+@login_required
+def table_unassign(me_id: int, assignment_id: int) -> Response:
+    require_permission("event.assign_other")
+
+    from app.models.event import Event, EventStatus
+    from app.models.assignment import Assignment
+    from app.routes.assignments import _auto_clear_rp
+
+    assignment = db.session.get(Assignment, assignment_id)
+    if assignment is None:
+        return jsonify({"ok": False, "error": "Přiřazení nenalezeno."}), 404
+
+    event = db.session.get(Event, assignment.spot.event_id)
+    if event is None or event.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    if event.status == EventStatus.COMPLETED:
+        return jsonify({"ok": False, "error": "Nelze odhlásit uživatele z dokončené akce."}), 409
+
+    user_name = assignment.user.name
+    audit("delete", "Assignment", assignment.id,
+          f"Koordinátor odhlásil '{user_name}' z akce '{event.name}' (tabulkový manažer)")
+    _auto_clear_rp(event, assignment.user)
+    db.session.delete(assignment)
+
+    if event.status == EventStatus.ASSIGNMENTS_CLOSED:
+        from app.models.event import EventStatus as ES
+        event.status = ES.ASSIGNMENTS_OPEN
+        event.version += 1
+
+    db.session.commit()
+
+    import app.mail as mailer
+    mailer.send_assignment_released(assignment.user, event)
+
+    return jsonify({"ok": True})
+
+
+@master_events_bp.post("/<int:me_id>/table/event/<int:event_id>/update")
+@login_required
+def table_event_update(me_id: int, event_id: int) -> Response:
+    require_permission("event.edit")
+
+    from app.models.event import Event
+
+    event = db.session.get(Event, event_id)
+    if event is None or event.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    field = request.form.get("field", "")
+    value = request.form.get("value", "").strip()
+    if not value:
+        return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
+
+    try:
+        dt = datetime.fromisoformat(value).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Neplatný formát data a času."}), 400
+
+    before: dict = {}
+    if field == "start_datetime":
+        if dt >= event.end_datetime:
+            return jsonify({"ok": False, "error": "Začátek musí být před koncem akce."}), 400
+        before = {"start_datetime": event.start_datetime.isoformat()}
+        event.start_datetime = dt
+    elif field == "end_datetime":
+        if dt <= event.start_datetime:
+            return jsonify({"ok": False, "error": "Konec musí být po začátku akce."}), 400
+        before = {"end_datetime": event.end_datetime.isoformat()}
+        event.end_datetime = dt
+    else:
+        return jsonify({"ok": False, "error": "Neznámé pole."}), 400
+
+    event.version += 1
+    audit("edit", "Event", event.id,
+          f"Upraven čas akce '{event.name}' (tabulkový manažer)",
+          diff_changes(before, {field: dt.isoformat()}))
+    db.session.commit()
+
+    display_time = dt.astimezone(_PRAGUE).strftime("%H:%M")
+    from decimal import Decimal
+    delta = event.end_datetime - event.start_datetime
+    hours = Decimal(str(round(delta.total_seconds() / 3600, 1)))
+
+    return jsonify({"ok": True, "display": display_time, "hours": str(hours).replace(".", ",")})
