@@ -5,6 +5,8 @@
 <style>
   /* Fixed cols (~900px) + 160px per spot column, clamped between Bootstrap default and 95vw */
   main.container { max-width: clamp(1140px, {{ 900 + max_spot_cols * 160 }}px, 95vw); }
+  .tm-color-swatch:hover { border-color: #333 !important; transform: scale(1.15); }
+  .tm-color-swatch.active { border-color: #0d6efd !important; }
 </style>
 {% endblock %}
 
@@ -77,11 +79,14 @@
                   data-event-id="{{ event.id }}"
                   title="Klonovat akci" style="font-size:1rem; line-height:1;">⎘</button>
           {% endif %}
+          <button class="btn btn-link btn-sm p-0 ms-1 tm-color-btn"
+                  data-event-id="{{ event.id }}"
+                  title="Barva řádku" style="font-size:1rem; line-height:1;">🌈</button>
           <span class="ms-1">{{ badge_status(event.status.value, status_colors) }}</span>
         </td>
         {% endif %}
-        <td class="text-nowrap small tm-date-cell" data-event-id="{{ event.id }}">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
-        <td class="small">
+        <td class="text-nowrap small tm-date-cell tm-row-cell" data-event-id="{{ event.id }}">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
+        <td class="small tm-row-cell">
           <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none tm-event-name-display" data-event-id="{{ event.id }}">
             {{ event.name }}
           </a>
@@ -92,13 +97,13 @@
                   title="Upravit název" style="font-size:.8rem; vertical-align:baseline;">✎</button>
           {% endif %}
         </td>
-        <td class="text-nowrap small">
+        <td class="text-nowrap small tm-row-cell">
           <span class="badge text-dark" style="background-color: {{ row.color }}">{{ row.qual_name }}</span>
         </td>
-        <td class="small text-muted">{{ spot_descs | join(', ') }}</td>
+        <td class="small text-muted tm-row-cell">{{ spot_descs | join(', ') }}</td>
 
         {# ── Od ── #}
-        <td class="text-nowrap small tm-time-cell"
+        <td class="text-nowrap small tm-time-cell tm-row-cell"
             data-event-id="{{ event.id }}"
             data-field="start_datetime"
             data-value="{{ event.start_datetime | localdt('%Y-%m-%dT%H:%M') }}"
@@ -108,7 +113,7 @@
         </td>
 
         {# ── Do ── #}
-        <td class="text-nowrap small tm-time-cell"
+        <td class="text-nowrap small tm-time-cell tm-row-cell"
             data-event-id="{{ event.id }}"
             data-field="end_datetime"
             data-value="{{ event.end_datetime | localdt('%Y-%m-%dT%H:%M') }}"
@@ -118,12 +123,12 @@
         </td>
 
         {# ── Hod. ── #}
-        <td class="text-nowrap small tm-hours-cell" data-event-id="{{ event.id }}">
+        <td class="text-nowrap small tm-hours-cell tm-row-cell" data-event-id="{{ event.id }}">
           {{ event.scheduled_hours | cznum }}
         </td>
 
         {# ── Pozic ── #}
-        <td class="text-nowrap small text-center"
+        <td class="text-nowrap small text-center tm-row-cell"
             data-event-id="{{ event.id }}"
             data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
             data-count="{{ row.spots | length }}">
@@ -190,6 +195,19 @@
     <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
   <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
+{# ── Color picker popover ── #}
+<div id="tm-color-popup" style="display:none; position:absolute; z-index:1060; background:#fff; border:1px solid #dee2e6; border-radius:6px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,.15);">
+  <div style="display:grid; grid-template-columns:repeat(3,28px); gap:4px;">
+    {% set _palette = ['#FFCCCC','#FFE0B2','#FFF9C4','#C8F5C8','#B2EBF2','#BBDEFB','#E1BEE7','#F8BBD0','#F5F5F5'] %}
+    {% for c in _palette %}
+    <div class="tm-color-swatch" data-color="{{ c }}"
+         style="width:28px;height:28px;background:{{ c }};border-radius:4px;cursor:pointer;border:2px solid transparent;"
+         title="{{ c }}"></div>
+    {% endfor %}
+  </div>
+  <button id="tm-color-reset" class="btn btn-link btn-sm p-0 mt-2 text-danger d-block w-100 text-center" style="font-size:.75rem;">✕ Reset barvy</button>
 </div>
 
 {# ── Inline name-edit popover ── #}
@@ -542,5 +560,69 @@ document.querySelectorAll(".tm-clone-btn").forEach(btn => {
   });
 });
 {% endif %}
+
+// ── Event row color picker ───────────────────────────────────────────────────
+const colorPopup = document.getElementById("tm-color-popup");
+let _colorEventId = null;
+
+function applyEventColor(eventId, color) {
+  document.querySelectorAll(`tr[data-event-id="${eventId}"] td.tm-row-cell`).forEach(td => {
+    td.style.backgroundColor = color || "";
+  });
+  if (_colorEventId === eventId) {
+    document.querySelectorAll(".tm-color-swatch").forEach(s => {
+      s.classList.toggle("active", s.dataset.color === color);
+    });
+  }
+}
+
+// Restore saved colors on page load
+document.querySelectorAll(".tm-color-btn").forEach(btn => {
+  const eventId = btn.dataset.eventId;
+  const saved = localStorage.getItem(`tm-color-${ME_ID}-${eventId}`);
+  if (saved) applyEventColor(eventId, saved);
+});
+
+document.querySelectorAll(".tm-color-btn").forEach(btn => {
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    _colorEventId = this.dataset.eventId;
+    const saved = localStorage.getItem(`tm-color-${ME_ID}-${_colorEventId}`);
+    document.querySelectorAll(".tm-color-swatch").forEach(s => {
+      s.classList.toggle("active", s.dataset.color === saved);
+    });
+    const rect = this.getBoundingClientRect();
+    document.body.appendChild(colorPopup);
+    colorPopup.style.display = "block";
+    colorPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    colorPopup.style.left = (window.scrollX + rect.left) + "px";
+  });
+});
+
+document.querySelectorAll(".tm-color-swatch").forEach(swatch => {
+  swatch.addEventListener("click", function () {
+    if (!_colorEventId) return;
+    const color = this.dataset.color;
+    localStorage.setItem(`tm-color-${ME_ID}-${_colorEventId}`, color);
+    applyEventColor(_colorEventId, color);
+    colorPopup.style.display = "none";
+    _colorEventId = null;
+  });
+});
+
+document.getElementById("tm-color-reset").addEventListener("click", function () {
+  if (!_colorEventId) return;
+  localStorage.removeItem(`tm-color-${ME_ID}-${_colorEventId}`);
+  applyEventColor(_colorEventId, "");
+  colorPopup.style.display = "none";
+  _colorEventId = null;
+});
+
+document.addEventListener("click", function (e) {
+  if (colorPopup.style.display !== "none" && !colorPopup.contains(e.target) && !e.target.classList.contains("tm-color-btn")) {
+    colorPopup.style.display = "none";
+    _colorEventId = null;
+  }
+});
 </script>
 {% endblock %}
