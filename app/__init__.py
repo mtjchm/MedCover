@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+import secrets
 import time as _time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import click
-from flask import Flask, redirect, request, url_for
+from flask import Flask, g, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
 from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
@@ -134,13 +135,18 @@ def create_app(
             return url_for("users.detail", user_id=entity_id)
         return None
 
+    @app.before_request
+    def _set_csp_nonce() -> None:
+        g.csp_nonce = secrets.token_hex(16)
+
     @app.after_request
     def _add_security_headers(response: WerkzeugResponse) -> WerkzeugResponse:
         """Add Content-Security-Policy and other security headers."""
         if not app.config.get("TESTING") and not app.config.get("DEBUG"):
+            nonce = getattr(g, "csp_nonce", "")
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' https://cdn.jsdelivr.net; "
+                f"script-src 'self' https://cdn.jsdelivr.net 'nonce-{nonce}'; "
                 "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
                 "font-src 'self' https://cdn.jsdelivr.net data:; "
                 "img-src 'self' data:; "

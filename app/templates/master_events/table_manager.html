@@ -295,7 +295,7 @@
 .tm-row-flash { animation: tm-flash-kf 1.4s ease-out forwards; }
 </style>
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 const CSRF_TOKEN = "{{ csrf_token() }}";
 const ME_ID = {{ me.id }};
 
@@ -783,6 +783,7 @@ document.querySelectorAll(".tm-delete-btn").forEach(btn => {
   });
 })();
 {% endif %}
+const colorPopup = document.getElementById("tm-color-popup");
 let _colorEventId = null;
 
 function applyEventColor(eventId, color) {
