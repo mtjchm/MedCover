@@ -133,12 +133,12 @@
         <div class="d-flex justify-content-between small mb-1">
           <span>Aktivní</span><strong>{{ user_active }}</strong>
         </div>
-        <div class="d-flex justify-content-between small">
+        <div class="d-flex justify-content-between small mb-1">
           <span>Čekají na aktivaci</span>
           <strong class="{{ 'text-warning' if user_pending > 0 }}">{{ user_pending }}</strong>
         </div>
-        <div class="d-flex justify-content-between small mt-1 text-muted">
-          <span>Archivovaní</span><strong>{{ user_archived }}</strong>
+        <div class="d-flex justify-content-between small mb-1">
+          <span class="text-muted">Archivovaní</span><strong class="text-muted">{{ user_archived }}</strong>
         </div>
       </div>
       <div class="card-footer py-1">
