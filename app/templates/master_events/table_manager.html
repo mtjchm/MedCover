@@ -95,13 +95,13 @@
             data-count="{{ row.spots | length }}">
           {% if can_edit_event %}
           <div class="d-flex align-items-center justify-content-center gap-1">
-            <button class="btn btn-outline-secondary btn-sm tm-spots-minus py-0 px-1 lh-1"
+            <button class="btn btn-outline-secondary btn-sm tm-spots-minus py-1 px-1 lh-1"
                     data-event-id="{{ event.id }}"
                     data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
                     data-count="{{ row.spots | length }}"
                     style="font-size:.75rem">−</button>
             <span class="tm-spots-display">{{ row.spots | length }}</span>
-            <button class="btn btn-outline-secondary btn-sm tm-spots-plus py-0 px-1 lh-1"
+            <button class="btn btn-outline-secondary btn-sm tm-spots-plus py-1 px-1 lh-1"
                     data-event-id="{{ event.id }}"
                     data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
                     data-count="{{ row.spots | length }}"
