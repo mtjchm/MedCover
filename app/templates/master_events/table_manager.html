@@ -61,9 +61,15 @@
       <tr data-event-id="{{ event.id }}" class="{{ row_class }}">
         <td class="text-nowrap small tm-date-cell" data-event-id="{{ event.id }}">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</td>
         <td class="small">
-          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none">
+          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none tm-event-name-display" data-event-id="{{ event.id }}">
             {{ event.name }}
           </a>
+          {% if can_edit_event %}
+          <button class="btn btn-link btn-sm p-0 ms-1 text-muted tm-name-edit-btn"
+                  data-event-id="{{ event.id }}"
+                  data-value="{{ event.name }}"
+                  title="Upravit název" style="font-size:.8rem; vertical-align:baseline;">✎</button>
+          {% endif %}
         </td>
         <td class="text-nowrap small">
           <span class="badge text-dark" style="background-color: {{ row.color }}">{{ row.qual_name }}</span>
@@ -165,7 +171,17 @@
   <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
 </div>
 
-{# ── Inline spots-count-edit popover ── #}
+{# ── Inline name-edit popover ── #}
+<div id="tm-name-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:320px;">
+  <div class="d-flex align-items-center gap-2">
+    <input type="text" id="tm-name-input" class="form-control form-control-sm" maxlength="200" style="width:220px;">
+    <button id="tm-name-save" class="btn btn-success btn-sm">Uložit</button>
+    <button id="tm-name-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+  <div id="tm-name-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
+{# ── Inline spots-count error toast ── #}
 <div id="tm-spots-error-toast" class="alert alert-danger alert-dismissible position-fixed bottom-0 end-0 m-3" style="display:none; z-index:1060;">
   <span id="tm-spots-error-msg"></span>
   <button type="button" class="btn-close" onclick="this.closest('.alert').style.display='none'"></button>
@@ -369,6 +385,72 @@ document.addEventListener("click", function (e) {
   if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
     closeTimeEdit();
   }
+  if (namePopup.style.display !== "none" && !namePopup.contains(e.target) && !e.target.classList.contains("tm-name-edit-btn")) {
+    closeNameEdit();
+  }
+});
+
+// ── Inline name editing ──────────────────────────────────────────────────────
+let _activeNameBtn = null;
+const namePopup = document.getElementById("tm-name-edit-popup");
+const nameInput = document.getElementById("tm-name-input");
+const nameError = document.getElementById("tm-name-error");
+
+document.querySelectorAll(".tm-name-edit-btn").forEach(btn => {
+  btn.addEventListener("click", function (e) {
+    e.preventDefault();
+    _activeNameBtn = this;
+    nameInput.value = this.dataset.value;
+    nameError.style.display = "none";
+    nameError.textContent = "";
+    const rect = this.getBoundingClientRect();
+    document.body.appendChild(namePopup);
+    namePopup.style.display = "block";
+    namePopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    namePopup.style.left = (window.scrollX + rect.left) + "px";
+    nameInput.focus();
+    nameInput.select();
+  });
+});
+
+function closeNameEdit() {
+  namePopup.style.display = "none";
+  _activeNameBtn = null;
+}
+
+document.getElementById("tm-name-cancel").addEventListener("click", closeNameEdit);
+
+document.getElementById("tm-name-save").addEventListener("click", function () {
+  if (!_activeNameBtn) return;
+  const eventId = _activeNameBtn.dataset.eventId;
+  const value = nameInput.value.trim();
+  if (!value) {
+    nameError.textContent = "Název nesmí být prázdný.";
+    nameError.style.display = "block";
+    return;
+  }
+  fetch(`/master-events/${ME_ID}/table/event/${eventId}/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `field=name&value=${encodeURIComponent(value)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      // Update all name cells for this event (multiple rows share the same event)
+      document.querySelectorAll(`.tm-event-name-display[data-event-id="${eventId}"]`).forEach(el => {
+        el.textContent = data.display;
+      });
+      document.querySelectorAll(`.tm-name-edit-btn[data-event-id="${eventId}"]`).forEach(el => {
+        el.dataset.value = data.display;
+      });
+      closeNameEdit();
+    } else {
+      nameError.textContent = data.error || "Chyba při uložení.";
+      nameError.style.display = "block";
+    }
+  })
+  .catch(() => { nameError.textContent = "Chyba sítě."; nameError.style.display = "block"; });
 });
 {% endif %}
 

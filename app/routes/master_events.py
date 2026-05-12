@@ -446,21 +446,33 @@ def table_event_update(me_id: int, event_id: int) -> Response:
     if not value:
         return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
 
+    if field == "name":
+        if len(value) > 200:
+            return jsonify({"ok": False, "error": "Název je příliš dlouhý (max 200 znaků)."}), 400
+        before = {"name": event.name}
+        event.name = value
+        event.version += 1
+        audit("edit", "Event", event.id,
+              "Přejmenována akce (tabulkový manažer)",
+              diff_changes(before, {"name": value}))
+        db.session.commit()
+        return jsonify({"ok": True, "display": value})
+
     try:
         dt = datetime.fromisoformat(value).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
     except ValueError:
         return jsonify({"ok": False, "error": "Neplatný formát data a času."}), 400
 
-    before: dict = {}
+    changes: dict = {}
     if field == "start_datetime":
         if dt >= event.end_datetime:
             return jsonify({"ok": False, "error": "Začátek musí být před koncem akce."}), 400
-        before = {"start_datetime": event.start_datetime.isoformat()}
+        changes = diff_changes({"start_datetime": event.start_datetime.isoformat()}, {"start_datetime": dt.isoformat()})
         event.start_datetime = dt
     elif field == "end_datetime":
         if dt <= event.start_datetime:
             return jsonify({"ok": False, "error": "Konec musí být po začátku akce."}), 400
-        before = {"end_datetime": event.end_datetime.isoformat()}
+        changes = diff_changes({"end_datetime": event.end_datetime.isoformat()}, {"end_datetime": dt.isoformat()})
         event.end_datetime = dt
     else:
         return jsonify({"ok": False, "error": "Neznámé pole."}), 400
@@ -468,7 +480,7 @@ def table_event_update(me_id: int, event_id: int) -> Response:
     event.version += 1
     audit("edit", "Event", event.id,
           f"Upraven čas akce '{event.name}' (tabulkový manažer)",
-          diff_changes(before, {field: dt.isoformat()}))
+          changes)
     db.session.commit()
 
     display_time = dt.astimezone(_PRAGUE).strftime("%H:%M")
