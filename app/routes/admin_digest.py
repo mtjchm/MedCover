@@ -35,6 +35,7 @@ def _require_digest_perm() -> None:
 def index() -> str:
     _require_digest_perm()
     from app.models.digest import get_digest_schedule
+    from app.models.settings import get_settings
     from app.digest.registry import BLOCK_REGISTRY
 
     schedule = get_digest_schedule()
@@ -44,6 +45,7 @@ def index() -> str:
         frequency_options=_FREQUENCY_OPTIONS,
         hour_options=list(range(24)),
         block_registry=BLOCK_REGISTRY,
+        app_timezone=get_settings().timezone,
     )
 
 
