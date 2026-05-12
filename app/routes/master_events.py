@@ -675,4 +675,4 @@ def table_event_clone(me_id: int, event_id: int) -> Response:
     audit("create", "Event", clone.id,
           f"Klonována akce '{source.name}' → '{clone.name}' (tabulkový manažer)")
     db.session.commit()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "new_event_id": clone.id})

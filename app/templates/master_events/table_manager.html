@@ -248,11 +248,46 @@
 .tm-time-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
 .tm-sep-event td { border-top: 2px solid #adb5bd !important; }
 .tm-sep-day td { border-top: 3px solid #495057 !important; }
+
+@keyframes tm-flash-kf {
+  0%   { outline: 3px solid #ffc107; outline-offset: -2px; }
+  60%  { outline: 3px solid #ffc107; outline-offset: -2px; }
+  100% { outline: 3px solid transparent; outline-offset: -2px; }
+}
+.tm-row-flash { animation: tm-flash-kf 1.4s ease-out forwards; }
 </style>
 
 <script>
 const CSRF_TOKEN = "{{ csrf_token() }}";
 const ME_ID = {{ me.id }};
+
+// ── Flash helpers ─────────────────────────────────────────────────────────────
+function flashRows(eventId) {
+  document.querySelectorAll(`tr[data-event-id="${eventId}"]`).forEach(tr => {
+    tr.classList.remove("tm-row-flash");
+    void tr.offsetWidth; // force reflow to restart animation
+    tr.classList.add("tm-row-flash");
+  });
+}
+
+function reloadWithHighlight(eventId) {
+  const url = new URL(location.href);
+  url.searchParams.set("highlight", eventId);
+  location.href = url.toString();
+}
+
+// On load: flash rows from ?highlight param and clean URL
+(function () {
+  const params = new URLSearchParams(location.search);
+  const eid = params.get("highlight");
+  if (!eid) return;
+  const rows = document.querySelectorAll(`tr[data-event-id="${eid}"]`);
+  rows.forEach(tr => tr.classList.add("tm-row-flash"));
+  if (rows.length) rows[0].scrollIntoView({ behavior: "smooth", block: "center" });
+  const url = new URL(location.href);
+  url.searchParams.delete("highlight");
+  history.replaceState(null, "", url);
+})();
 
 {% if can_assign %}
 // ── Spot assignment ──────────────────────────────────────────────────────────
@@ -279,6 +314,7 @@ document.querySelectorAll(".tm-assign-select").forEach(sel => {
                   data-user-name="${data.user_name}"
                   title="Odhlásit">✕</button>`;
         attachUnassign(cell.querySelector(".tm-unassign-btn"));
+        flashRows(cell.closest("tr").dataset.eventId);
       } else {
         alert(data.error || "Chyba při přiřazení.");
         cell.innerHTML = originalHtml;
@@ -335,7 +371,7 @@ function attachUnassign(btn) {
     .then(data => {
       if (data.ok) {
         // Reload page to refresh eligible user lists for all rows
-        location.reload();
+        reloadWithHighlight(cell.closest("tr").dataset.eventId);
       } else {
         alert(data.error || "Chyba při odhlášení.");
       }
@@ -422,7 +458,7 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
-      location.reload();
+      reloadWithHighlight(eventId);
     } else {
       timeError.textContent = data.error || "Chyba při uložení.";
       timeError.style.display = "block";
@@ -510,6 +546,7 @@ document.getElementById("tm-name-save").addEventListener("click", function () {
         el.dataset.value = data.display;
       });
       closeNameEdit();
+      flashRows(eventId);
     } else {
       nameError.textContent = data.error || "Chyba při uložení.";
       nameError.style.display = "block";
@@ -536,7 +573,7 @@ document.querySelectorAll(".tm-day-shift-btn").forEach(btn => {
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
-        location.reload();
+        reloadWithHighlight(eventId);
       } else {
         alert(data.error || "Chyba při posunu data.");
       }
@@ -559,7 +596,7 @@ function spotsAdjust(btn, delta) {
   .then(r => r.json())
   .then(data => {
     if (data.ok) {
-      location.reload();
+      reloadWithHighlight(eventId);
     } else {
       const errEl = document.getElementById("tm-spots-error-msg");
       const toast = document.getElementById("tm-spots-error-toast");
@@ -593,7 +630,7 @@ document.querySelectorAll(".tm-clone-btn").forEach(btn => {
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
-        location.reload();
+        reloadWithHighlight(data.new_event_id);
       } else {
         alert(data.error || "Chyba při klonování akce.");
       }
@@ -662,6 +699,7 @@ document.querySelectorAll(".tm-color-swatch").forEach(swatch => {
     const color = this.dataset.color;
     applyEventColor(_colorEventId, color);
     saveEventColor(_colorEventId, color);
+    flashRows(_colorEventId);
     colorPopup.style.display = "none";
     _colorEventId = null;
   });
@@ -671,6 +709,7 @@ document.getElementById("tm-color-reset").addEventListener("click", function () 
   if (!_colorEventId) return;
   applyEventColor(_colorEventId, "");
   saveEventColor(_colorEventId, "");
+  flashRows(_colorEventId);
   colorPopup.style.display = "none";
   _colorEventId = null;
 });
