@@ -83,6 +83,7 @@ def login() -> str | Response:
                 # Successful login — reset lockout state
                 user.failed_login_attempts = 0
                 user.login_locked_until = None
+                user.last_login_at = now
                 db.session.commit()
                 login_user(user)
                 return redirect(safe_next(request.args.get("next")))

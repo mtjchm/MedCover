@@ -16,6 +16,32 @@
         <a href="{{ url_for('reports.user_report', user_id=current_user.id) }}" class="btn btn-outline-danger mt-2">
           Můj přehled
         </a>
+        {% if all_users %}
+        <form method="GET" action="#" id="user-select-form" class="mt-2">
+          <select class="form-select form-select-sm mb-2" id="user-select" name="user_id">
+            <option value="" disabled selected>— Jiný uživatel —</option>
+            {% for u in all_users %}
+            <option value="{{ u.id }}" data-url="{{ url_for('reports.user_report', user_id=u.id) }}">{{ u.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline-secondary btn-sm w-100" id="user-go-btn" disabled>
+            Zobrazit přehled
+          </button>
+        </form>
+        <script nonce="{{ g.csp_nonce }}">
+        (function () {
+          var sel = document.getElementById('user-select');
+          var btn = document.getElementById('user-go-btn');
+          var form = document.getElementById('user-select-form');
+          sel.addEventListener('change', function () { btn.disabled = false; });
+          form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var opt = sel.options[sel.selectedIndex];
+            if (opt && opt.dataset.url) window.location.href = opt.dataset.url;
+          });
+        })();
+        </script>
+        {% endif %}
       </div>
     </div>
   </div>
