@@ -98,7 +98,7 @@
           {% endif %}
         </td>
         <td class="small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
-          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="text-decoration-none tm-event-name-display" data-event-id="{{ event.id }}">
+          <a href="{{ url_for('events.detail', event_id=event.id) }}" class="tm-event-name-display" data-event-id="{{ event.id }}">
             {{ event.name }}
           </a>
           {% if can_edit_event %}
