@@ -18,7 +18,9 @@ from app.models.event import EventTemplate, EventSpotTemplate, EventType
 from app.models.qualification import Qualification
 from app.models.equipment import EquipmentCategory, EquipmentType, EventTemplateEquipmentPlan
 from app.constants import RECORD_MODIFIED_MSG
-from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from sqlalchemy import collate
+
+from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 
 templates_bp = Blueprint("templates", __name__, url_prefix="/templates")
 
@@ -89,7 +91,7 @@ def index() -> str:
     require_permission("event_template.view")
 
     all_templates = db.session.scalars(
-        db.select(EventTemplate).order_by(EventTemplate.name)
+        db.select(EventTemplate).order_by(collate(EventTemplate.name, CS_COLLATION))
     ).all()
     return render_template("templates/index.html", templates=all_templates)
 
@@ -102,12 +104,12 @@ def create() -> str | Response:
     require_permission("event_template.create")
 
     qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
     equipment_types = db.session.scalars(
         db.select(EquipmentType)
         .where(EquipmentType.category != EquipmentCategory.PERSONAL)
-        .order_by(EquipmentType.name)
+        .order_by(collate(EquipmentType.name, CS_COLLATION))
     ).all()
 
     if request.method == "POST":
@@ -159,12 +161,12 @@ def edit(template_id: int) -> str | Response:
     tmpl = get_or_404(EventTemplate, template_id)
 
     qualifications = db.session.scalars(
-        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(Qualification.name)
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
     ).all()
     equipment_types = db.session.scalars(
         db.select(EquipmentType)
         .where(EquipmentType.category != EquipmentCategory.PERSONAL)
-        .order_by(EquipmentType.name)
+        .order_by(collate(EquipmentType.name, CS_COLLATION))
     ).all()
 
     if request.method == "POST":

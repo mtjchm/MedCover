@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from sqlalchemy import collate
+
 from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
+from app.utils import CS_COLLATION
 
 
 def active_users_query():  # type: ignore[no-untyped-def]
@@ -23,7 +26,7 @@ def active_users_query():  # type: ignore[no-untyped-def]
         db.select(UserAccount)
         .where(UserAccount.is_active.is_(True))
         .where(UserAccount.is_archived.is_(False))
-        .order_by(UserAccount.name)
+        .order_by(collate(UserAccount.name, CS_COLLATION))
     )
 
 
@@ -32,10 +35,11 @@ def active_users_list() -> Sequence[UserAccount]:
     return db.session.scalars(active_users_query()).all()
 
 
-def rp_eligible_users_list() -> Sequence[UserAccount]:
+def rp_eligible_users_list() -> list[UserAccount]:
     """Return active users who hold at least one qualification with can_be_rp=True."""
     from app.models.qualification import Qualification, user_qualifications as uq_table
-    return db.session.scalars(
+    from app.utils import czech_sort_key
+    rows = db.session.scalars(
         db.select(UserAccount)
         .join(uq_table, UserAccount.id == uq_table.c.user_id)
         .join(Qualification, Qualification.id == uq_table.c.qualification_id)
@@ -45,8 +49,8 @@ def rp_eligible_users_list() -> Sequence[UserAccount]:
             Qualification.can_be_rp.is_(True),
         )
         .distinct()
-        .order_by(UserAccount.name)
     ).all()
+    return sorted(rows, key=lambda u: czech_sort_key(u.name))
 
 
 def active_master_events_list() -> Sequence[MasterEvent]:
@@ -54,7 +58,7 @@ def active_master_events_list() -> Sequence[MasterEvent]:
     return db.session.scalars(
         db.select(MasterEvent)
         .where(MasterEvent.archived.is_(False))
-        .order_by(MasterEvent.is_general.desc(), MasterEvent.name)
+        .order_by(MasterEvent.is_general.desc(), collate(MasterEvent.name, CS_COLLATION))
     ).all()
 
 

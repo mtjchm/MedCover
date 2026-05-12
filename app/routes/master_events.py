@@ -27,7 +27,8 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.constants import RECORD_MODIFIED_MSG
-from app.utils import audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from sqlalchemy import collate
+from app.utils import CS_COLLATION, czech_sort_key, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_users_list
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
@@ -44,7 +45,7 @@ def index() -> str:
     query = db.select(MasterEvent)
     if not show_archived:
         query = query.where(MasterEvent.archived.is_(False))
-    query = query.order_by(MasterEvent.is_general.desc(), MasterEvent.name)
+    query = query.order_by(MasterEvent.is_general.desc(), collate(MasterEvent.name, CS_COLLATION))
     master_events = db.session.scalars(query).all()
 
     return render_template(
@@ -255,7 +256,7 @@ def _build_table_rows(events: list) -> tuple[list[dict], int]:
         for qual_ids, spots in spots_by_qual.items():
             qual_objs = sorted(
                 [q for q in spots[0].required_qualifications if not q.is_deleted],
-                key=lambda q: q.name,
+                key=lambda q: czech_sort_key(q.name),
             )
             qual_name = ", ".join(q.name for q in qual_objs) if qual_objs else "—"
             rows.append({

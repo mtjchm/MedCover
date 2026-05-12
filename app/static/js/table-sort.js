@@ -27,7 +27,7 @@
         var av = val(a, sortCol), bv = val(b, sortCol);
         var an = parseFloat(av), bn = parseFloat(bv);
         if (!isNaN(an) && !isNaN(bn)) return (an - bn) * sortDir;
-        return av.localeCompare(bv) * sortDir;
+        return av.localeCompare(bv, 'cs') * sortDir;
       });
       rows.forEach(function (r) { tbody.appendChild(r); });
       thead.querySelectorAll('th.sortable').forEach(function (th) {
