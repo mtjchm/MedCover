@@ -30,7 +30,15 @@
     <tr><td>E-maily ve frontě (nyní)</td><td><strong>{{ outbox_pending }}</strong></td></tr>
     {% endif %}
     {% if outbox_peak is defined %}
-    <tr><td>Maximum fronty (posl. {{ peak_hours }}h)</td><td><strong>{{ outbox_peak }}</strong></td></tr>
+    <tr><td>E-maily zařazeny do fronty (posl. {{ peak_hours }}h)</td><td><strong>{{ outbox_peak }}</strong></td></tr>
     {% endif %}
   </table>
+  {% if table_sizes is defined and table_sizes %}
+  <h3 style="margin-top:1.2em;font-size:0.95em;color:#555;">Velikosti tabulek</h3>
+  <table class="data-table" role="presentation">
+    {% for name, size in table_sizes %}
+    <tr><td>{{ name }}</td><td><strong>{{ size }}</strong></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
 </div>

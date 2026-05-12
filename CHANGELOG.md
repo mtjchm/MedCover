@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-05-12
+
+### Added
+- Users list (`/users/`): new sortable "Poslední přihlášení" column — records timestamp on every successful login
+- Reports (`/reports/`): user selector in the "Přehled uživatele" card so coordinators/admins can navigate directly to any active user's report
+- Admin digest: new "Aktivita uživatelů" block — shows the number of audit log entries per user for a configurable time window (default 24 h, top 10 users, sorted by activity desc)
+- Admin digest — Servisní statistiky block: new "Velikosti tabulek" section listing individual PostgreSQL table sizes sorted from largest to smallest; configurable count (default 5, max 50)
+
+### Fixed
+- Admin digest: deleting a digest block returned 400 (CSRF token was silently dropped due to a missing `>` on the form tag) (closes #179)
+- Admin digest — Servisní statistiky: "E-maily (maximum fronty)" always showed 0 because the metric was based on 15-minute snapshots while emails drain every 6 s; replaced with a direct count of emails enqueued in the configured window
+
 ## [0.12.0] - 2026-05-12
 
 ### Added
@@ -141,7 +153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sslmode=require` enforced for production `DATABASE_URL`
 - Feedback deletion blocked when `DEV_LOGIN_ENABLED=True` (test environment guard)
 
-[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/spidermila/MedCover/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/spidermila/MedCover/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/spidermila/MedCover/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/spidermila/MedCover/compare/v0.11.0...v0.11.1

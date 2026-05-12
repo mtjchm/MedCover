@@ -1,0 +1,18 @@
+<div class="block">
+  <h2>{{ title }}</h2>
+  {% if entries %}
+  <table class="data-table" role="presentation">
+    {% for entry in entries %}
+    <tr>
+      <td>{{ entry.name }}</td>
+      <td><strong>{{ entry.count }}</strong></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if truncated %}
+  <p class="small text-muted" style="margin-top:0.5em;">Zobrazeno prvních {{ entries|length }} uživatelů.</p>
+  {% endif %}
+  {% else %}
+  <p class="text-muted">Žádná aktivita za posledních {{ hours }} hodin.</p>
+  {% endif %}
+</div>

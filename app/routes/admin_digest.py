@@ -191,10 +191,11 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
     config["title"] = form.get("title", config.get("title", "")).strip()
 
     if block_type == "server_stats":
-        for key in ("show_user_count", "show_event_count", "show_db_size",
+        for key in ("show_user_count", "show_event_count", "show_db_size", "show_table_sizes",
                     "show_scheduler_heartbeat", "show_outbox_pending", "show_outbox_peak"):
             config[key] = bool(form.get(key))
         config["peak_hours"] = max(1, form.get("peak_hours", type=int) or 24)
+        config["max_table_rows"] = max(1, min(50, form.get("max_table_rows", type=int) or 5))
 
     elif block_type == "audit_log":
         config["hours"] = max(1, form.get("hours", type=int) or 24)
@@ -216,6 +217,10 @@ def _merge_block_config(block_type: str, config: dict[str, object], form: Any) -
     elif block_type == "feedback_summary":
         config["hours"] = max(1, form.get("hours", type=int) or 24)
         config["max_rows"] = max(1, min(100, form.get("max_rows", type=int) or 20))
+
+    elif block_type == "user_activity":
+        config["hours"] = max(1, form.get("hours", type=int) or 24)
+        config["max_rows"] = max(1, min(100, form.get("max_rows", type=int) or 10))
 
     elif block_type == "free_text":
         config["content"] = form.get("content", "")

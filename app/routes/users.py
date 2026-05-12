@@ -173,16 +173,17 @@ def index() -> str:
     if show_archived and not current_user.has_permission("user.view_archived"):
         abort(403)
 
-    if sort not in ("name", "email", "status", "created"):
+    if sort not in ("name", "email", "status", "created", "last_login"):
         sort = "name"
     if sort_dir not in ("asc", "desc"):
         sort_dir = "asc"
 
     sort_col = {
-        "name":    UserAccount.name,
-        "email":   UserAccount.email,
-        "status":  UserAccount.is_active,
-        "created": UserAccount.created_at,
+        "name":       UserAccount.name,
+        "email":      UserAccount.email,
+        "status":     UserAccount.is_active,
+        "created":    UserAccount.created_at,
+        "last_login": UserAccount.last_login_at,
     }[sort]
     order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
 

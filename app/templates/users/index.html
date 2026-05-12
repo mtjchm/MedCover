@@ -74,7 +74,7 @@
           <input class="form-check-input" type="checkbox" id="selectAll" title="Vybrat vše">
         </th>
         {% endif %}
-        {% set cols = [('name','Jméno'), ('email','E-mail'), ('status','Stav'), ('created','Vytvořen')] %}
+        {% set cols = [('name','Jméno'), ('email','E-mail'), ('status','Stav'), ('created','Vytvořen'), ('last_login','Poslední přihlášení')] %}
         {% for col_key, col_label in cols %}
         {% set next_dir = 'desc' if (sort == col_key and sort_dir == 'asc') else 'asc' %}
         <th class="cursor-pointer text-nowrap">
@@ -116,6 +116,9 @@
         <td class="text-nowrap text-muted small">
           {{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '—' }}
         </td>
+        <td class="text-nowrap text-muted small">
+          {{ u.last_login_at.strftime('%d.%m.%Y %H:%M') if u.last_login_at else '—' }}
+        </td>
         <td>
           {% for r in u.roles %}
             {{ badge_secondary(r.name) }}
@@ -126,7 +129,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="{{ 6 if current_user.has_permission('user.assign_role') else 5 }}"
+        <td colspan="{{ 7 if current_user.has_permission('user.assign_role') else 6 }}"
             class="text-muted text-center">Žádní uživatelé.</td>
       </tr>
       {% endfor %}
