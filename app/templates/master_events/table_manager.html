@@ -436,6 +436,15 @@ document.getElementById("tm-time-save").addEventListener("click", function () {
   el.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("tm-time-save").click(); });
 });
 
+// Esc closes whichever popup is open
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  if (popup.style.display !== "none") closeTimeEdit();
+  if (namePopup.style.display !== "none") closeNameEdit();
+  const cp = document.getElementById("tm-color-popup");
+  if (cp && cp.style.display !== "none") cp.style.display = "none";
+});
+
 // Close time popup on outside click
 document.addEventListener("click", function (e) {
   if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
