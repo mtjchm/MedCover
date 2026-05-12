@@ -38,10 +38,10 @@
             </select>
           </div>
           <div class="col-sm-3">
-            <label class="form-label">Preferovaná hodina odeslání (UTC) {{ help_icon("Scheduler zkontroluje každou minutu, zda je aktuální hodina (UTC) rovna této hodině a zda uplynul požadovaný interval. Teprve pak odešle.") }}</label>
-            <select class="form-select" name="preferred_hour_utc">
+            <label class="form-label">Preferovaná hodina odeslání ({{ app_timezone }}) {{ help_icon("Scheduler zkontroluje každou minutu, zda je aktuální hodina v nastaveném časovém pásmu (" ~ app_timezone ~ ") rovna této hodině a zda uplynul požadovaný interval. Teprve pak odešle.") }}</label>
+            <select class="form-select" name="preferred_hour">
               {% for h in hour_options %}
-              <option value="{{ h }}" {{ 'selected' if schedule.preferred_hour_utc == h }}>{{ '%02d:00'|format(h) }}</option>
+              <option value="{{ h }}" {{ 'selected' if schedule.preferred_hour == h }}>{{ '%02d:00'|format(h) }}</option>
               {% endfor %}
             </select>
           </div>

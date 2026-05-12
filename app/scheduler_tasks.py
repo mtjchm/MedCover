@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -117,6 +118,7 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     Returns True if the digest was enqueued, False if skipped.
     """
     from app.models.digest import get_digest_schedule
+    from app.models.settings import get_settings
     from app.digest.renderer import render_digest
     from app.mail import send_admin_digest
     from app.models.user import UserAccount
@@ -126,14 +128,15 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
         now = datetime.now(timezone.utc)
 
     schedule = get_digest_schedule()
+    local_tz = ZoneInfo(get_settings().timezone)
 
     if not schedule.enabled:
         return False
 
-    # For daily-or-longer frequencies, only fire at the preferred UTC hour.
+    # For daily-or-longer frequencies, only fire at the preferred Prague local hour.
     # Sub-daily frequencies (e.g. every 6 h) ignore the hour gate and rely
     # solely on the elapsed-time check below.
-    if schedule.frequency_hours >= 24 and now.hour != schedule.preferred_hour_utc:
+    if schedule.frequency_hours >= 24 and now.astimezone(local_tz).hour != schedule.preferred_hour:
         return False
 
     if schedule.last_sent_at is not None:
