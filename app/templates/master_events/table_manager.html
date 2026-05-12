@@ -283,7 +283,6 @@ function reloadWithHighlight(eventId) {
   if (!eid) return;
   const rows = document.querySelectorAll(`tr[data-event-id="${eid}"]`);
   rows.forEach(tr => tr.classList.add("tm-row-flash"));
-  if (rows.length) rows[0].scrollIntoView({ behavior: "smooth", block: "center" });
   const url = new URL(location.href);
   url.searchParams.delete("highlight");
   history.replaceState(null, "", url);
