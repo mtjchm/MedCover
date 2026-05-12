@@ -1115,3 +1115,83 @@ class TestEventTypes:
         assert b"Badge Training" in resp.data
         # Training badge label
         assert "Školení".encode() in resp.data
+
+
+# ── Delete draft event ────────────────────────────────────────────────────────
+
+class TestDeleteDraftEvent:
+    def _create_draft(self, app) -> int:
+        me_id = _make_master_event(app)
+        with app.app_context():
+            from datetime import datetime, timezone
+            event = Event(
+                name="Delete Me",
+                master_event_id=me_id,
+                start_datetime=datetime(2030, 9, 1, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 9, 1, 16, 0, tzinfo=timezone.utc),
+                status=EventStatus.DRAFT,
+            )
+            db.session.add(event)
+            db.session.commit()
+            return event.id
+
+    def test_coordinator_can_delete_draft(self, app, coordinator_client):
+        event_id = self._create_draft(app)
+        response = coordinator_client.post(
+            f"/events/{event_id}/delete",
+            follow_redirects=False,
+        )
+        assert response.status_code in (200, 302)
+        with app.app_context():
+            assert db.session.get(Event, event_id) is None
+
+    def test_delete_draft_audited(self, app, coordinator_client):
+        event_id = self._create_draft(app)
+        coordinator_client.post(f"/events/{event_id}/delete")
+        with app.app_context():
+            entry = db.session.scalar(
+                db.select(AuditLogEntry)
+                .where(AuditLogEntry.entity_type == "Event")
+                .where(AuditLogEntry.action_type == "delete")
+                .where(AuditLogEntry.entity_id == str(event_id))
+            )
+            assert entry is not None
+
+    def test_cannot_delete_non_draft(self, app, coordinator_client):
+        me_id = _make_master_event(app)
+        with app.app_context():
+            from datetime import datetime, timezone
+            event = Event(
+                name="Published Event",
+                master_event_id=me_id,
+                start_datetime=datetime(2030, 9, 2, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 9, 2, 16, 0, tzinfo=timezone.utc),
+                status=EventStatus.PUBLISHED,
+            )
+            db.session.add(event)
+            db.session.commit()
+            event_id = event.id
+        response = coordinator_client.post(
+            f"/events/{event_id}/delete",
+            follow_redirects=False,
+        )
+        # Redirected back to detail with error flash
+        assert response.status_code == 302
+        with app.app_context():
+            assert db.session.get(Event, event_id) is not None
+
+    def test_member_cannot_delete_draft(self, app, member_client):
+        event_id = self._create_draft(app)
+        response = member_client.post(f"/events/{event_id}/delete")
+        assert response.status_code == 403
+        with app.app_context():
+            assert db.session.get(Event, event_id) is not None
+
+    def test_delete_ajax_returns_json(self, app, coordinator_client):
+        event_id = self._create_draft(app)
+        response = coordinator_client.post(
+            f"/events/{event_id}/delete",
+            headers={"X-CSRFToken": "test-csrf", "Accept": "application/json"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
