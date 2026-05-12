@@ -439,3 +439,62 @@ class TestTableManager:
             data={"field": "start_datetime", "value": "2030-07-01T09:00"},
         )
         assert response.status_code == 403
+
+    def test_spot_count_increase(self, app, admin_client):
+        from app.models.event import EventSpot
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "3"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(EventSpot).where(EventSpot.event_id == event_id)
+            )
+            assert count == 3  # was 1, added 2
+
+    def test_spot_count_decrease_unfilled(self, app, admin_client):
+        from app.models.event import EventSpot
+        me_id, event_id, _ = _setup_table_manager(app)
+        # Add a 2nd spot first
+        with app.app_context():
+            db.session.add(EventSpot(event_id=event_id))
+            db.session.commit()
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "1"},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+        with app.app_context():
+            count = db.session.scalar(
+                db.select(db.func.count()).select_from(EventSpot).where(EventSpot.event_id == event_id)
+            )
+            assert count == 1
+
+    def test_spot_count_decrease_blocks_if_filled(self, app, admin_client):
+        from app.models.assignment import Assignment
+        from app.models.user import UserAccount
+        from tests.conftest import _make_user
+        me_id, event_id, spot_id = _setup_table_manager(app)
+        with app.app_context():
+            _make_user("tm_fill@test.com", "TM Fill", Role.MEMBER)
+            u = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "tm_fill@test.com"))
+            db.session.add(Assignment(spot_id=spot_id, user_id=u.id))
+            db.session.commit()
+        response = admin_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "0"},
+        )
+        assert response.status_code == 409
+        assert response.get_json()["ok"] is False
+
+    def test_member_cannot_update_spot_count(self, app, member_client):
+        me_id, event_id, _ = _setup_table_manager(app)
+        response = member_client.post(
+            f"/master-events/{me_id}/table/spots/update",
+            data={"event_id": event_id, "qual_ids_json": "[]", "new_count": "2"},
+        )
+        assert response.status_code == 403

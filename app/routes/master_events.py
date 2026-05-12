@@ -477,3 +477,84 @@ def table_event_update(me_id: int, event_id: int) -> Response:
     hours = Decimal(str(round(delta.total_seconds() / 3600, 1)))
 
     return jsonify({"ok": True, "display": display_time, "hours": str(hours).replace(".", ",")})
+
+
+@master_events_bp.post("/<int:me_id>/table/spots/update")
+@login_required
+def table_spots_update(me_id: int) -> Response:
+    """Add or remove spots for a given (event, qualification) row."""
+    require_permission("event.edit")
+
+    from app.models.event import Event, EventSpot
+    from app.models.qualification import Qualification
+    import json
+
+    event_id_str = request.form.get("event_id", "").strip()
+    qual_ids_json = request.form.get("qual_ids_json", "[]").strip()
+    new_count_str = request.form.get("new_count", "").strip()
+
+    try:
+        event_id = int(event_id_str)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Neplatné ID akce."}), 400
+
+    try:
+        qual_ids: list[int] = [int(x) for x in json.loads(qual_ids_json)]
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Neplatné kvalifikace."}), 400
+
+    try:
+        new_count = int(new_count_str)
+        if not (0 <= new_count <= 50):
+            raise ValueError
+    except ValueError:
+        return jsonify({"ok": False, "error": "Počet musí být celé číslo od 0 do 50."}), 400
+
+    event = db.session.get(Event, event_id)
+    if event is None or event.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    qual_id_set = frozenset(qual_ids)
+    row_spots = [
+        s for s in event.spots
+        if frozenset(q.id for q in s.required_qualifications if not q.is_deleted) == qual_id_set
+    ]
+    current_count = len(row_spots)
+
+    if new_count == current_count:
+        return jsonify({"ok": True})
+
+    if new_count > current_count:
+        qualifications = db.session.scalars(
+            db.select(Qualification)
+            .where(Qualification.id.in_(qual_ids), Qualification.is_deleted.is_(False))
+        ).all() if qual_ids else []
+        for _ in range(new_count - current_count):
+            spot = EventSpot(event_id=event.id)
+            spot.required_qualifications = list(qualifications)
+            db.session.add(spot)
+        qual_names = ", ".join(q.name for q in qualifications) if qualifications else "žádná"
+        added = new_count - current_count
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Přidáno {added}× pozice ({qual_names}) — tabulkový manažer")
+    else:
+        to_remove = current_count - new_count
+        unfilled = [s for s in row_spots if s.assignment is None]
+        if len(unfilled) < to_remove:
+            filled_blocking = to_remove - len(unfilled)
+            return jsonify({
+                "ok": False,
+                "error": f"Nelze odebrat {to_remove} pozici/í — {filled_blocking} z nich je obsazena.",
+            }), 409
+        for spot in unfilled[:to_remove]:
+            db.session.delete(spot)
+        qual_names = ", ".join(
+            q.name for q in row_spots[0].required_qualifications if not q.is_deleted
+        ) if row_spots else "žádná"
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Odebráno {to_remove}× pozice ({qual_names}) — tabulkový manažer")
+
+    db.session.commit()
+    return jsonify({"ok": True})

@@ -70,7 +70,14 @@
         </td>
 
         {# ── Pozic ── #}
-        <td class="text-nowrap small text-center">{{ row.spots | length }}</td>
+        <td class="text-nowrap small text-center tm-spots-cell"
+            data-event-id="{{ event.id }}"
+            data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
+            data-count="{{ row.spots | length }}"
+            {% if can_edit_event %}title="Kliknutím upravit"{% endif %}>
+          <span class="tm-spots-display">{{ row.spots | length }}</span>
+          {% if can_edit_event %}<span class="tm-edit-icon ms-1 text-muted small" style="cursor:pointer">✎</span>{% endif %}
+        </td>
 
         {# ── Spot cells ── #}
         {% for spot in row.spots %}
@@ -116,12 +123,25 @@
   <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
 </div>
 
+{# ── Inline spots-count-edit popover ── #}
+<div id="tm-spots-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:200px;">
+  <div class="d-flex align-items-center gap-2">
+    <label class="small text-nowrap mb-0">Počet pozic:</label>
+    <input type="number" id="tm-spots-input" class="form-control form-control-sm" min="0" max="50" style="width:70px;">
+    <button id="tm-spots-save" class="btn btn-success btn-sm">Uložit</button>
+    <button id="tm-spots-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
+  </div>
+  <div id="tm-spots-error" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+
 {% endif %}
 
 <style>
 .tm-table th, .tm-table td { vertical-align: middle; }
 .tm-time-cell:hover .tm-edit-icon { color: #0d6efd !important; }
 .tm-time-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
+.tm-spots-cell:hover .tm-edit-icon { color: #0d6efd !important; }
+.tm-spots-cell { cursor: {% if can_edit_event %}pointer{% else %}default{% endif %}; }
 </style>
 
 <script>
@@ -292,6 +312,64 @@ document.addEventListener("click", function (e) {
   if (popup.style.display !== "none" && !popup.contains(e.target) && !e.target.closest(".tm-time-cell")) {
     closeTimeEdit();
   }
+  if (spotsPopup.style.display !== "none" && !spotsPopup.contains(e.target) && !e.target.closest(".tm-spots-cell")) {
+    closeSpotsEdit();
+  }
+});
+{% endif %}
+
+{% if can_edit_event %}
+// ── Spot count editing ───────────────────────────────────────────────────────
+let _activeSpotsCell = null;
+const spotsPopup = document.getElementById("tm-spots-edit-popup");
+const spotsInput = document.getElementById("tm-spots-input");
+const spotsError = document.getElementById("tm-spots-error");
+
+document.querySelectorAll(".tm-spots-cell").forEach(cell => {
+  cell.addEventListener("click", function () {
+    _activeSpotsCell = this;
+    spotsInput.value = this.dataset.count;
+    spotsError.style.display = "none";
+    spotsError.textContent = "";
+    const rect = this.getBoundingClientRect();
+    document.body.appendChild(spotsPopup);
+    spotsPopup.style.display = "block";
+    spotsPopup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+    spotsPopup.style.left = (window.scrollX + rect.left) + "px";
+    spotsInput.focus();
+    spotsInput.select();
+  });
+});
+
+function closeSpotsEdit() {
+  spotsPopup.style.display = "none";
+  _activeSpotsCell = null;
+}
+
+document.getElementById("tm-spots-cancel").addEventListener("click", closeSpotsEdit);
+
+document.getElementById("tm-spots-save").addEventListener("click", function () {
+  if (!_activeSpotsCell) return;
+  const cell = _activeSpotsCell;
+  const eventId = cell.dataset.eventId;
+  const qualIdsJson = cell.dataset.qualIdsJson;
+  const newCount = spotsInput.value;
+
+  fetch(`/master-events/${ME_ID}/table/spots/update`, {
+    method: "POST",
+    headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+    body: `event_id=${encodeURIComponent(eventId)}&qual_ids_json=${encodeURIComponent(qualIdsJson)}&new_count=${encodeURIComponent(newCount)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      location.reload();
+    } else {
+      spotsError.textContent = data.error || "Chyba při ukládání.";
+      spotsError.style.display = "block";
+    }
+  })
+  .catch(() => { spotsError.textContent = "Chyba sítě."; spotsError.style.display = "block"; });
 });
 {% endif %}
 </script>
