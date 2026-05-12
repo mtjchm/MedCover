@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Admin digest: preferred send hour is now interpreted in the timezone configured in AppSettings (e.g. `Europe/Prague`) instead of UTC; the label in `/admin/digest/` reflects the configured timezone dynamically
+- Admin dashboard: "Čekají na aktivaci" count no longer includes archived users; added "Archivovaní" stat to the Users card (closes #171)
 
 ## [0.11.2] - 2026-05-11
 
