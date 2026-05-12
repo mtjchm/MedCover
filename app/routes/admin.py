@@ -84,9 +84,10 @@ def index() -> str:
             smtp_error = str(exc)
 
     # ── Statistics ─────────────────────────────────────────────────────────────
-    user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount))
-    user_active = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_active.is_(True)))
+    user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_archived.is_(False)))
+    user_active = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_active.is_(True), UserAccount.is_archived.is_(False)))
     user_pending = user_total - user_active
+    user_archived = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_archived.is_(True)))
 
     event_counts = {
         s.value: db.session.scalar(
@@ -150,6 +151,7 @@ def index() -> str:
         user_total=user_total,
         user_active=user_active,
         user_pending=user_pending,
+        user_archived=user_archived,
         event_total=event_total,
         event_counts=event_counts,
         outbox_pending=outbox_pending,
