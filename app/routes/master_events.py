@@ -509,6 +509,28 @@ def table_event_update(me_id: int, event_id: int) -> Response:
         db.session.commit()
         return jsonify({"ok": True})
 
+    if field == "shift_hour":
+        # value is "<which>:<delta>" where which is "start" or "end", delta is -1 or 1
+        try:
+            which, delta_str = value.split(":", 1)
+            delta_hours = int(delta_str)
+        except (ValueError, AttributeError):
+            return jsonify({"ok": False, "error": "Neplatná hodnota posunu hodiny."}), 400
+        if which not in ("start", "end") or delta_hours not in (-1, 1):
+            return jsonify({"ok": False, "error": "Neplatné parametry posunu hodiny."}), 400
+        from datetime import timedelta
+        attr = "start_datetime" if which == "start" else "end_datetime"
+        before = {attr: getattr(event, attr).isoformat()}
+        setattr(event, attr, getattr(event, attr) + timedelta(hours=delta_hours))
+        after = {attr: getattr(event, attr).isoformat()}
+        event.version += 1
+        lbl = "začátek" if which == "start" else "konec"
+        audit("edit", "Event", event.id,
+              f"Posunut {lbl} akce '{event.name}' o {delta_hours:+d} hodinu (tabulkový manažer)",
+              diff_changes(before, after))
+        db.session.commit()
+        return jsonify({"ok": True})
+
     if field == "color":
         # value is hex color like #FFCCCC, or empty string to reset
         color = value if _HEX_RE.match(value) else None
