@@ -93,6 +93,7 @@
           <button class="btn btn-link btn-sm p-0 ms-1 tm-advance-btn text-success"
                   data-event-id="{{ event.id }}"
                   data-event-name="{{ event.name | e }}"
+                  data-next-status="{% if event.status.name == 'DRAFT' %}Zveřejněná{% else %}Přihlášky otevřeny{% endif %}"
                   title="Posunout do dalšího stavu" style="font-size:1rem; line-height:1;">⏩</button>
           {% endif %}
         </td>
@@ -254,9 +255,9 @@
 
 {# ── Advance-status confirmation popup ── #}
 <div id="tm-advance-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1070; min-width:200px;">
-  <div class="small mb-2">Posunout <strong id="tm-advance-event-name"></strong> do dalšího stavu?</div>
+  <div class="small mb-2">Posunout <strong id="tm-advance-event-name"></strong> do stavu <strong id="tm-advance-next-status" class="text-success"></strong>?</div>
   <div class="d-flex gap-2">
-    <button id="tm-advance-confirm" class="btn btn-success btn-sm">Další fáze</button>
+    <button id="tm-advance-confirm" class="btn btn-success btn-sm"></button>
     <button id="tm-advance-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
 </div>
@@ -729,6 +730,8 @@ document.querySelectorAll(".tm-delete-btn").forEach(btn => {
 (function () {
   const advPopup = document.getElementById("tm-advance-popup");
   const advEventName = document.getElementById("tm-advance-event-name");
+  const advNextStatus = document.getElementById("tm-advance-next-status");
+  const advConfirmBtn = document.getElementById("tm-advance-confirm");
   let _advEventId = null;
 
   document.querySelectorAll(".tm-advance-btn").forEach(btn => {
@@ -736,6 +739,8 @@ document.querySelectorAll(".tm-delete-btn").forEach(btn => {
       e.stopPropagation();
       _advEventId = this.dataset.eventId;
       advEventName.textContent = this.dataset.eventName;
+      advNextStatus.textContent = this.dataset.nextStatus;
+      advConfirmBtn.textContent = this.dataset.nextStatus;
       const rect = this.getBoundingClientRect();
       document.body.appendChild(advPopup);
       advPopup.style.display = "block";
