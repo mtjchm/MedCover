@@ -7,7 +7,12 @@
     <h2 class="mb-0">Tabulkový manažer</h2>
     <p class="text-muted mb-0 small">{{ me.name }}</p>
   </div>
-  <a href="{{ url_for('master_events.detail', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if current_user.has_permission('event.create') %}
+    <a href="{{ url_for('events.create', master_event_id=me.id) }}" class="btn btn-danger btn-sm">+ Nová akce</a>
+    {% endif %}
+    <a href="{{ url_for('master_events.detail', me_id=me.id) }}" class="btn btn-outline-secondary btn-sm">← Zpět</a>
+  </div>
 </div>
 
 {% if not rows %}
