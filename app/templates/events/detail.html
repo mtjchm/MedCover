@@ -633,6 +633,13 @@
     group.appendChild(posSpan);
     group.appendChild(nextBtn);
     bar.insertBefore(group, bar.firstChild);
+
+    document.addEventListener("keydown", function (e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === "ArrowLeft"  && prevId) { e.preventDefault(); window.location.href = base + prevId; }
+      if (e.key === "ArrowRight" && nextId) { e.preventDefault(); window.location.href = base + nextId; }
+    });
   } catch(e) {}
 })();
 </script>
