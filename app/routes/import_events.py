@@ -37,7 +37,7 @@ _PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 def _require_import_permission() -> None:
     """Abort 403 unless the current user may import events."""
-    require_permission("event.create")
+    require_permission("admin.manage_settings")
 
 
 def _match_responsible_person(
