@@ -1,0 +1,12 @@
+{% extends "email/base.html" %}
+{% block content %}
+<p>Dobrý den, {{ user_name }},</p>
+<p>přihlašování na akci je nyní otevřeno:</p>
+<table class="event-info">
+  <tr><td>Název:</td><td><a href="{{ url_for_external('events.detail', event_id=event.id) }}">{{ event.name }}</a></td></tr>
+  <tr><td>Začátek:</td><td>{{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+  <tr><td>Konec:</td><td>{{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+  {% if event.address %}<tr><td>Místo:</td><td>{{ event.address }}</td></tr>{% endif %}
+</table>
+<p>Přihlaste se v aplikaci MedCover, pokud máte zájem o účast.</p>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "email/base.html" %}
+{% block content %}
+<p>Dobrý den, {{ coordinator_name }},</p>
+<p>na akci <a href="{{ url_for_external('events.detail', event_id=event.id) }}"><strong>{{ event.name }}</strong></a> zbývá {{ unfilled }} neobsazená pozice{% if unfilled > 4 %}{% elif unfilled > 1 %}e{% else %}{% endif %}:</p>
+<table class="event-info">
+  <tr><td>Začátek:</td><td>{{ event.start_datetime.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+  <tr><td>Konec:</td><td>{{ event.end_datetime.strftime('%d.%m.%Y %H:%M') }}</td></tr>
+  <tr><td>Obsazení:</td><td>{{ event.filled_spots }}/{{ event.total_spots }}</td></tr>
+</table>
+<p>Přiřaďte prosím chybějící zdravotníky v aplikaci.</p>
+{% endblock %}

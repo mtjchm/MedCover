@@ -1,0 +1,11 @@
+{% extends "email/base.html" %}
+{% block content %}
+{% if invite.custom_message %}
+<p>{{ invite.custom_message | replace('\n', '<br>') | safe }}</p>
+{% else %}
+<p>Dobrý den,</p>
+<p>byli jste pozváni do systému {{ org_name or 'MedCover' }} pro plánování zdravotního zabezpečení.</p>
+{% endif %}
+<p>Pro dokončení registrace klikněte na odkaz níže (platný {{ hours }} hodin):</p>
+<p><a href="{{ register_url }}">Dokončit registraci</a></p>
+{% endblock %}

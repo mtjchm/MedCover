@@ -22,12 +22,12 @@ _INVITE_SALT = "invite"
 
 
 def _send_mail(to: str, subject: str, template: str, **ctx: Any) -> None:
-    """Render a plain-text email template and enqueue it via the outbox."""
+    """Render an HTML email template and enqueue it via the outbox."""
     from flask import render_template as rt
-    from app.mail import _enqueue  # noqa: PLC0415
+    from app.mail import _enqueue, _base_context  # noqa: PLC0415
 
-    body = rt(template, **ctx)
-    _enqueue(to, subject, body)
+    html_body = rt(template, **_base_context(), **ctx)
+    _enqueue(to, subject, "Tento e-mail obsahuje formátovaný obsah. Otevřete jej v e-mailovém klientovi s podporou HTML.", html_body=html_body)
 
 
 def _make_signed_token(payload: str, salt: str, max_age_seconds: int) -> str:
@@ -126,7 +126,7 @@ def forgot_password() -> str | Response:
             _send_mail(
                 to=user.email,
                 subject="MedCover — obnovení hesla",
-                template="email/reset_password.txt",
+                template="email/reset_password.html",
                 reset_url=reset_url,
                 minutes=RESET_TOKEN_MINUTES,
             )

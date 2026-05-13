@@ -74,7 +74,7 @@ class TestOutboxEnqueue:
             assert row.to_email == "jan@test.cz"
             assert "Závody 2026" in row.subject
             assert row.status == "pending"
-            assert "Jan Novák" in row.body
+            assert "Jan Novák" in row.html_body
 
     def test_send_assignment_released_enqueues_row(self, app):
         from app.mail import send_assignment_released
@@ -137,7 +137,7 @@ class TestOutboxEnqueue:
             row = db.session.scalars(db.select(OutboxEmail)).first()
             assert row is not None
             assert "coord@test.cz" == row.to_email
-            assert "3" in row.body
+            assert "3" in row.html_body
 
     def test_multiple_enqueues_all_pending(self, app):
         """All enqueued rows start as 'pending'."""
