@@ -56,6 +56,24 @@
     var emptyMsg = document.getElementById("table-empty-msg");
     if (emptyMsg) emptyMsg.classList.toggle('d-none', visibleCount > 0);
     if (calendarInitialized && calendar) calendar.refetchEvents();
+    _saveEventNav();
+  }
+
+  function _saveEventNav() {
+    try {
+      var tbody = document.querySelector("#events-table tbody");
+      if (!tbody) return;
+      var ids = [];
+      tbody.querySelectorAll("tr").forEach(function (row) {
+        if (row.style.display !== "none") {
+          var id = row.dataset.eventId;
+          if (id) ids.push(parseInt(id, 10));
+        }
+      });
+      // Strip path down to "/events/" as the base for building detail URLs
+      var base = window.location.pathname.replace(/\/events\/.*$/, "/events/");
+      sessionStorage.setItem("medcover_event_nav", JSON.stringify({ids: ids, base: base}));
+    } catch(e) {}
   }
 
   function toggleEligFilter() {

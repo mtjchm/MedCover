@@ -588,4 +588,52 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/events-detail.js') }}?v={{ static_ver }}"></script>
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  var CURRENT_ID = {{ event.id }};
+  try {
+    var raw = sessionStorage.getItem("medcover_event_nav");
+    if (!raw) return;
+    var nav = JSON.parse(raw);
+    var ids = nav.ids;
+    var base = nav.base;
+    var idx = ids.indexOf(CURRENT_ID);
+    if (idx === -1) return;
+
+    var prevId = idx > 0 ? ids[idx - 1] : null;
+    var nextId = idx < ids.length - 1 ? ids[idx + 1] : null;
+    var pos = (idx + 1) + " / " + ids.length;
+
+    var bar = document.querySelector(".d-flex.gap-2.flex-wrap");
+    if (!bar) return;
+
+    var group = document.createElement("div");
+    group.className = "btn-group btn-group-sm";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "Předchozí / následující akce");
+
+    var prevBtn = document.createElement("a");
+    prevBtn.className = "btn btn-outline-secondary" + (prevId ? "" : " disabled");
+    prevBtn.setAttribute("aria-label", "Předchozí akce");
+    prevBtn.href = prevId ? (base + prevId) : "#";
+    prevBtn.textContent = "‹";
+
+    var posSpan = document.createElement("span");
+    posSpan.className = "btn btn-outline-secondary disabled px-2";
+    posSpan.style.pointerEvents = "none";
+    posSpan.textContent = pos;
+
+    var nextBtn = document.createElement("a");
+    nextBtn.className = "btn btn-outline-secondary" + (nextId ? "" : " disabled");
+    nextBtn.setAttribute("aria-label", "Následující akce");
+    nextBtn.href = nextId ? (base + nextId) : "#";
+    nextBtn.textContent = "›";
+
+    group.appendChild(prevBtn);
+    group.appendChild(posSpan);
+    group.appendChild(nextBtn);
+    bar.insertBefore(group, bar.firstChild);
+  } catch(e) {}
+})();
+</script>
 {% endblock %}
