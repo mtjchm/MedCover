@@ -16,3 +16,4 @@ itsdangerous
 pytz
 holidays
 openpyxl
+icalendar
