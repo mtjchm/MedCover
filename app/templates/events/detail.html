@@ -613,7 +613,7 @@
     group.setAttribute("aria-label", "Předchozí / následující akce");
 
     var prevBtn = document.createElement("a");
-    prevBtn.className = "btn btn-outline-secondary" + (prevId ? "" : " disabled");
+    prevBtn.className = "btn btn-outline-secondary px-3" + (prevId ? "" : " disabled");
     prevBtn.setAttribute("aria-label", "Předchozí akce");
     prevBtn.href = prevId ? (base + prevId) : "#";
     prevBtn.textContent = "‹";
@@ -624,7 +624,7 @@
     posSpan.textContent = pos;
 
     var nextBtn = document.createElement("a");
-    nextBtn.className = "btn btn-outline-secondary" + (nextId ? "" : " disabled");
+    nextBtn.className = "btn btn-outline-secondary px-3" + (nextId ? "" : " disabled");
     nextBtn.setAttribute("aria-label", "Následující akce");
     nextBtn.href = nextId ? (base + nextId) : "#";
     nextBtn.textContent = "›";
