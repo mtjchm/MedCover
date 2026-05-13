@@ -131,6 +131,7 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     local_tz = ZoneInfo(get_settings().timezone)
 
     if not schedule.enabled:
+        log.info("Admin digest: skipped — digest disabled.")
         return False
 
     local_now = now.astimezone(local_tz)
@@ -138,15 +139,27 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     if schedule.frequency_hours >= 24:
         # Daily+: fire only at the configured local hour, and only once per calendar day.
         if local_now.hour != schedule.preferred_hour:
+            log.debug(
+                "Admin digest: skipped — hour mismatch (now=%d preferred=%d).",
+                local_now.hour, schedule.preferred_hour,
+            )
             return False
         if schedule.last_sent_at is not None:
             if schedule.last_sent_at.astimezone(local_tz).date() >= local_now.date():
+                log.info(
+                    "Admin digest: skipped — already sent today (last_sent=%s).",
+                    schedule.last_sent_at.astimezone(local_tz).date(),
+                )
                 return False
     else:
         # Sub-daily: ignore hour gate, use elapsed-time check only.
         if schedule.last_sent_at is not None:
             elapsed = (now - schedule.last_sent_at).total_seconds()
             if elapsed < schedule.frequency_hours * 3600:
+                log.debug(
+                    "Admin digest: skipped — %.0fs elapsed, need %.0fs.",
+                    elapsed, schedule.frequency_hours * 3600,
+                )
                 return False
 
     eligible = db_session.scalars(
@@ -197,10 +210,16 @@ def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
 
     settings = get_settings()
     if not settings.backup_schedule_enabled:
+        log.debug("Scheduled backup: skipped — backup schedule disabled.")
         return False
 
     local_tz = ZoneInfo(settings.timezone)
-    if now.astimezone(local_tz).hour != settings.backup_schedule_hour:
+    local_hour = now.astimezone(local_tz).hour
+    if local_hour != settings.backup_schedule_hour:
+        log.debug(
+            "Scheduled backup: skipped — hour mismatch (now=%d scheduled=%d).",
+            local_hour, settings.backup_schedule_hour,
+        )
         return False
 
     # Skip if a backup was already created today (UTC date) to avoid duplicates.

@@ -17,6 +17,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "7"
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
@@ -41,6 +46,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "7"
     healthcheck:
       # Healthy if the heartbeat file was touched within the last 30 seconds
       test: ["CMD", "python", "-c",
