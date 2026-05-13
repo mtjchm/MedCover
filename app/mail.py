@@ -33,7 +33,7 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from flask import render_template
+from flask import g, render_template
 
 from app.extensions import db
 from app.models.outbox import OutboxEmail
@@ -44,6 +44,8 @@ if TYPE_CHECKING:
     from app.models.user import UserAccount
 
 log = logging.getLogger(__name__)
+
+_PLAIN_FALLBACK = "Tento e-mail obsahuje formátovaný obsah. Otevřete jej v e-mailovém klientovi s podporou HTML."
 
 # ---------------------------------------------------------------------------
 # Notification catalog — single source of truth (AD17)
@@ -67,7 +69,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán dobrovolníkovi při přihlášení na místo ve službě (jím samotným nebo koordinátorem).",
         "trigger_cs": "Přihlášení na místo ve službě",
         "recipient_cs": "Přihlášený dobrovolník (role: Člen)",
-        "templates": ["email/assignment_confirmed.txt"],
+        "templates": ["email/assignment_confirmed.html"],
         "always_on": False,
     },
     {
@@ -77,27 +79,27 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán dobrovolníkovi při odhlášení z místa ve službě (jím samotným nebo koordinátorem).",
         "trigger_cs": "Odhlášení z místa ve službě",
         "recipient_cs": "Odhlášený dobrovolník (role: Člen)",
-        "templates": ["email/assignment_released.txt"],
+        "templates": ["email/assignment_released.html"],
         "always_on": False,
     },
     {
         "code": "event_published",
-        "settings_field": "notify_event_lifecycle",
+        "settings_field": "notify_event_published",
         "name_cs": "Nová akce zveřejněna",
         "description_cs": "Odesílán všem aktivním členům a koordinátorům při zveřejnění akce.",
         "trigger_cs": "Akce přejde do stavu Zveřejněno",
         "recipient_cs": "Všichni aktivní uživatelé (role: Koordinátor, Člen)",
-        "templates": ["email/event_published.txt"],
+        "templates": ["email/event_published.html"],
         "always_on": False,
     },
     {
         "code": "assignments_opened",
-        "settings_field": "notify_event_lifecycle",
+        "settings_field": "notify_assignments_opened",
         "name_cs": "Otevřeny přihlášky na akci",
         "description_cs": "Odesílán všem aktivním členům a koordinátorům při otevření přihlášek na akci.",
         "trigger_cs": "Akce přejde do stavu Přihlášky otevřeny",
         "recipient_cs": "Všichni aktivní uživatelé (role: Koordinátor, Člen)",
-        "templates": ["email/assignments_opened.txt"],
+        "templates": ["email/assignments_opened.html"],
         "always_on": False,
     },
     {
@@ -107,7 +109,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán přihlášeným dobrovolníkům při zrušení akce.",
         "trigger_cs": "Akce je zrušena",
         "recipient_cs": "Přihlášení dobrovolníci (role: Člen)",
-        "templates": ["email/event_cancelled.txt"],
+        "templates": ["email/event_cancelled.html"],
         "always_on": False,
     },
     {
@@ -117,7 +119,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán přihlášeným dobrovolníkům při změně údajů akce (název, čas, místo, popis apod.).",
         "trigger_cs": "Uložení změny akce (editace existující akce)",
         "recipient_cs": "Přihlášení dobrovolníci (role: Člen)",
-        "templates": ["email/event_changed.txt"],
+        "templates": ["email/event_changed.html"],
         "always_on": False,
     },
     {
@@ -127,7 +129,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Plánovačem odesílán koordinátorovi/zodpovědné osobě, pokud na akci zbývají nevyplněná místa.",
         "trigger_cs": "Automaticky plánovačem (periodická kontrola)",
         "recipient_cs": "Tvůrce akce a zodpovědná osoba (role: Koordinátor, Člen)",
-        "templates": ["email/unfilled_spots_reminder.txt"],
+        "templates": ["email/unfilled_spots_reminder.html"],
         "always_on": False,
     },
     {
@@ -137,7 +139,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán přihlášeným dobrovolníkům po skončení akce s odkazem na formulář výjezdové zprávy.",
         "trigger_cs": "Akce přejde do stavu Dokončeno",
         "recipient_cs": "Přihlášení dobrovolníci (role: Člen)",
-        "templates": ["email/debriefing_invitation.txt"],
+        "templates": ["email/debriefing_invitation.html"],
         "always_on": False,
     },
     {
@@ -147,7 +149,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Odesílán uživateli, jehož účet byl aktivován administrátorem.",
         "trigger_cs": "Aktivace uživatelského účtu administrátorem",
         "recipient_cs": "Aktivovaný uživatel",
-        "templates": ["email/account_activated.txt"],
+        "templates": ["email/account_activated.html"],
         "always_on": True,
     },
     {
@@ -157,7 +159,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Systémové e-maily pro ověření identity: pozvánky do systému a odkaz na obnovu hesla.",
         "trigger_cs": "Odeslání pozvánky administrátorem nebo žádost uživatele o obnovu hesla",
         "recipient_cs": "Pozvaný uživatel / žadatel o obnovu hesla",
-        "templates": ["email/invite.txt, email/password_reset.txt"],
+        "templates": ["email/invite.html", "email/reset_password.html"],
         "always_on": True,
     },
     {
@@ -179,8 +181,9 @@ NOTIFICATION_CATALOG: list[dict] = [
 # Roles whose members may receive each notification category.
 # "auth" (invite / password-reset / activation) is exempt — always allowed.
 _NOTIFICATION_ALLOWED_ROLES: dict[str, set[str]] = {
-    "admin_digest":      {"Admin"},
-    "event_lifecycle":   {"Coordinator", "Member"},  # published, assignments_opened
+    "admin_digest":       {"Admin"},
+    "event_published":    {"Coordinator", "Member"},
+    "assignments_opened": {"Coordinator", "Member"},
     "assignment":        {"Member"},                 # confirmed, released
     "unfilled_reminder": {"Coordinator", "Member"},  # reminder to coordinator / RP
     "event_cancelled":   {"Member"},                 # cancelled → notify assigned users
@@ -195,7 +198,11 @@ def user_can_receive_notification(user: UserAccount, notification_type: str) -> 
     - Viewer-only users receive no operational emails (only auth emails).
     - Users with any non-Viewer role are subject to the per-category role map.
     - "auth" category is always True for all users (invite, reset, activation).
+    - During a test notification (g._test_notification_email set), always True so
+      that the admin tester can preview any notification regardless of their own role.
     """
+    if _is_test_notification():
+        return True
     if notification_type == "auth":
         return True
 
@@ -209,13 +216,38 @@ def user_can_receive_notification(user: UserAccount, notification_type: str) -> 
     return bool(user_role_names & allowed)
 
 
+def _is_test_notification() -> bool:
+    """Return True when a test notification override is active for this request."""
+    try:
+        return bool(getattr(g, "_test_notification_email", None))
+    except RuntimeError:
+        return False
+
+
 def _is_notify_enabled(settings_field: str) -> bool:
-    """Return False if the admin has disabled this notification type in AppSettings."""
+    """Return False if the admin has disabled this notification type in AppSettings.
+
+    Always returns True when a test notification override is active so that
+    disabled notifications can still be previewed via the test send feature.
+    """
+    if _is_test_notification():
+        return True
     try:
         from app.models.settings import get_settings  # noqa: PLC0415
         return bool(getattr(get_settings(), settings_field, True))
     except Exception:  # noqa: BLE001
         return True  # fail open — don't suppress notifications on settings error
+
+
+def _base_context() -> dict:
+    """Return template context variables shared by all user-facing email templates."""
+    from app.models.settings import get_settings  # noqa: PLC0415
+    from app.utils import external_url_for  # noqa: PLC0415
+    try:
+        org_name = get_settings().org_name or "MedCover"
+    except Exception:  # noqa: BLE001
+        org_name = "MedCover"
+    return {"org_name": org_name, "url_for_external": external_url_for}
 
 
 def _enqueue(
@@ -226,7 +258,14 @@ def _enqueue(
     notification_type: str | None = None,
 ) -> None:
     """Insert a pending email row.  Must be called inside a Flask app context
-    and inside an active DB session (the caller's transaction is fine)."""
+    and inside an active DB session (the caller's transaction is fine).
+
+    If ``g._test_notification_email`` is set (by the test-notification route),
+    the recipient is overridden so the email goes to the tester instead.
+    """
+    override = getattr(g, "_test_notification_email", None)
+    if override:
+        to = override
     try:
         db.session.add(OutboxEmail(
             to_email=to,
@@ -248,13 +287,14 @@ def send_assignment_confirmed(user: UserAccount, event: Event) -> None:
         return
     if not user_can_receive_notification(user, "assignment"):
         return
-    body = render_template(
-        "email/assignment_confirmed.txt",
+    html_body = render_template(
+        "email/assignment_confirmed.html",
         user_name=user.name,
         event=event,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Přihlášení na akci: {event.name}", body,
-             notification_type="assignment_confirmed")
+    _enqueue(user.email, f"MedCover — Přihlášení na akci: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="assignment_confirmed")
 
 
 def send_assignment_released(user: UserAccount, event: Event) -> None:
@@ -263,45 +303,48 @@ def send_assignment_released(user: UserAccount, event: Event) -> None:
         return
     if not user_can_receive_notification(user, "assignment"):
         return
-    body = render_template(
-        "email/assignment_released.txt",
+    html_body = render_template(
+        "email/assignment_released.html",
         user_name=user.name,
         event=event,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Odhlášení z akce: {event.name}", body,
-             notification_type="assignment_released")
+    _enqueue(user.email, f"MedCover — Odhlášení z akce: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="assignment_released")
 
 
 # ── Event lifecycle notifications ─────────────────────────────────────────────
 
 def send_event_published(user: UserAccount, event: Event) -> None:
     """Notify a user that an event they might be interested in was published."""
-    if not _is_notify_enabled("notify_event_lifecycle"):
+    if not _is_notify_enabled("notify_event_published"):
         return
-    if not user_can_receive_notification(user, "event_lifecycle"):
+    if not user_can_receive_notification(user, "event_published"):
         return
-    body = render_template(
-        "email/event_published.txt",
+    html_body = render_template(
+        "email/event_published.html",
         user_name=user.name,
         event=event,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Nová akce: {event.name}", body,
-             notification_type="event_published")
+    _enqueue(user.email, f"MedCover — Nová akce: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="event_published")
 
 
 def send_assignments_opened(user: UserAccount, event: Event) -> None:
     """Notify a user that assignments opened for an event."""
-    if not _is_notify_enabled("notify_event_lifecycle"):
+    if not _is_notify_enabled("notify_assignments_opened"):
         return
-    if not user_can_receive_notification(user, "event_lifecycle"):
+    if not user_can_receive_notification(user, "assignments_opened"):
         return
-    body = render_template(
-        "email/assignments_opened.txt",
+    html_body = render_template(
+        "email/assignments_opened.html",
         user_name=user.name,
         event=event,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Otevřeny přihlášky: {event.name}", body,
-             notification_type="assignments_opened")
+    _enqueue(user.email, f"MedCover — Otevřeny přihlášky: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="assignments_opened")
 
 
 def send_event_cancelled(user: UserAccount, event: Event) -> None:
@@ -310,13 +353,14 @@ def send_event_cancelled(user: UserAccount, event: Event) -> None:
         return
     if not user_can_receive_notification(user, "event_cancelled"):
         return
-    body = render_template(
-        "email/event_cancelled.txt",
+    html_body = render_template(
+        "email/event_cancelled.html",
         user_name=user.name,
         event=event,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Akce zrušena: {event.name}", body,
-             notification_type="event_cancelled")
+    _enqueue(user.email, f"MedCover — Akce zrušena: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="event_cancelled")
 
 
 # Human-readable Czech labels for event fields shown in change notifications.
@@ -380,15 +424,16 @@ def send_event_changed(
         )
         for field, vals in changes.items()
     ]
-    body = render_template(
-        "email/event_changed.txt",
+    html_body = render_template(
+        "email/event_changed.html",
         user_name=user.name,
         event=event,
         event_url=event_url,
         changes=formatted,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Změna akce: {event.name}", body,
-             notification_type="event_changed")
+    _enqueue(user.email, f"MedCover — Změna akce: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="event_changed")
 
 
 # ── Reminder (scheduler) ──────────────────────────────────────────────────────
@@ -403,16 +448,18 @@ def send_unfilled_spots_reminder(
         return
     if not user_can_receive_notification(user, "unfilled_reminder"):
         return
-    body = render_template(
-        "email/unfilled_spots_reminder.txt",
+    html_body = render_template(
+        "email/unfilled_spots_reminder.html",
         coordinator_name=user.name,
         event=event,
-        unfilled=len(unfilled),
+        unfilled=unfilled,
+        **_base_context(),
     )
     _enqueue(
         user.email,
         f"MedCover — Připomínka: volná místa na akci {event.name}",
-        body,
+        _PLAIN_FALLBACK,
+        html_body=html_body,
         notification_type="unfilled_reminder",
     )
 
@@ -528,14 +575,15 @@ def send_debriefing_invitation(assignment: Assignment, event: Event) -> None:
         assignment_id=assignment.id,
         _external=True,
     )
-    body = render_template(
-        "email/debriefing_invitation.txt",
+    html_body = render_template(
+        "email/debriefing_invitation.html",
         user_name=user.name,
         event=event,
         debriefing_url=debriefing_url,
+        **_base_context(),
     )
-    _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", body,
-             notification_type="debriefing_invitation")
+    _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="debriefing_invitation")
 
 
 # ── Account activation ────────────────────────────────────────────────────────
@@ -544,6 +592,8 @@ def send_account_activated(user: UserAccount) -> None:
     """Enqueue an account-activation notification to the newly activated user."""
     from app.utils import external_url_for  # noqa: PLC0415
     login_url = external_url_for("auth.login")
-    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
-    _enqueue(user.email, "MedCover — váš účet byl aktivován", body,
-             notification_type="account_activated")
+    html_body = render_template(
+        "email/account_activated.html", user=user, login_url=login_url, **_base_context()
+    )
+    _enqueue(user.email, "MedCover — váš účet byl aktivován", _PLAIN_FALLBACK,
+             html_body=html_body, notification_type="account_activated")

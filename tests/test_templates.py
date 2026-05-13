@@ -427,7 +427,17 @@ class TestTemplateLint:
                     while ">" not in self._strip_quoted(block) and j < min(i + 20, len(lines)):
                         block += "\n" + lines[j]
                         j += 1
-                    if ">" not in self._strip_quoted(block):
+                    # After stripping quotes, verify > appears before any new < tag.
+                    # A > that belongs to a child element (e.g. <input>) is NOT the
+                    # closing > of the <form> opening tag.
+                    stripped = self._strip_quoted(block)
+                    # Find the position after the "<form" keyword
+                    form_pos = stripped.lower().find("<form")
+                    after_form = stripped[form_pos + 5:] if form_pos != -1 else stripped
+                    first_gt = after_form.find(">")
+                    first_lt = after_form.find("<")
+                    broken = first_gt == -1 or (first_lt != -1 and first_lt < first_gt)
+                    if broken:
                         rel = tmpl.relative_to(template_dir)
                         issues.append(f"{rel}:{start_line}")
                     i = j

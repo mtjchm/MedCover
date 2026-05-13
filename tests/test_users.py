@@ -352,7 +352,7 @@ class TestInvites:
             outbox = db.session.get(OutboxEmail, inv.outbox_email_id)
             assert outbox is not None
             assert outbox.subject == "Vítejte v MedCoveru!"
-            assert "Zdravím, zvu tě do týmu." in outbox.body
+            assert "Zdravím, zvu tě do týmu." in outbox.html_body
 
     def test_cancel_invite(self, app: object, admin_client: object) -> None:
         admin_client.post("/users/invites/create", data={"email": "cancel@example.com"}, follow_redirects=True)

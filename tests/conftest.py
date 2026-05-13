@@ -269,7 +269,8 @@ def clean_db(app):
             settings.feedback_enabled = True
             settings.app_base_url = None
             settings.notify_assignment = True
-            settings.notify_event_lifecycle = True
+            settings.notify_event_published = True
+            settings.notify_assignments_opened = True
             settings.notify_event_cancelled = True
             settings.notify_event_changed = True
             settings.notify_unfilled_reminder = True

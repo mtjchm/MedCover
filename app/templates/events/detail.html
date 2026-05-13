@@ -90,7 +90,7 @@
     {% endif %}
     {% if event.status != EventStatus.COMPLETED and event.status != EventStatus.CANCELLED and current_user.has_permission('event.cancel') %}
       <form method="POST" action="{{ url_for('events.cancel', event_id=event.id) }}"
-            data-confirm="Opravdu zrušit tuto akci?"
+            data-confirm="Opravdu zrušit tuto akci?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger btn-sm">Zrušit akci</button>
       </form>
@@ -305,8 +305,8 @@
             {# Release own assignment #}
             {% if spot.assignment and spot.assignment.user_id == current_user.id and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.release', assignment_id=spot.assignment.id) }}"
-                    data-confirm="Odhlásit se z této pozice?"
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    data-confirm="Odhlásit se z této pozice?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-warning btn-sm py-0">Odhlásit se</button>
               </form>
             {% endif %}
@@ -322,8 +322,8 @@
             {# Coordinator: unassign another user #}
             {% if spot.assignment and current_user.has_permission('event.assign_other') and event.status != EventStatus.COMPLETED %}
               <form method="POST" action="{{ url_for('assignments.unassign_other', assignment_id=spot.assignment.id) }}"
-                    data-confirm="Odhlásit tohoto uživatele?"
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    data-confirm="Odhlásit tohoto uživatele?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger btn-sm py-0">Odhlásit</button>
               </form>
             {% endif %}

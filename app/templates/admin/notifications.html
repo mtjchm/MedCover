@@ -20,6 +20,29 @@
   <div class="card mb-4">
     <div class="card-header fw-semibold">Nastavení (zapnout / vypnout)</div>
     <div class="card-body">
+
+      {# ── Test notification controls (shared for all test buttons) ─── #}
+      <div class="row g-2 align-items-end mb-4 pb-3 border-bottom">
+        <div class="col-12 col-md-5">
+          <label for="test_email" class="form-label small fw-semibold">Zkušební e-mailová adresa</label>
+          <input type="email" class="form-control form-control-sm" id="test_email" name="test_email"
+                 placeholder="vas@email.cz">
+        </div>
+        <div class="col-12 col-md-5">
+          <label for="test_event_id" class="form-label small fw-semibold">Akce (pro zkušební oznámení)</label>
+          <select class="form-select form-select-sm" id="test_event_id" name="test_event_id">
+            {% for ev in recent_events %}
+            <option value="{{ ev.id }}">{{ ev.name }} ({{ ev.start_datetime.strftime('%d.%m.%Y') }})</option>
+            {% else %}
+            <option disabled>— žádné akce —</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-2 text-muted small pt-2">
+          Vyberte adresu a akci, pak klikněte na tlačítko u konkrétního oznámení níže.
+        </div>
+      </div>
+
       <div class="row g-3">
         {% for group in toggle_groups %}
         <div class="col-12 col-md-6">
@@ -33,9 +56,13 @@
                 {{ group.settings_field | replace("notify_", "") | replace("_", " ") | title }}
               </label>
             </div>
-            <ul class="mb-0 small text-muted ps-3">
+            <ul class="mb-2 small text-muted ps-3">
               {% for entry in group.entries %}
-              <li>{{ entry.name_cs }}</li>
+              <li class="d-flex justify-content-between align-items-center gap-2">
+                <span>{{ entry.name_cs }}</span>
+                <button type="submit" form="test_form_{{ entry.code }}" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0"
+                        style="font-size:0.7rem">Zkušební</button>
+              </li>
               {% endfor %}
             </ul>
           </div>
@@ -49,6 +76,18 @@
     </div>
   </div>
 </form>
+
+{# Hidden forms for each test notification (outside the toggle form to avoid nesting) #}
+{% for group in toggle_groups %}
+  {% for entry in group.entries %}
+  <form id="test_form_{{ entry.code }}" method="POST"
+        action="{{ url_for('notifications.test_notification', code=entry.code) }}" style="display:none">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" id="test_email_{{ entry.code }}" name="test_email">
+    <input type="hidden" id="test_event_id_{{ entry.code }}" name="test_event_id">
+  </form>
+  {% endfor %}
+{% endfor %}
 
 {# ── Full catalog (read-only) ────────────────────────────────────────────────── #}
 <div class="card">
@@ -95,4 +134,33 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var LS_KEY = "medcover_test_email";
+  var emailEl = document.getElementById("test_email");
+  var eventEl = document.getElementById("test_event_id");
+
+  if (emailEl) {
+    var saved = localStorage.getItem(LS_KEY);
+    if (saved) emailEl.value = saved;
+    emailEl.addEventListener("input", function () {
+      localStorage.setItem(LS_KEY, emailEl.value);
+    });
+  }
+
+  document.querySelectorAll("[id^='test_form_']").forEach(function (form) {
+    var code = form.id.replace("test_form_", "");
+    form.addEventListener("submit", function () {
+      var emailHidden = document.getElementById("test_email_" + code);
+      var eventHidden = document.getElementById("test_event_id_" + code);
+      if (emailHidden) emailHidden.value = emailEl ? emailEl.value : "";
+      if (eventHidden) eventHidden.value = eventEl ? eventEl.value : "";
+    });
+  });
+})();
+</script>
 {% endblock %}

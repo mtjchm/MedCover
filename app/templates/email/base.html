@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 14px; color: #222; background: #fff; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .header { border-bottom: 2px solid #c00; padding-bottom: 8px; margin-bottom: 20px; font-weight: bold; color: #c00; }
+    .footer { border-top: 1px solid #ddd; margin-top: 24px; padding-top: 10px; font-size: 12px; color: #888; }
+    table.event-info { border-collapse: collapse; margin: 12px 0; }
+    table.event-info td { padding: 2px 12px 2px 0; vertical-align: top; }
+    table.event-info td:first-child { color: #555; white-space: nowrap; }
+    a { color: #c00; }
+    .changes { margin: 12px 0; }
+    .changes table { border-collapse: collapse; width: 100%; }
+    .changes th { text-align: left; font-size: 12px; color: #555; padding: 3px 8px; background: #f5f5f5; }
+    .changes td { padding: 3px 8px; font-size: 13px; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">{{ org_name or 'MedCover' }}</div>
+    {% block content %}{% endblock %}
+    <div class="footer">{{ org_name or 'MedCover' }} — automatická zpráva, neodpovídejte na tento e-mail.</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{% extends "email/base.html" %}
+{% block content %}
+<p>Dobrý den, {{ user.name }},</p>
+<p>váš účet v systému {{ org_name or 'MedCover' }} byl aktivován.</p>
+<p>Nyní se můžete <a href="{{ login_url }}">přihlásit</a>.</p>
+<p>V případě dotazů kontaktujte administrátora.</p>
+{% endblock %}

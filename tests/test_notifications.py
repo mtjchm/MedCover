@@ -86,7 +86,8 @@ class TestNotificationsToggle:
             "/admin/notifications/",
             data={
                 "csrf_token": csrf,
-                "notify_event_lifecycle": "on",
+                "notify_event_published": "on",
+                "notify_assignments_opened": "on",
                 "notify_event_cancelled": "on",
                 "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
@@ -99,7 +100,7 @@ class TestNotificationsToggle:
         with app.app_context():
             settings = db.session.get(AppSettings, 1)
             assert settings.notify_assignment is False
-            assert settings.notify_event_lifecycle is True
+            assert settings.notify_event_published is True
 
     def test_enable_all_succeeds(self, app, admin_client):
         csrf = _get_csrf(admin_client)
@@ -108,7 +109,8 @@ class TestNotificationsToggle:
             data={
                 "csrf_token": csrf,
                 "notify_assignment": "on",
-                "notify_event_lifecycle": "on",
+                "notify_event_published": "on",
+                "notify_assignments_opened": "on",
                 "notify_event_cancelled": "on",
                 "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
@@ -313,3 +315,173 @@ class TestEventChangedNotification:
         with app.app_context():
             assert _format_event_change_value("name", None) == "—"
             assert _format_event_change_value("name", "None") == "—"
+
+
+# ── Test notification route ───────────────────────────────────────────────────
+
+
+def _make_event_for_test(app):
+    """Create a minimal published event for test notification use."""
+    from app.models.event import Event
+    from app.models.master_event import MasterEvent
+    from app.models.role import Role
+    from app.models.user import UserAccount
+    from datetime import datetime, timezone
+
+    with app.app_context():
+        me = MasterEvent(name="ME test-notif-route")
+        db.session.add(me)
+        db.session.flush()
+        role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
+        user = UserAccount(email="tnr_creator@test.cz", name="TNR Creator", is_active=True)
+        user.set_password("x")
+        user.roles = [role]
+        db.session.add(user)
+        db.session.flush()
+        event = Event(
+            name="Test Notif Route Event",
+            master_event_id=me.id,
+            start_datetime=datetime(2031, 1, 1, 9, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2031, 1, 1, 17, 0, tzinfo=timezone.utc),
+            created_by_id=user.id,
+        )
+        db.session.add(event)
+        db.session.commit()
+        return event.id
+
+
+class TestNotificationTestRoute:
+    def test_invalid_code_redirects(self, admin_client):
+        resp = admin_client.post(
+            "/admin/notifications/test/unknown_code",
+            data={"test_email": "a@b.com", "test_event_id": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert "/admin/notifications/" in resp.headers["Location"]
+
+    def test_missing_email_redirects(self, admin_client):
+        resp = admin_client.post(
+            "/admin/notifications/test/assignment_confirmed",
+            data={"test_email": "", "test_event_id": ""},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+
+    def test_non_admin_forbidden(self, client):
+        resp = client.post(
+            "/admin/notifications/test/assignment_confirmed",
+            data={"test_email": "x@y.com"},
+        )
+        assert resp.status_code in (302, 403)
+
+    def test_assignment_confirmed_enqueues_to_test_email(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        resp = admin_client.post(
+            "/admin/notifications/test/assignment_confirmed",
+            data={"test_email": "tester@example.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+            assert after == before + 1
+            row = db.session.scalar(
+                db.select(OutboxEmail).order_by(OutboxEmail.id.desc()).limit(1)
+            )
+            assert row.to_email == "tester@example.com"
+
+    def test_event_changed_enqueues_to_test_email(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        resp = admin_client.post(
+            "/admin/notifications/test/event_changed",
+            data={"test_email": "tester2@example.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+            assert after == before + 1
+
+    def test_assignment_released_enqueues(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        admin_client.post(
+            "/admin/notifications/test/assignment_released",
+            data={"test_email": "t@test.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        assert after == before + 1
+
+    def test_event_published_enqueues(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        admin_client.post(
+            "/admin/notifications/test/event_published",
+            data={"test_email": "t@test.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        assert after == before + 1
+
+    def test_event_cancelled_enqueues(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        admin_client.post(
+            "/admin/notifications/test/event_cancelled",
+            data={"test_email": "t@test.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        assert after == before + 1
+
+    def test_unfilled_reminder_enqueues(self, app, admin_client):
+        from app.models.outbox import OutboxEmail
+        event_id = _make_event_for_test(app)
+        with app.app_context():
+            before = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        admin_client.post(
+            "/admin/notifications/test/unfilled_reminder",
+            data={"test_email": "t@test.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        with app.app_context():
+            after = db.session.scalar(db.select(db.func.count(OutboxEmail.id)))
+        assert after == before + 1
+
+    def test_debriefing_no_assignment_warns(self, app, admin_client):
+        """Debriefing test without any assignment flashes a warning."""
+        event_id = _make_event_for_test(app)
+        resp = admin_client.post(
+            "/admin/notifications/test/debriefing_invitation",
+            data={"test_email": "t@test.com", "test_event_id": str(event_id)},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "přihlášení".encode() in resp.data
+
+    def test_no_event_in_db_warns(self, admin_client):
+        """With no events in DB, test notification flashes a warning."""
+        resp = admin_client.post(
+            "/admin/notifications/test/assignment_confirmed",
+            data={"test_email": "t@test.com", "test_event_id": ""},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b"akci" in resp.data

@@ -595,18 +595,21 @@ def create_invite() -> Response:
 def _queue_invite_email(invite: RegistrationInvite) -> None:
     """Enqueue invite email into outbox and link it to the invite row."""
     from app.config import INVITE_TOKEN_HOURS as _HOURS
+    from app.mail import _base_context  # noqa: PLC0415
     register_url = external_url_for("auth.register", token=invite.token)
-    body = render_template(
-        "email/invite.txt",
+    html_body = render_template(
+        "email/invite.html",
         invite=invite,
         register_url=register_url,
         hours=_HOURS,
+        **_base_context(),
     )
     subject = invite.custom_subject or "MedCover — pozvánka k registraci"
     outbox = OutboxEmail(
         to_email=invite.email,
         subject=subject,
-        body=body,
+        body="Tento e-mail obsahuje formátovaný obsah. Otevřete jej v e-mailovém klientovi s podporou HTML.",
+        html_body=html_body,
     )
     db.session.add(outbox)
     db.session.flush()

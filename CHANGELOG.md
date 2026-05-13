@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-05-13
+
+### Added
+- All user-facing email notifications converted from plain text to HTML with a shared branded layout (closes #184)
+- Email notifications now include a direct link to the relevant event using the configured app base URL (closes #184)
+- Admin notifications page: new "Zkušební oznámení" tool — enter an email address, pick an event, and send a test notification to verify HTML rendering and links (closes #184)
+- Test email address field on notifications page persists across page reloads via `localStorage` (closes #184)
+- `assignments_opened` notification: lists open spots with required qualifications and description (closes #184)
+- `unfilled_spots_reminder` notification: lists each unfilled spot with required qualifications and description (closes #184)
+- Notification toggles split: "Nová akce zveřejněna" and "Otevřeny přihlášky" now have independent on/off controls (closes #184)
+
+### Fixed
+- Account activation email was still using the deleted plain-text template; now routed through the outbox (closes #184)
+- Debriefing test notification crashed with `Assignment has no attribute event_id` (closes #184)
+
 ## [0.13.0] - 2026-05-12
 
 ### Added

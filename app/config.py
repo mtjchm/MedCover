@@ -66,6 +66,9 @@ class TestingConfig(Config):
         "postgresql://medcover:devpassword@localhost:5432/medcover_test",
     ))
     WTF_CSRF_ENABLED = False
+    # Required so url_for() works outside an active request context (e.g. in
+    # unit tests that call send_* functions directly with app_context only).
+    SERVER_NAME = "localhost"
 
 
 class ProductionConfig(Config):
