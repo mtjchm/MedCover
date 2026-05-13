@@ -4,17 +4,16 @@ from datetime import datetime, timedelta, timezone
 import socket
 import time
 
-from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 from flask_login import login_required
-from flask_mail import Message
 
-from app.extensions import db, mail
+from app.extensions import db
 from app.models.user import UserAccount
 from app.models.settings import get_settings
 from app.models.feedback import UserFeedback
 from sqlalchemy import collate
 
-from app.utils import CS_COLLATION, external_url_for, get_or_404, require_permission
+from app.utils import CS_COLLATION, get_or_404, require_permission
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -188,17 +187,9 @@ def activate_user(user_id: str) -> Response:
 
 
 def _send_activation_email(user: UserAccount) -> None:
-    login_url = external_url_for("auth.login")
-    body = render_template("email/account_activated.txt", user=user, login_url=login_url)
-    msg = Message(
-        subject="MedCover — váš účet byl aktivován",
-        recipients=[user.email],
-        body=body,
-    )
-    try:
-        mail.send(msg)
-    except Exception as exc:
-        current_app.logger.warning("Activation email failed for %s: %s", user.email, exc)
+    from app.mail import send_account_activated  # noqa: PLC0415
+    send_account_activated(user)
+    db.session.commit()
 
 
 # ── Permission matrix ─────────────────────────────────────────────────────────

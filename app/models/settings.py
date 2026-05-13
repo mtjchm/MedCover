@@ -67,7 +67,8 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # Auth emails (invite, password reset, account activation) are always sent
     # and cannot be toggled.  The flags below control operational notifications.
     notify_assignment = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
-    notify_event_lifecycle = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_event_published = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
+    notify_assignments_opened = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
     notify_event_cancelled = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
     notify_event_changed = db.Column(db.Boolean, default=True, nullable=False, server_default="true")
     notify_unfilled_reminder = db.Column(db.Boolean, default=True, nullable=False, server_default="true")

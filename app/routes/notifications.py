@@ -145,8 +145,12 @@ def test_notification(code: str) -> Response:
         elif code == "debriefing_invitation":
             # Build a minimal stand-in assignment for the debriefing URL
             from app.models.assignment import Assignment  # noqa: PLC0415
+            from app.models.event import EventSpot  # noqa: PLC0415
             fake_assignment = db.session.scalar(
-                db.select(Assignment).where(Assignment.event_id == event.id).limit(1)
+                db.select(Assignment)
+                .join(EventSpot, Assignment.spot_id == EventSpot.id)
+                .where(EventSpot.event_id == event.id)
+                .limit(1)
             )
             if fake_assignment is None:
                 flash("Akce nemá žádné přihlášení — nelze odeslat zkušební pozvánku k debriefingu.", "warning")

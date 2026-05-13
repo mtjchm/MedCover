@@ -84,7 +84,7 @@ NOTIFICATION_CATALOG: list[dict] = [
     },
     {
         "code": "event_published",
-        "settings_field": "notify_event_lifecycle",
+        "settings_field": "notify_event_published",
         "name_cs": "Nová akce zveřejněna",
         "description_cs": "Odesílán všem aktivním členům a koordinátorům při zveřejnění akce.",
         "trigger_cs": "Akce přejde do stavu Zveřejněno",
@@ -94,7 +94,7 @@ NOTIFICATION_CATALOG: list[dict] = [
     },
     {
         "code": "assignments_opened",
-        "settings_field": "notify_event_lifecycle",
+        "settings_field": "notify_assignments_opened",
         "name_cs": "Otevřeny přihlášky na akci",
         "description_cs": "Odesílán všem aktivním členům a koordinátorům při otevření přihlášek na akci.",
         "trigger_cs": "Akce přejde do stavu Přihlášky otevřeny",
@@ -159,7 +159,7 @@ NOTIFICATION_CATALOG: list[dict] = [
         "description_cs": "Systémové e-maily pro ověření identity: pozvánky do systému a odkaz na obnovu hesla.",
         "trigger_cs": "Odeslání pozvánky administrátorem nebo žádost uživatele o obnovu hesla",
         "recipient_cs": "Pozvaný uživatel / žadatel o obnovu hesla",
-        "templates": ["email/invite.txt, email/password_reset.txt"],
+        "templates": ["email/invite.html", "email/reset_password.html"],
         "always_on": True,
     },
     {
@@ -181,8 +181,9 @@ NOTIFICATION_CATALOG: list[dict] = [
 # Roles whose members may receive each notification category.
 # "auth" (invite / password-reset / activation) is exempt — always allowed.
 _NOTIFICATION_ALLOWED_ROLES: dict[str, set[str]] = {
-    "admin_digest":      {"Admin"},
-    "event_lifecycle":   {"Coordinator", "Member"},  # published, assignments_opened
+    "admin_digest":       {"Admin"},
+    "event_published":    {"Coordinator", "Member"},
+    "assignments_opened": {"Coordinator", "Member"},
     "assignment":        {"Member"},                 # confirmed, released
     "unfilled_reminder": {"Coordinator", "Member"},  # reminder to coordinator / RP
     "event_cancelled":   {"Member"},                 # cancelled → notify assigned users
@@ -224,7 +225,13 @@ def _is_test_notification() -> bool:
 
 
 def _is_notify_enabled(settings_field: str) -> bool:
-    """Return False if the admin has disabled this notification type in AppSettings."""
+    """Return False if the admin has disabled this notification type in AppSettings.
+
+    Always returns True when a test notification override is active so that
+    disabled notifications can still be previewed via the test send feature.
+    """
+    if _is_test_notification():
+        return True
     try:
         from app.models.settings import get_settings  # noqa: PLC0415
         return bool(getattr(get_settings(), settings_field, True))
@@ -310,9 +317,9 @@ def send_assignment_released(user: UserAccount, event: Event) -> None:
 
 def send_event_published(user: UserAccount, event: Event) -> None:
     """Notify a user that an event they might be interested in was published."""
-    if not _is_notify_enabled("notify_event_lifecycle"):
+    if not _is_notify_enabled("notify_event_published"):
         return
-    if not user_can_receive_notification(user, "event_lifecycle"):
+    if not user_can_receive_notification(user, "event_published"):
         return
     html_body = render_template(
         "email/event_published.html",
@@ -326,9 +333,9 @@ def send_event_published(user: UserAccount, event: Event) -> None:
 
 def send_assignments_opened(user: UserAccount, event: Event) -> None:
     """Notify a user that assignments opened for an event."""
-    if not _is_notify_enabled("notify_event_lifecycle"):
+    if not _is_notify_enabled("notify_assignments_opened"):
         return
-    if not user_can_receive_notification(user, "event_lifecycle"):
+    if not user_can_receive_notification(user, "assignments_opened"):
         return
     html_body = render_template(
         "email/assignments_opened.html",

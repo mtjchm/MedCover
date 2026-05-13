@@ -86,7 +86,8 @@ class TestNotificationsToggle:
             "/admin/notifications/",
             data={
                 "csrf_token": csrf,
-                "notify_event_lifecycle": "on",
+                "notify_event_published": "on",
+                "notify_assignments_opened": "on",
                 "notify_event_cancelled": "on",
                 "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
@@ -99,7 +100,7 @@ class TestNotificationsToggle:
         with app.app_context():
             settings = db.session.get(AppSettings, 1)
             assert settings.notify_assignment is False
-            assert settings.notify_event_lifecycle is True
+            assert settings.notify_event_published is True
 
     def test_enable_all_succeeds(self, app, admin_client):
         csrf = _get_csrf(admin_client)
@@ -108,7 +109,8 @@ class TestNotificationsToggle:
             data={
                 "csrf_token": csrf,
                 "notify_assignment": "on",
-                "notify_event_lifecycle": "on",
+                "notify_event_published": "on",
+                "notify_assignments_opened": "on",
                 "notify_event_cancelled": "on",
                 "notify_event_changed": "on",
                 "notify_unfilled_reminder": "on",
