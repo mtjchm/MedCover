@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Quick date-range shortcut buttons on `/reports/date-range/`: this month, last month, from start of year, whole year
+
 ## [0.13.2] - 2026-05-13
 
 ### Fixed
