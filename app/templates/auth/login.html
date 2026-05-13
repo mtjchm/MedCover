@@ -22,7 +22,7 @@
           <div class="mb-3">
             <label for="password" class="form-label">Heslo</label>
             <input type="password" class="form-control" id="password" name="password"
-                   autocomplete="current-password" required>
+                   autocomplete="current-password">
           </div>
           <div class="d-grid mt-4">
             <button type="submit" class="btn btn-danger">Přihlásit se</button>
@@ -84,3 +84,36 @@
   </div>
 </div>
 {% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  "use strict";
+  var emailEl = document.getElementById("email");
+  if (!emailEl) return;
+
+  function validateEmail() {
+    var val = emailEl.value.trim();
+    if (!val) {
+      emailEl.classList.remove("is-valid", "is-invalid");
+      return;
+    }
+    if (emailEl.checkValidity()) {
+      emailEl.classList.add("is-valid");
+      emailEl.classList.remove("is-invalid");
+    } else {
+      emailEl.classList.add("is-invalid");
+      emailEl.classList.remove("is-valid");
+    }
+  }
+
+  emailEl.addEventListener("input", function () {
+    // Only give live feedback once the field has already been validated
+    // (i.e. after the user has tabbed away at least once).
+    if (!emailEl.classList.contains("is-valid") && !emailEl.classList.contains("is-invalid")) return;
+    validateEmail();
+  });
+  emailEl.addEventListener("blur", validateEmail);
+})();
+</script>
+{% endblock extra_scripts %}
