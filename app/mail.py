@@ -452,7 +452,7 @@ def send_unfilled_spots_reminder(
         "email/unfilled_spots_reminder.html",
         coordinator_name=user.name,
         event=event,
-        unfilled=len(unfilled),
+        unfilled=unfilled,
         **_base_context(),
     )
     _enqueue(

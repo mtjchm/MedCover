@@ -141,7 +141,11 @@ def test_notification(code: str) -> Response:
             fake_changes: dict = {"description": ["—", "Zkušební oznámení"]}
             mailer.send_event_changed(current_user, event, fake_changes, event_url=event_url)
         elif code == "unfilled_reminder":
-            mailer.send_unfilled_spots_reminder(current_user, event, unfilled=[None])
+            from app.models.event import EventSpot  # noqa: PLC0415
+            spots = db.session.scalars(
+                db.select(EventSpot).where(EventSpot.event_id == event.id).limit(5)
+            ).all()
+            mailer.send_unfilled_spots_reminder(current_user, event, unfilled=list(spots) or [None])
         elif code == "debriefing_invitation":
             # Build a minimal stand-in assignment for the debriefing URL
             from app.models.assignment import Assignment  # noqa: PLC0415
