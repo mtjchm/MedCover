@@ -1195,3 +1195,143 @@ class TestDeleteDraftEvent:
         )
         assert response.status_code == 200
         assert response.get_json()["ok"] is True
+
+
+class TestEventSplit:
+    """Tests for the POST /events/<id>/split route."""
+
+    def _create_open_event(self, app) -> int:
+        """Create an ASSIGNMENTS_OPEN event and return its id."""
+        from datetime import datetime, timezone
+        from app.models.event import Event, EventStatus, EventType
+        from app.models.master_event import MasterEvent
+        with app.app_context():
+            me = MasterEvent(name="Split ME")
+            db.session.add(me)
+            db.session.flush()
+            event = Event(
+                name="Splitovatelná akce",
+                master_event_id=me.id,
+                event_type=EventType.MEDICAL_COVER,
+                status=EventStatus.ASSIGNMENTS_OPEN,
+                start_datetime=datetime(2030, 7, 1, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 7, 1, 20, 0, tzinfo=timezone.utc),
+            )
+            db.session.add(event)
+            db.session.commit()
+            return event.id
+
+    def test_successful_split(self, app, admin_client):
+        event_id = self._create_open_event(app)
+        resp = admin_client.post(
+            f"/events/{event_id}/split",
+            data={"split_datetime": "2030-07-01T14:00"},
+            follow_redirects=False,
+        )
+        # Should redirect to the new event
+        assert resp.status_code == 302
+        with app.app_context():
+            part1 = db.session.get(Event, event_id)
+            assert part1 is not None
+            assert "1/2" in part1.name
+            assert part1.end_datetime.hour in (12, 13, 14)  # 14:00 local = 12:00 UTC in summer
+
+            # Find part2
+            from app.models.event import Event as Ev
+            part2 = db.session.scalar(
+                db.select(Ev).where(Ev.name.like("%2/2%"))
+            )
+            assert part2 is not None
+            assert part2.status == EventStatus.ASSIGNMENTS_OPEN
+            assert part2.start_datetime == part1.end_datetime
+
+    def test_split_time_out_of_bounds_flashes_error(self, app, admin_client):
+        event_id = self._create_open_event(app)
+        resp = admin_client.post(
+            f"/events/{event_id}/split",
+            data={"split_datetime": "2030-07-02T10:00"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "musí být mezi" in resp.data.decode()
+
+    def test_split_cancelled_event_redirects_with_error(self, app, admin_client):
+        from datetime import datetime, timezone
+        from app.models.event import Event, EventStatus, EventType
+        from app.models.master_event import MasterEvent
+        with app.app_context():
+            me = MasterEvent(name="Split ME2")
+            db.session.add(me)
+            db.session.flush()
+            event = Event(
+                name="Zrušená akce",
+                master_event_id=me.id,
+                event_type=EventType.MEDICAL_COVER,
+                status=EventStatus.CANCELLED,
+                start_datetime=datetime(2030, 8, 1, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 8, 1, 20, 0, tzinfo=timezone.utc),
+            )
+            db.session.add(event)
+            db.session.commit()
+            event_id = event.id
+        resp = admin_client.post(
+            f"/events/{event_id}/split",
+            data={"split_datetime": "2030-08-01T14:00"},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert "nelze rozdělit" in resp.data.decode()
+
+    def test_split_requires_permission(self, app, member_client):
+        event_id = self._create_open_event(app)
+        resp = member_client.post(
+            f"/events/{event_id}/split",
+            data={"split_datetime": "2030-07-01T14:00"},
+        )
+        assert resp.status_code == 403
+
+    def test_split_copies_spots_and_assignments(self, app, admin_client):
+        from datetime import datetime, timezone
+        from app.models.event import Event, EventSpot, EventStatus, EventType
+        from app.models.master_event import MasterEvent
+        from app.models.assignment import Assignment
+        from app.models.user import UserAccount
+        with app.app_context():
+            me = MasterEvent(name="Split ME3")
+            db.session.add(me)
+            db.session.flush()
+            event = Event(
+                name="Akce s pozicemi",
+                master_event_id=me.id,
+                event_type=EventType.MEDICAL_COVER,
+                status=EventStatus.ASSIGNMENTS_OPEN,
+                start_datetime=datetime(2030, 9, 1, 8, 0, tzinfo=timezone.utc),
+                end_datetime=datetime(2030, 9, 1, 20, 0, tzinfo=timezone.utc),
+            )
+            db.session.add(event)
+            db.session.flush()
+            spot = EventSpot(event_id=event.id, description="Záchranář")
+            db.session.add(spot)
+            db.session.flush()
+            # Assign the admin user to the spot
+            user = db.session.scalar(db.select(UserAccount).where(UserAccount.email == "admin@test.com"))
+            if user:
+                assignment = Assignment(spot_id=spot.id, user_id=user.id)
+                db.session.add(assignment)
+            db.session.commit()
+            event_id = event.id
+
+        admin_client.post(
+            f"/events/{event_id}/split",
+            data={"split_datetime": "2030-09-01T14:00"},
+            follow_redirects=False,
+        )
+
+        with app.app_context():
+            from app.models.event import Event as Ev
+            part2 = db.session.scalar(db.select(Ev).where(Ev.name.like("%2/2%")))
+            assert part2 is not None
+            assert len(part2.spots) == 1
+            assert part2.spots[0].description == "Záchranář"
+            # Assignment should be copied too
+            assert part2.spots[0].assignment is not None

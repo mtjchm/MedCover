@@ -25,6 +25,8 @@ Permissions:
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
 
@@ -1183,3 +1185,114 @@ def set_rp(event_id: int) -> Response:
 
     flash(f"{user.name} byl nastaven jako vedoucí akce.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Split event ───────────────────────────────────────────────────────────────
+
+def _copy_spots_with_assignments(source: Event, target: Event) -> None:
+    """Copy spots (+ qualifications + existing assignments) from source to target."""
+    for spot in source.spots:
+        new_spot = EventSpot(
+            event_id=target.id,
+            description=spot.description,
+            is_optional=spot.is_optional,
+        )
+        new_spot.required_qualifications = list(spot.required_qualifications)
+        db.session.add(new_spot)
+        db.session.flush()  # need new_spot.id for the assignment
+
+        if spot.assignment is not None:
+            new_assignment = Assignment(
+                spot_id=new_spot.id,
+                user_id=spot.assignment.user_id,
+            )
+            db.session.add(new_assignment)
+
+
+def _copy_equipment(source: Event, target: Event) -> None:
+    """Copy equipment plans and assignments from source to target."""
+    for plan in source.equipment_plans:
+        db.session.add(EventEquipmentPlan(
+            event_id=target.id,
+            equipment_type_id=plan.equipment_type_id,
+            quantity_required=plan.quantity_required,
+        ))
+    for ea in source.equipment_assignments:
+        db.session.add(EventEquipmentAssignment(
+            event_id=target.id,
+            equipment_item_id=ea.equipment_item_id,
+        ))
+
+
+@events_bp.post("/<int:event_id>/split")
+@login_required
+def split_event(event_id: int) -> Response:
+    """Split an event into two contiguous parts at a given datetime."""
+    require_permission("event.create")
+
+    event = get_or_404(Event, event_id)
+
+    if event.status in (EventStatus.CANCELLED, EventStatus.COMPLETED):
+        flash("Dokončené nebo zrušené akce nelze rozdělit.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    raw = request.form.get("split_datetime", "").strip()
+    if not raw:
+        flash("Zadejte čas rozdělení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    try:
+        # datetime-local input gives "YYYY-MM-DDTHH:MM" — treat as local Prague time
+        from app.models.settings import get_settings
+        from zoneinfo import ZoneInfo as _ZI
+        tz = _ZI(get_settings().timezone)
+        split_dt = datetime.fromisoformat(raw).replace(tzinfo=tz)
+    except ValueError:
+        flash("Neplatný formát času rozdělení.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    if not (event.start_datetime < split_dt < event.end_datetime):
+        flash("Čas rozdělení musí být mezi začátkem a koncem akce.", "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
+    original_end = event.end_datetime
+    original_name = event.name
+
+    # Shorten the source event and rename it "… 1/2"
+    event.end_datetime = split_dt
+    event.name = f"{original_name} 1/2"
+    event.version += 1
+    audit("edit", "Event", event.id,
+          f"Akce rozdělena — konec zkrácen na {split_dt.isoformat()} (část 1/2)",
+          {"end_datetime": {"before": original_end.isoformat(), "after": split_dt.isoformat()},
+           "name": {"before": original_name, "after": event.name}})
+
+    # Create the second part
+    part2 = Event(
+        name=f"{original_name} 2/2",
+        master_event_id=event.master_event_id,
+        event_type=event.event_type,
+        status=EventStatus.ASSIGNMENTS_OPEN,
+        start_datetime=split_dt,
+        end_datetime=original_end,
+        address=event.address,
+        contact_person=event.contact_person,
+        paid=event.paid,
+        description=event.description,
+        responsible_person_id=event.responsible_person_id,
+        created_by_id=current_user.id,
+        reminder_schedule=event.reminder_schedule,
+    )
+    db.session.add(part2)
+    db.session.flush()
+
+    _copy_spots_with_assignments(event, part2)
+    _copy_equipment(event, part2)
+
+    audit("create", "Event", part2.id,
+          f"Akce '{part2.name}' vytvořena rozdělením akce '{original_name}' (část 2/2)")
+
+    db.session.commit()
+
+    flash(f"Akce byla rozdělena. Vznikla nová akce '{part2.name}' s otevřenými přihláškami.", "success")
+    return redirect(url_for("events.detail", event_id=part2.id))

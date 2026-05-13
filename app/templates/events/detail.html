@@ -95,6 +95,11 @@
         <button class="btn btn-danger btn-sm">Zrušit akci</button>
       </form>
     {% endif %}
+    {% if event.status != EventStatus.COMPLETED and event.status != EventStatus.CANCELLED and current_user.has_permission('event.create') %}
+      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#splitModal">
+        ✂ Rozdělit akci
+      </button>
+    {% endif %}
     {% if event.status == EventStatus.DRAFT and current_user.has_permission('event.delete_draft') %}
       <form method="POST" action="{{ url_for('events.delete_event', event_id=event.id) }}"
             onsubmit="return confirm('Opravdu smazat akci „{{ event.name }}"? Tato akce je nevratná.');">
@@ -104,6 +109,45 @@
     {% endif %}
   </div>
 </div>
+
+{# ── Split modal ──────────────────────────────────────────────────────────── #}
+{% if event.status != EventStatus.COMPLETED and event.status != EventStatus.CANCELLED and current_user.has_permission('event.create') %}
+<div class="modal fade" id="splitModal" tabindex="-1" aria-labelledby="splitModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('events.split_event', event_id=event.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="splitModalLabel">✂ Rozdělit akci</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            Akce bude rozdělena na dvě části. První část skončí v zadaný čas, druhá
+            část začne ve stejný čas a skončí v původní konec akce. Oba díly zdědí
+            přihlášky, vybavení i popis ze zdrojové akce.
+          </p>
+          <div class="mb-3">
+            <label class="form-label" for="split_datetime">Čas rozdělení</label>
+            <input class="form-control" type="datetime-local" id="split_datetime" name="split_datetime"
+                   min="{{ event.start_datetime | datetimelocal }}"
+                   max="{{ event.end_datetime | datetimelocal }}"
+                   value="{{ event | midpoint_iso }}" required>
+            <div class="form-text">
+              Začátek: {{ event.start_datetime | localdt }} &nbsp;·&nbsp;
+              Konec: {{ event.end_datetime | localdt }}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary">Rozdělit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# Event details #}
 <div class="row g-3 mb-4">
