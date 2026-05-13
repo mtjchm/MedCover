@@ -82,6 +82,31 @@ def create_app(
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
 
+    @app.template_filter("datetimelocal")
+    def datetimelocal_filter(dt: datetime | None) -> str:
+        """Format a tz-aware datetime as 'YYYY-MM-DDTHH:MM' for datetime-local inputs."""
+        if dt is None:
+            return ""
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_PRAGUE_TZ).strftime("%Y-%m-%dT%H:%M")
+
+    @app.template_filter("midpoint_iso")
+    def midpoint_iso_filter(event: object) -> str:
+        """Return the midpoint between event.start_datetime and event.end_datetime
+        formatted as 'YYYY-MM-DDTHH:MM' for a datetime-local input."""
+        from app.models.event import Event as _Event
+        if not isinstance(event, _Event):
+            return ""
+        start = event.start_datetime
+        end = event.end_datetime
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        mid = start + (end - start) / 2
+        return mid.astimezone(_PRAGUE_TZ).strftime("%Y-%m-%dT%H:%M")
+
     _CZECH_DAY_ABBR = ["po", "út", "st", "čt", "pá", "so", "ne"]
 
     @app.template_filter("czechday")
