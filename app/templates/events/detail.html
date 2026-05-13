@@ -140,8 +140,9 @@
                        value="{{ mid[:10] }}" required>
               </div>
               <div class="col-5">
-                <input class="form-control" type="time" id="split_time" name="split_time"
-                       value="{{ mid[11:] }}" required>
+                <input class="form-control" type="text" id="split_time" name="split_time"
+                       pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM"
+                       maxlength="5" value="{{ mid[11:] }}" required>
               </div>
             </div>
             <div class="form-text">
