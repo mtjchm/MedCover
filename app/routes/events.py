@@ -1236,19 +1236,19 @@ def split_event(event_id: int) -> Response:
         flash("Dokončené nebo zrušené akce nelze rozdělit.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
-    raw = request.form.get("split_datetime", "").strip()
-    if not raw:
-        flash("Zadejte čas rozdělení.", "danger")
+    raw_date = request.form.get("split_date", "").strip()
+    raw_time = request.form.get("split_time", "").strip()
+    if not raw_date or not raw_time:
+        flash("Zadejte datum a čas rozdělení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
     try:
-        # datetime-local input gives "YYYY-MM-DDTHH:MM" — treat as local Prague time
         from app.models.settings import get_settings
         from zoneinfo import ZoneInfo as _ZI
         tz = _ZI(get_settings().timezone)
-        split_dt = datetime.fromisoformat(raw).replace(tzinfo=tz)
+        split_dt = datetime.fromisoformat(f"{raw_date}T{raw_time}").replace(tzinfo=tz)
     except ValueError:
-        flash("Neplatný formát času rozdělení.", "danger")
+        flash("Neplatný formát data nebo času rozdělení.", "danger")
         return redirect(url_for("events.detail", event_id=event_id))
 
     if not (event.start_datetime < split_dt < event.end_datetime):
