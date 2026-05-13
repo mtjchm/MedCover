@@ -8,6 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from collections.abc import Callable
+
 from app import create_app
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -18,9 +20,20 @@ app = create_app("production")
 # Sentinel user ID used in audit log rows written by the scheduler (no human actor)
 SCHEDULER_ACTOR_ID = None
 
+INSTANCE_ID: str = os.environ.get("INSTANCE_ID", "")
+
 # How long to wait between individual SMTP sends (seconds).
 # 6 s ≈ 10 emails/min — safely under typical relay limits (e.g. MS365: 30/min).
 MAIL_QUEUE_INTERVAL_SECONDS: int = int(os.environ.get("MAIL_QUEUE_INTERVAL_SECONDS", "6"))
+
+
+def _logged_task(name: str, fn: Callable[[], None]) -> Callable[[], None]:
+    """Wrap a scheduled task to emit an INFO log line each time it fires."""
+    def _wrapper() -> None:
+        log.info("Task running: %s", name)
+        fn()
+    _wrapper.__name__ = fn.__name__
+    return _wrapper
 
 
 def process_email_queue() -> None:
@@ -152,18 +165,33 @@ def cleanup_work_report() -> None:
 
 
 schedule.every(MAIL_QUEUE_INTERVAL_SECONDS).seconds.do(process_email_queue)
-schedule.every(1).minutes.do(open_assignments)
-schedule.every(1).minutes.do(close_completed_events)
-schedule.every(5).minutes.do(send_reminders)
-schedule.every(1).hours.do(send_admin_digest_task)
-schedule.every(1).hours.do(scheduled_backup_task)
-schedule.every(15).minutes.do(record_metrics)
-schedule.every(1).hours.do(cleanup_work_report)
+schedule.every(1).minutes.do(_logged_task("open_assignments", open_assignments))
+schedule.every(1).minutes.do(_logged_task("close_completed_events", close_completed_events))
+schedule.every(5).minutes.do(_logged_task("send_reminders", send_reminders))
+schedule.every(1).hours.do(_logged_task("send_admin_digest", send_admin_digest_task))
+schedule.every(1).hours.do(_logged_task("scheduled_backup", scheduled_backup_task))
+schedule.every(15).minutes.do(_logged_task("record_metrics", record_metrics))
+schedule.every(1).hours.do(_logged_task("cleanup_work_report", cleanup_work_report))
 
-log.info("Scheduler started (mail queue interval: %ds)", MAIL_QUEUE_INTERVAL_SECONDS)
+log.info(
+    "Scheduler started (instance=%s pid=%d mail_queue_interval=%ds)",
+    INSTANCE_ID or "?", os.getpid(), MAIL_QUEUE_INTERVAL_SECONDS,
+)
+
+_last_alive_log: float = 0.0  # monotonic timestamp of last hourly alive message
 
 while True:
     schedule.run_pending()
+
+    # Hourly "still alive" heartbeat in the log for easy monitoring.
+    _now_mono = time.monotonic()
+    if _now_mono - _last_alive_log >= 3600:
+        log.info(
+            "Scheduler alive (instance=%s pid=%d)",
+            INSTANCE_ID or "?", os.getpid(),
+        )
+        _last_alive_log = _now_mono
+
     # Write heartbeat so the admin dashboard can confirm the scheduler is alive
     try:
         with app.app_context():

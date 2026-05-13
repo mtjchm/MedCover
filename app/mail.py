@@ -30,6 +30,7 @@ When adding a new send_* function:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -44,6 +45,11 @@ if TYPE_CHECKING:
     from app.models.user import UserAccount
 
 log = logging.getLogger(__name__)
+
+# Instance identifier — set INSTANCE_ID in .env (e.g. "dev" or "prod").
+# Stored on every outbox row and sent as an SMTP header so bounced/relayed
+# emails can be traced back to the originating instance.
+_INSTANCE_ID: str = os.environ.get("INSTANCE_ID", "")
 
 _PLAIN_FALLBACK = "Tento e-mail obsahuje formátovaný obsah. Otevřete jej v e-mailovém klientovi s podporou HTML."
 
@@ -273,6 +279,7 @@ def _enqueue(
             body=body,
             html_body=html_body,
             notification_type=notification_type,
+            instance_name=_INSTANCE_ID or None,
         ))
         db.session.flush()   # assign id without a separate commit
     except Exception as exc:  # noqa: BLE001
@@ -536,6 +543,8 @@ def drain_one_outbox_email() -> bool:
         msg = Message(subject=row.subject, recipients=[row.to_email], body=row.body)
         if row.html_body:
             msg.html = row.html_body
+        if _INSTANCE_ID:
+            msg.extra_headers = {"X-MedCover-Instance": _INSTANCE_ID}
         _mail.send(msg)
         row.status = "sent"
         row.sent_at = datetime.now(timezone.utc)

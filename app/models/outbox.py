@@ -18,6 +18,9 @@ class OutboxEmail(db.Model):  # type: ignore[misc]
     html_body = db.Column(db.Text, nullable=True)
     # Identifies which send_* function enqueued this email — e.g. "assignment_confirmed".
     notification_type = db.Column(db.String(64), nullable=True, index=True)
+    # App instance that enqueued this email — from INSTANCE_ID env var (e.g. "dev", "prod").
+    # Null for emails enqueued before this column was added.
+    instance_name = db.Column(db.String(64), nullable=True, index=True)
 
     # 'pending' → being picked up by scheduler
     # 'sent'    → successfully delivered to SMTP relay
