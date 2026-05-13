@@ -133,16 +133,21 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     if not schedule.enabled:
         return False
 
-    # For daily-or-longer frequencies, only fire at the preferred Prague local hour.
-    # Sub-daily frequencies (e.g. every 6 h) ignore the hour gate and rely
-    # solely on the elapsed-time check below.
-    if schedule.frequency_hours >= 24 and now.astimezone(local_tz).hour != schedule.preferred_hour:
-        return False
+    local_now = now.astimezone(local_tz)
 
-    if schedule.last_sent_at is not None:
-        elapsed = (now - schedule.last_sent_at).total_seconds()
-        if elapsed < schedule.frequency_hours * 3600:
+    if schedule.frequency_hours >= 24:
+        # Daily+: fire only at the configured local hour, and only once per calendar day.
+        if local_now.hour != schedule.preferred_hour:
             return False
+        if schedule.last_sent_at is not None:
+            if schedule.last_sent_at.astimezone(local_tz).date() >= local_now.date():
+                return False
+    else:
+        # Sub-daily: ignore hour gate, use elapsed-time check only.
+        if schedule.last_sent_at is not None:
+            elapsed = (now - schedule.last_sent_at).total_seconds()
+            if elapsed < schedule.frequency_hours * 3600:
+                return False
 
     eligible = db_session.scalars(
         sa.select(UserAccount)
@@ -194,7 +199,8 @@ def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
     if not settings.backup_schedule_enabled:
         return False
 
-    if now.hour != settings.backup_schedule_hour:
+    local_tz = ZoneInfo(settings.timezone)
+    if now.astimezone(local_tz).hour != settings.backup_schedule_hour:
         return False
 
     # Skip if a backup was already created today (UTC date) to avoid duplicates.

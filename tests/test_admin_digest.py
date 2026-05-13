@@ -178,10 +178,10 @@ def test_run_admin_digest_skips_wrong_hour(app: object) -> None:
     assert result is False
 
 
-def test_run_admin_digest_skips_too_soon(app: object) -> None:
-    """run_admin_digest should skip if last_sent_at is too recent."""
+def test_run_admin_digest_skips_already_sent_today(app: object) -> None:
+    """run_admin_digest should skip if already sent today (same local calendar date)."""
     from app.scheduler_tasks import run_admin_digest
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     with app.app_context():
         tz = _local_tz(app)
@@ -189,11 +189,37 @@ def test_run_admin_digest_skips_too_soon(app: object) -> None:
         hour = schedule.preferred_hour
         now = datetime(2025, 6, 1, hour, 0, tzinfo=tz)
         schedule.enabled = True
-        schedule.last_sent_at = now - timedelta(hours=schedule.frequency_hours - 1)
+        # Sent earlier the same day (e.g. at hour-1)
+        schedule.last_sent_at = datetime(2025, 6, 1, max(hour - 1, 0), 0, tzinfo=tz)
         db.session.commit()
         result = run_admin_digest(db.session, now=now)
 
     assert result is False
+
+
+def test_run_admin_digest_enqueues_on_new_day(app: object, admin_client: object) -> None:
+    """run_admin_digest should fire if last_sent_at was a previous local day."""
+    from app.scheduler_tasks import run_admin_digest
+    from app.models.outbox import OutboxEmail
+    from datetime import datetime
+
+    with app.app_context():
+        tz = _local_tz(app)
+        schedule = get_digest_schedule()
+        hour = schedule.preferred_hour
+        now = datetime(2025, 6, 2, hour, 0, tzinfo=tz)
+        schedule.enabled = True
+        schedule.last_sent_at = datetime(2025, 6, 1, hour, 0, tzinfo=tz)  # yesterday
+        db.session.commit()
+
+        result = run_admin_digest(db.session, now=now)
+        assert result is True
+
+        outbox = db.session.scalars(
+            sa.select(OutboxEmail).where(OutboxEmail.to_email == "admin@test.com")
+        ).all()
+
+    assert len(outbox) >= 1
 
 
 def test_run_admin_digest_enqueues_when_due(app: object, admin_client: object) -> None:

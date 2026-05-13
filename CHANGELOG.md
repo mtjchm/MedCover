@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-05-13
+
+### Fixed
+- Admin digest: replaced 24h elapsed guard with a calendar-date check — digest now fires exactly once per calendar day at the configured hour regardless of scheduler restart time (closes #185)
+- Scheduled backup: hour gate now correctly converts to the configured local timezone before comparison; was incorrectly comparing against UTC (closes #185)
+- Digest poll interval changed from every 30 minutes to every 1 hour for consistency (closes #185)
+- VERSION file bumped to 0.13.1 was missed in PR #184; corrected to 0.13.2 here (closes #185)
+
 ## [0.13.1] - 2026-05-13
 
 ### Added
