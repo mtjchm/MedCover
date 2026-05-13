@@ -864,3 +864,76 @@ class TestUserArchive:
         with app.app_context():
             u = db.session.get(UserAccount, uid)
             assert u.password_reset_nonce == nonce_before
+
+
+class TestManualUserCreate:
+    """Tests for the manual user creation route GET/POST /users/create."""
+
+    def test_create_page_loads_for_admin(self, app: object, admin_client: object) -> None:
+        resp = admin_client.get("/users/create")
+        assert resp.status_code == 200
+        assert "Nový uživatel" in resp.data.decode()
+
+    def test_create_page_forbidden_for_member(self, app: object, member_client: object) -> None:
+        resp = member_client.get("/users/create")
+        assert resp.status_code == 403
+
+    def test_create_user_success(self, app: object, admin_client: object) -> None:
+        from app.extensions import db
+        from app.models.user import UserAccount
+        import sqlalchemy as sa
+
+        resp = admin_client.post("/users/create", data={
+            "csrf_token": "test",
+            "name": "Testovací Uživatel",
+            "email": "manual.create@test.com",
+            "phone": "",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        with app.app_context():
+            user = db.session.scalar(sa.select(UserAccount).where(UserAccount.email == "manual.create@test.com"))
+            assert user is not None
+            assert user.name == "Testovací Uživatel"
+            assert user.is_active is True
+            assert not user.check_password("anything")
+
+    def test_create_user_duplicate_email_rejected(self, app: object, admin_client: object) -> None:
+        resp = admin_client.post("/users/create", data={
+            "csrf_token": "test",
+            "name": "Duplikát",
+            "email": "admin@test.com",  # already exists
+            "phone": "",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert "již použit" in resp.data.decode()
+
+    def test_create_user_missing_name_rejected(self, app: object, admin_client: object) -> None:
+        resp = admin_client.post("/users/create", data={
+            "csrf_token": "test",
+            "name": "",
+            "email": "new@test.com",
+            "phone": "",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert "Jméno nesmí být prázdné" in resp.data.decode()
+
+    def test_create_user_writes_audit_log(self, app: object, admin_client: object) -> None:
+        from app.extensions import db
+        from app.models.audit import AuditLogEntry
+        import sqlalchemy as sa
+
+        admin_client.post("/users/create", data={
+            "csrf_token": "test",
+            "name": "Audit Test",
+            "email": "audit.manual@test.com",
+            "phone": "",
+        })
+        with app.app_context():
+            entry = db.session.scalar(
+                sa.select(AuditLogEntry)
+                .where(AuditLogEntry.entity_type == "UserAccount")
+                .where(AuditLogEntry.action_type == "create")
+                .where(AuditLogEntry.summary.contains("audit.manual@test.com"))
+            )
+            assert entry is not None

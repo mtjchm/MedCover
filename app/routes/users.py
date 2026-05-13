@@ -231,6 +231,67 @@ def index() -> str:
     )
 
 
+@users_bp.route("/create", methods=["GET", "POST"])
+@login_required
+def create_user() -> str | Response:
+    """Manually create a new active user account (no invite required)."""
+    require_permission("user.create")
+
+    from app.models.qualification import Qualification
+    import secrets
+
+    all_roles = db.session.scalars(db.select(Role).order_by(collate(Role.name, CS_COLLATION))).all()
+    all_qualifications = db.session.scalars(
+        db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))
+    ).all()
+
+    if request.method == "GET":
+        return render_template("users/create.html", all_roles=all_roles, all_qualifications=all_qualifications)
+
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    phone_raw = request.form.get("phone", "").strip()
+
+    if not name:
+        flash("Jméno nesmí být prázdné.", "danger")
+        return render_template("users/create.html", all_roles=all_roles, all_qualifications=all_qualifications)
+    if not email or not _EMAIL_RE.match(email):
+        flash("Zadejte platný e-mail.", "danger")
+        return render_template("users/create.html", all_roles=all_roles, all_qualifications=all_qualifications)
+    if not _validate_phone(phone_raw):
+        flash("Neplatný formát telefonního čísla.", "danger")
+        return render_template("users/create.html", all_roles=all_roles, all_qualifications=all_qualifications)
+
+    duplicate = db.session.scalar(db.select(UserAccount).where(UserAccount.email == email))
+    if duplicate:
+        flash(f"E-mail {email} je již použit jiným uživatelem.", "danger")
+        return render_template("users/create.html", all_roles=all_roles, all_qualifications=all_qualifications)
+
+    # Create account with a random unusable password — user must use forgot-password to set one.
+    user = UserAccount(
+        name=name,
+        email=email,
+        phone=phone_raw or None,
+        is_active=True,
+    )
+    user.set_password(secrets.token_hex(32))
+    db.session.add(user)
+    db.session.flush()  # get user.id before commit
+
+    if current_user.has_permission("user.assign_role"):
+        role_ids = [int(r) for r in request.form.getlist("role_ids")]
+        _apply_role_update(user, role_ids)
+
+    if current_user.has_permission("user.assign_qualification"):
+        cred_ids = [int(c) for c in request.form.getlist("qualification_ids")]
+        _apply_qualification_update(user, cred_ids)
+
+    audit("create", "UserAccount", user.id, f"Manuálně vytvořen účet {user.name} ({user.email})", {})
+    db.session.commit()
+    flash(f"Uživatel {user.name} byl vytvořen. Uživatel si může nastavit heslo přes 'Zapomenuté heslo'.", "success")
+    return redirect(url_for("users.detail", user_id=user.id))
+
+
 @users_bp.route("/<uuid:user_id>")
 @login_required
 def detail(user_id: uuid.UUID) -> str:
