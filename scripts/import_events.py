@@ -66,6 +66,7 @@ Output JSON schema (v2):
                 "contact_person":     str or null,
                 "description":        str,
                 "time_missing":       bool,
+                "cancelled":          bool,          # True when the GS row has strikethrough
                 "signups":            list[str]      # "Lastname Firstname" of col N+ people
             }
         ]
@@ -127,6 +128,18 @@ def _is_valid_name(name: str) -> bool:
     return bool(name) and any(c.isalpha() for c in name)
 
 
+def _is_row_cancelled(row: Any) -> bool:
+    """Return True if the name or date cell in the row has strikethrough formatting.
+
+    Strikethrough on any key cell is treated as the event being cancelled in GS.
+    """
+    for col_idx in (0, 1):
+        cell = row[col_idx]
+        if cell.font and cell.font.strike:
+            return True
+    return False
+
+
 def _build_description(
     vehicle: str | None,
     event_type: str | None,
@@ -169,10 +182,12 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 
     # Count occurrences of each name (among included events) so we know
     # which names need the date suffix to stay unique.
+    # Note: iter_rows without values_only=True returns cell objects so we can
+    # inspect font formatting (strikethrough detection).
     name_counts: dict[str, int] = {}
-    for row in ws.iter_rows(min_row=3, values_only=True):
-        name = row[0]
-        dt = row[1]
+    for row in ws.iter_rows(min_row=3):
+        name = row[0].value
+        dt = row[1].value
         if not name or not isinstance(dt, datetime):
             continue
         if cutoff is not None and dt.date() < cutoff:
@@ -182,9 +197,9 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     seen_names: dict[str, int] = {}  # track how many times we've used a name+suffix
 
-    for row in ws.iter_rows(min_row=3, values_only=True):
-        name = row[0]
-        dt = row[1]
+    for row in ws.iter_rows(min_row=3):
+        name = row[0].value
+        dt = row[1].value
 
         # Skip rows without a name or a valid date
         if not name or not isinstance(dt, datetime):
@@ -212,8 +227,8 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
             seen_names[unique_name] = 1
 
         # --- Times ---
-        start_time = row[6]
-        end_time = row[7]
+        start_time = row[6].value
+        end_time = row[7].value
         time_missing = start_time is None
 
         # Treat midnight end as "end not specified"
@@ -222,8 +237,11 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
             if end_time == _time(0, 0):
                 end_time = None
 
+        # --- Strikethrough = cancelled in GS ---
+        cancelled = _is_row_cancelled(row)
+
         # --- Responsible person: keep GS format (Lastname Firstname) ---
-        responsible_person_gs = row[12]
+        responsible_person_gs = row[12].value
         if responsible_person_gs is not None:
             rp_str = str(responsible_person_gs).strip()
             responsible_person: str | None = rp_str if _is_valid_name(rp_str) else None
@@ -232,21 +250,21 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
 
         # --- Signups (col N onwards): collect names, keep GS format ---
         signup_gs_names = [
-            str(v).strip()
-            for v in row[13:]
-            if v is not None and _is_valid_name(str(v).strip())
+            str(cell.value).strip()
+            for cell in row[13:]
+            if cell.value is not None and _is_valid_name(str(cell.value).strip())
         ]
         signup_converted = list(signup_gs_names)  # already in Lastname Firstname format
 
         description = _build_description(
-            vehicle=row[3],
-            event_type=row[4],
-            contact=row[5],
+            vehicle=row[3].value,
+            event_type=row[4].value,
+            contact=row[5].value,
             signups=signup_gs_names,
             time_missing=time_missing,
         )
 
-        paid_raw = row[10]
+        paid_raw = row[10].value
         # GS stores as bool True/False; some rows may have None or 0/1
         if isinstance(paid_raw, bool):
             paid = paid_raw
@@ -255,11 +273,11 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
         else:
             paid = False
 
-        location = row[2]
+        location = row[2].value
         if location is not None:
             location = str(location).strip() or None
 
-        contact_person = row[5]
+        contact_person = row[5].value
         if contact_person is not None:
             contact_person = str(contact_person).strip() or None
 
@@ -275,6 +293,7 @@ def extract(wb: Any, cutoff: date | None = None) -> list[dict[str, Any]]:
                 "contact_person": contact_person,
                 "description": description,
                 "time_missing": time_missing,
+                "cancelled": cancelled,
                 "signups": signup_converted,
             }
         )
