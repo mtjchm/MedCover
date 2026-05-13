@@ -40,6 +40,12 @@
         </div>
         <div class="form-text">Když je vypnuto, tlačítko zmizí z navigace a formulář bude nedostupný.</div>
       </div>
+      <div class="mb-3">
+        <label for="session_timeout_hours" class="form-label">Platnost přihlášení (hodiny)</label>
+        <input type="number" class="form-control" id="session_timeout_hours" name="session_timeout_hours"
+               min="1" max="8760" value="{{ settings.session_timeout_hours }}" required>
+        <div class="form-text">Po uplynutí této doby bude uživatel automaticky odhlášen. Výchozí hodnota je 24 hodin.</div>
+      </div>
       <div class="mb-0">
         <label for="timezone" class="form-label">Časová zóna</label>
         <select class="form-select" id="timezone" name="timezone">

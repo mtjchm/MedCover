@@ -32,11 +32,14 @@
         <li>Přehledy: v kartě „Přehled uživatele" přibyl výběr jiného uživatele — koordinátoři a administrátoři mohou přejít přímo na přehled libovolného aktivního uživatele <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
         <li>Přehledový e-mail: nový blok „Aktivita uživatelů" — zobrazuje počet záznamů auditního logu na uživatele za zvolené časové okno (výchozí 24 h, top 10, seřazeno od nejaktivnějšího) <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
         <li>Přehledový e-mail — Servisní statistiky: nová sekce „Velikosti tabulek" s přehledem velikostí databázových tabulek seřazených od největší (konfigurovatelný počet, výchozí 5) <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+        <li>Platnost přihlášení: po uplynutí nastaveného času je uživatel automaticky odhlášen (výchozí 24 hodin); nastavitelné v Nastavení aplikace <a href="https://github.com/spidermila/MedCover/pull/183" class="text-muted small" target="_blank">#183</a></li>
       </ul>
       <h6 class="text-danger">✦ Opraveno</h6>
       <ul class="small mb-0">
         <li>Přehledový e-mail: mazání bloku vracelo chybu 400 (token CSRF byl chybně zahazován kvůli chybějícímu znaku v HTML šabloně) <a href="https://github.com/spidermila/MedCover/pull/179" class="text-muted small" target="_blank">#179</a></li>
         <li>Přehledový e-mail — Servisní statistiky: počet e-mailů ve frontě ukazoval vždy 0; nyní zobrazuje skutečný počet e-mailů zařazených do fronty ve zvoleném časovém okně <a href="https://github.com/spidermila/MedCover/pull/181" class="text-muted small" target="_blank">#181</a></li>
+        <li>Import akcí: přístup omezen pouze na administrátory (koordinátoři měli přístup chybně) <a href="https://github.com/spidermila/MedCover/pull/182" class="text-muted small" target="_blank">#182</a></li>
+        <li>Přihlašovací formulář: pole pro e-mail ověřuje formát až po opuštění pole; pole pro heslo nemá žádnou vizuální validaci <a href="https://github.com/spidermila/MedCover/pull/182" class="text-muted small" target="_blank">#182</a></li>
       </ul>
     </div>
   </div>

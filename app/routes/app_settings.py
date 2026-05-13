@@ -41,6 +41,7 @@ def index() -> str | Response:
         smtp_username = request.form.get("smtp_username", "").strip() or None
         new_pw = request.form.get("smtp_password", "")
         smtp_default_sender = request.form.get("smtp_default_sender", "").strip() or None
+        session_timeout_hours = int(request.form.get("session_timeout_hours") or 24)
 
         # --- Validate ---
         if timezone not in pytz.all_timezones_set:
@@ -49,6 +50,10 @@ def index() -> str | Response:
 
         if app_base_url and not (app_base_url.startswith("http://") or app_base_url.startswith("https://")):
             flash("Základní URL aplikace musí začínat http:// nebo https://.", "warning")
+            return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
+
+        if session_timeout_hours < 1 or session_timeout_hours > 8760:
+            flash("Platnost přihlášení musí být mezi 1 a 8760 hodinami.", "warning")
             return render_template("admin/app_settings.html", settings=settings, timezones=_ALL_TIMEZONES)
 
         # --- Build before dict for audit (no secrets) ---
@@ -64,6 +69,7 @@ def index() -> str | Response:
             "smtp_use_tls": settings.smtp_use_tls,
             "smtp_username": settings.smtp_username,
             "smtp_default_sender": settings.smtp_default_sender,
+            "session_timeout_hours": settings.session_timeout_hours,
             # smtp_password intentionally omitted — secret
         }
 
@@ -81,6 +87,7 @@ def index() -> str | Response:
         if new_pw:
             settings.set_smtp_password(new_pw)
         settings.smtp_default_sender = smtp_default_sender
+        settings.session_timeout_hours = session_timeout_hours
         db.session.flush()
 
         after = {
@@ -95,6 +102,7 @@ def index() -> str | Response:
             "smtp_use_tls": settings.smtp_use_tls,
             "smtp_username": settings.smtp_username,
             "smtp_default_sender": settings.smtp_default_sender,
+            "session_timeout_hours": settings.session_timeout_hours,
         }
 
         if action == "test":
