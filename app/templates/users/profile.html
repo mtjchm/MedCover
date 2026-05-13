@@ -162,6 +162,46 @@
       </div>
     </div>
 
+    <!-- ── iCal subscription ── -->
+    <div class="card mb-4" id="ical">
+      <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        Kalendářový odkaz
+        {{ help_icon("Odkaz pro přihlášení k odběru vašich akcí v externím kalendáři (Google Kalendář, Apple Kalendář, Outlook, …). Odkaz je veřejný — zacházejte s ním jako s heslem.") }}
+      </div>
+      <div class="card-body">
+        <p class="mb-2">
+          Zkopírujte odkaz níže a přidejte ho do svého kalendáře jako <strong>odběr kalendáře</strong>
+          (ne jako jednorázový import). Kalendář se pak automaticky aktualizuje.
+        </p>
+        <p class="mb-1 small text-muted">
+          <strong>Co uvidíte:</strong> pouze akce, na které jste přihlášeni a které jsou aktivní (zrušené nebo dokončené akce se nezobrazí).
+        </p>
+        <p class="mb-3 small text-muted">
+          <strong>Jak rychle se aktualizuje:</strong> kalendářové aplikace stahují změny přibližně každé 4 hodiny — nová přihláška nebo změna času se neprojeví okamžitě.
+        </p>
+
+        <div class="input-group mb-3">
+          <input type="text" class="form-control font-monospace small" id="ical-url-input"
+                 value="{{ ical_url }}" readonly>
+          <button class="btn btn-outline-secondary" type="button" id="ical-copy-btn"
+                  title="Kopírovat odkaz">
+            <i class="bi bi-clipboard"></i> Kopírovat
+          </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('calendar.regenerate') }}"
+              onsubmit="return confirm('Opravdu chcete vygenerovat nový odkaz? Starý odkaz přestane okamžitě fungovat a budete se muset znovu přihlásit k odběru ve všech svých kalendářích.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-warning">
+            <i class="bi bi-arrow-clockwise"></i> Vygenerovat nový odkaz
+          </button>
+          <span class="ms-2 small text-muted">
+            {{ help_icon("Pokud se obáváte, že váš odkaz někdo zná, vygenerujte nový. Starý odkaz okamžitě přestane fungovat — ve všech svých kalendářích se budete muset odběru znovu přihlásit pomocí nového odkazu.") }}
+          </span>
+        </form>
+      </div>
+    </div>
+
   </div>
 </div>
 {% endblock %}
@@ -169,4 +209,22 @@
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/user-profile.js') }}?v={{ static_ver }}"></script>
 <script src="{{ url_for('static', filename='js/user-form.js') }}?v={{ static_ver }}"></script>
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  const btn = document.getElementById('ical-copy-btn');
+  const inp = document.getElementById('ical-url-input');
+  if (btn && inp) {
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(inp.value).then(function () {
+        btn.textContent = '✓ Zkopírováno';
+        btn.classList.replace('btn-outline-secondary', 'btn-success');
+        setTimeout(function () {
+          btn.innerHTML = '<i class="bi bi-clipboard"></i> Kopírovat';
+          btn.classList.replace('btn-success', 'btn-outline-secondary');
+        }, 2000);
+      });
+    });
+  }
+})();
+</script>
 {% endblock %}

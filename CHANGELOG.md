@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Event split: "✂ Rozdělit akci" button on event detail page splits the event into two contiguous parts; both parts inherit spots, assignments and equipment (closes #140)
 - Event detail: prev/next navigation buttons (‹ ›) and arrow-key support when arriving from the events list
 - Logging improvements: `INSTANCE_ID` env var stored on every outbox row and sent as `X-MedCover-Instance` SMTP header; skip-reason log lines in digest and backup tasks; per-task INFO log on each scheduler job execution; hourly "Scheduler alive" heartbeat log; JSON-file log rotation (50 MB × 7 files) for web and scheduler containers
+- iCal calendar feed: each user can subscribe to a personal `.ics` feed containing their active event assignments; token managed on the profile page (closes #106)
 
 ## [0.13.2] - 2026-05-13
 
