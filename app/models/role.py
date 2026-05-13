@@ -74,6 +74,7 @@ class Permission(db.Model):  # type: ignore[misc]
 ALL_PERMISSIONS: list[dict] = [
     # Users
     {"code": "user.view", "description": "View user profiles"},
+    {"code": "user.create", "description": "Create a new user account manually"},
     {"code": "user.edit_own", "description": "Edit own profile"},
     {"code": "user.edit_any", "description": "Edit any user's profile"},
     {"code": "user.activate", "description": "Activate a user account"},
