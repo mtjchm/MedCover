@@ -32,6 +32,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = _fix_db_url(os.environ.get("DATABASE_URL", ""))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT: int | None = None  # disable timestamp expiry; tokens are still cryptographically bound to SECRET_KEY
     DEV_LOGIN_ENABLED = False
     # Short git commit hash injected at Docker build time via ARG GIT_COMMIT.
     # Falls back to "dev" when running outside of Docker (local dev, tests).
