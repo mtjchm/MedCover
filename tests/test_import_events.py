@@ -100,6 +100,7 @@ def _minimal_event(name: str = "Test akce", date: str = "2030-05-01") -> dict:
         "contact_person": None,
         "description": "",
         "time_missing": False,
+        "cancelled": False,
         "signups": [],
     }
 
@@ -139,6 +140,7 @@ def _post_confirm(
         data[f"{p}contact_person"] = ev.get("contact_person") or ""
         data[f"{p}description"] = ev.get("description") or ""
         data[f"{p}time_missing"] = "1" if ev.get("time_missing") else "0"
+        data[f"{p}cancelled"] = "1" if ev.get("cancelled") else "0"
         data[f"{p}responsible_person_id"] = ev.get("responsible_person_id") or ""
         signups = ev.get("signups", [])
         data[f"{p}signup_count"] = str(len(signups))
@@ -414,6 +416,57 @@ class TestImportConfirmSpots:
             event = db.session.scalar(db.select(Event).where(Event.name == "No Time Event"))
             assert event is not None
             assert len(event.spots) == 0
+
+
+class TestImportCancelledEvents:
+    def test_cancelled_event_gets_cancelled_status(self, app, admin_client):
+        from app.models.event import EventStatus
+        me_id = _make_master_event(app)
+        ev = _minimal_event(name="Zrušená akce", date="2030-06-01")
+        ev["cancelled"] = True
+        resp = _post_confirm(app, admin_client, events=[ev], master_event_id=me_id)
+        assert resp.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Zrušená akce"))
+            assert event is not None
+            assert event.status == EventStatus.CANCELLED
+
+    def test_cancelled_event_has_no_spots(self, app, admin_client):
+        me_id = _make_master_event(app)
+        ev = _minimal_event(name="Zrušená bez pozic")
+        ev["cancelled"] = True
+        ev["signups"] = ["Novák Jan"]
+        resp = _post_confirm(app, admin_client, events=[ev], master_event_id=me_id)
+        assert resp.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Zrušená bez pozic"))
+            assert event is not None
+            assert len(event.spots) == 0
+
+    def test_past_cancelled_event_stays_cancelled(self, app, admin_client):
+        """A past event that is cancelled should not be overridden to COMPLETED."""
+        from app.models.event import EventStatus
+        me_id = _make_master_event(app)
+        ev = _minimal_event(name="Stará zrušená akce", date="2020-01-01")
+        ev["cancelled"] = True
+        resp = _post_confirm(app, admin_client, events=[ev], master_event_id=me_id)
+        assert resp.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Stará zrušená akce"))
+            assert event is not None
+            assert event.status == EventStatus.CANCELLED
+
+    def test_non_cancelled_event_unaffected(self, app, admin_client):
+        from app.models.event import EventStatus
+        me_id = _make_master_event(app)
+        ev = _minimal_event(name="Normální akce")
+        ev["cancelled"] = False
+        resp = _post_confirm(app, admin_client, events=[ev], master_event_id=me_id)
+        assert resp.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Normální akce"))
+            assert event is not None
+            assert event.status == EventStatus.DRAFT
 
 
 class TestImportConfirmAssignments:

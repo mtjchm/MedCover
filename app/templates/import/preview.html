@@ -267,8 +267,11 @@
 
           {# Name #}
           <td>
-            <input type="text" class="form-control form-control-sm"
+            <input type="text" class="form-control form-control-sm {% if row.cancelled %}text-decoration-line-through text-muted{% endif %}"
                    name="ev_{{ i }}_name" value="{{ row.name }}" required>
+            {% if row.cancelled %}
+            <span class="badge bg-secondary mt-1">Zrušeno</span>
+            {% endif %}
             {% if row.signups %}
             <div class="text-muted mt-1" class="font-75"
                  title="{{ row.signups | join(', ') }}">
@@ -364,6 +367,7 @@
           <input type="hidden" name="ev_{{ i }}_contact_person" value="{{ row.contact_person or '' }}">
           <input type="hidden" name="ev_{{ i }}_description" value="{{ row.description or '' }}">
           <input type="hidden" name="ev_{{ i }}_time_missing" value="{{ '1' if row.time_missing else '0' }}">
+          <input type="hidden" name="ev_{{ i }}_cancelled" value="{{ '1' if row.cancelled else '0' }}">
         </tr>
         {% endfor %}
       </tbody>

@@ -136,6 +136,7 @@ def _validate_row(row: Any, idx: int) -> tuple[dict | None, list[str]]:
         "contact_person": str(row.get("contact_person") or "").strip() or None,
         "description": str(row.get("description") or "").strip(),
         "time_missing": bool(row.get("time_missing", False)),
+        "cancelled": bool(row.get("cancelled", False)),
         "signups": [
             str(s).strip()
             for s in row.get("signups", [])
@@ -481,6 +482,7 @@ def events_confirm() -> Response:
             contact_person = form.get(f"{prefix}contact_person", "").strip() or None
             description = form.get(f"{prefix}description", "").strip() or None
             time_missing = form.get(f"{prefix}time_missing") == "1"
+            cancelled = form.get(f"{prefix}cancelled") == "1"
 
             # Per-row master event (override or fallback to global)
             row_me_id = _get_int(f"{prefix}master_event_id") or global_master_event_id
@@ -510,10 +512,16 @@ def events_confirm() -> Response:
                 end_dt = start_dt + timedelta(hours=2)
 
             is_past = end_dt < datetime.now(timezone.utc)
+            if cancelled:
+                event_status = EventStatus.CANCELLED
+            elif is_past:
+                event_status = EventStatus.COMPLETED
+            else:
+                event_status = EventStatus.DRAFT
             event = Event(
                 name=name,
                 master_event_id=master_event.id,
-                status=EventStatus.COMPLETED if is_past else EventStatus.DRAFT,
+                status=event_status,
                 event_type=EventType.MEDICAL_COVER,
                 start_datetime=start_dt,
                 end_datetime=end_dt,
@@ -529,8 +537,8 @@ def events_confirm() -> Response:
             db.session.add(event)
             db.session.flush()  # get event.id
 
-            # ── Spots + assignments (unless time_missing) ──────────────────
-            if not time_missing:
+            # ── Spots + assignments (unless time_missing or cancelled) ───────
+            if not time_missing and not cancelled:
                 # Gather signup names from hidden form fields
                 signup_count_str = form.get(f"{prefix}signup_count", "0")
                 signup_count = int(signup_count_str) if signup_count_str.isdigit() else 0
