@@ -253,7 +253,8 @@ class TestRunScheduledBackup:
             settings.backup_keep_count = 7
             _db.session.commit()
             from app.scheduler_tasks import run_scheduled_backup
-            fake_now = datetime(2026, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
+            # January: Europe/Prague = UTC+1, so 01:00 UTC = 02:00 local
+            fake_now = datetime(2026, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
             result = run_scheduled_backup(_db.session, now=fake_now)
             assert result is True
             assert len(list(tmp_path.glob("medcover_backup_*.zip"))) == 1
@@ -267,7 +268,8 @@ class TestRunScheduledBackup:
             settings.backup_keep_count = 7
             _db.session.commit()
             from app.scheduler_tasks import run_scheduled_backup
-            fake_now = datetime(2026, 1, 1, 2, 0, 0, tzinfo=timezone.utc)
+            # January: Europe/Prague = UTC+1, so 01:00 UTC = 02:00 local
+            fake_now = datetime(2026, 1, 1, 1, 0, 0, tzinfo=timezone.utc)
             # First run should succeed
             assert run_scheduled_backup(_db.session, now=fake_now) is True
             # Second run same hour same day should be skipped
