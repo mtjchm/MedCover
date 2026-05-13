@@ -26,6 +26,12 @@
         <button type="submit" class="btn btn-danger w-100">Zobrazit přehled</button>
       </div>
     </form>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      {% for label, fd, td in quick_ranges %}
+      <a href="{{ url_for('reports.date_range_report', from_date=fd, to_date=td) }}"
+         class="btn btn-outline-secondary btn-sm">{{ label }}</a>
+      {% endfor %}
+    </div>
   </div>
 </div>
 

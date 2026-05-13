@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -35,6 +36,26 @@ from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
+
+
+def _quick_ranges() -> list[tuple[str, str, str]]:
+    """Return (label, from_date_iso, to_date_iso) tuples for the quick-fill buttons."""
+    from datetime import date
+    today = date.today()
+    tm_from = today.replace(day=1)
+    tm_to = today.replace(day=monthrange(today.year, today.month)[1])
+    lm_year, lm_month = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
+    lm_from = date(lm_year, lm_month, 1)
+    lm_to = date(lm_year, lm_month, monthrange(lm_year, lm_month)[1])
+    ty_from = date(today.year, 1, 1)
+    ty_to = date(today.year, 12, 31)
+    return [
+        ("Tento měsíc", tm_from.isoformat(), tm_to.isoformat()),
+        ("Minulý měsíc", lm_from.isoformat(), lm_to.isoformat()),
+        ("Od začátku roku", ty_from.isoformat(), today.isoformat()),
+        ("Celý rok", ty_from.isoformat(), ty_to.isoformat()),
+    ]
+
 
 # ── Statistics helpers ────────────────────────────────────────────────────────
 
@@ -350,13 +371,13 @@ def date_range_report() -> str | Response:
     to_date_str = request.args.get("to_date", "").strip()
 
     if not from_date_str or not to_date_str:
-        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str)
+        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str, quick_ranges=_quick_ranges())
 
     try:
         from_dt = datetime.strptime(from_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         to_dt = datetime.strptime(to_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
     except ValueError:
-        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str, error="Neplatný formát data.")
+        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str, error="Neplatný formát data.", quick_ranges=_quick_ranges())
 
     events: list[Event] = list(db.session.scalars(
         db.select(Event)
@@ -476,4 +497,5 @@ def date_range_report() -> str | Response:
         results=results,
         from_date=from_date_str,
         to_date=to_date_str,
+        quick_ranges=_quick_ranges(),
     )
