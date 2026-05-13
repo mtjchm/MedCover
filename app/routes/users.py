@@ -72,12 +72,22 @@ def profile() -> str | Response:
         .options(selectinload(Assignment.spot).selectinload(EventSpot.event))  # type: ignore[arg-type]
         .limit(10)
     ).all()
+    from app.utils import external_url_for
+    # Lazy-init iCal token on first profile visit.
+    token_created = False
+    if not user.ical_token:
+        user.regenerate_ical_token()
+        db.session.commit()
+        token_created = True
+    ical_url = external_url_for("calendar.feed", token=user.ical_token)
     return render_template(
         "users/profile.html",
         user=user,
         calendar_views=CalendarView,
         issued_items=issued_items,
         upcoming=upcoming,
+        ical_url=ical_url,
+        token_created=token_created,
     )
 
 
