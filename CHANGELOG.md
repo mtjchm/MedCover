@@ -14,10 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reports (`/reports/`): user selector in the "Přehled uživatele" card so coordinators/admins can navigate directly to any active user's report
 - Admin digest: new "Aktivita uživatelů" block — shows the number of audit log entries per user for a configurable time window (default 24 h, top 10 users, sorted by activity desc)
 - Admin digest — Servisní statistiky block: new "Velikosti tabulek" section listing individual PostgreSQL table sizes sorted from largest to smallest; configurable count (default 5, max 50)
+- Session timeout: login sessions now expire after a configurable period (default 24 hours); configurable in `/admin/settings/` (closes #183)
 
 ### Fixed
 - Admin digest: deleting a digest block returned 400 (CSRF token was silently dropped due to a missing `>` on the form tag) (closes #179)
 - Admin digest — Servisní statistiky: "E-maily (maximum fronty)" always showed 0 because the metric was based on 15-minute snapshots while emails drain every 6 s; replaced with a direct count of emails enqueued in the configured window
+- Import: restricted to Admin only — Coordinators could previously access the import feature (closes #182)
+- Users list: sorting by "Poslední přihlášení" now always places users who have never logged in at the bottom (closes #182)
+- Login: CSRF token no longer expires causing "CSRF token has expired" errors on the login page (closes #182)
+- Login form: email field validates on blur (not prematurely while typing); password field has no frontend validation (closes #182)
 
 ## [0.12.0] - 2026-05-12
 
