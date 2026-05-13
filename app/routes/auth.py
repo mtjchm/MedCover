@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app.extensions import db
@@ -85,6 +85,7 @@ def login() -> str | Response:
                 user.login_locked_until = None
                 user.last_login_at = now
                 db.session.commit()
+                session.permanent = True
                 login_user(user)
                 return redirect(safe_next(request.args.get("next")))
 

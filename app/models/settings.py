@@ -59,6 +59,10 @@ class AppSettings(db.Model):  # type: ignore[misc]
     # Hour of day (0–23, server local time) at which the scheduled backup runs.
     backup_schedule_hour = db.Column(db.Integer, default=2, nullable=False, server_default="2")
 
+    # --- Session security ---
+    # How long a login session lasts (hours). Flask sets a cookie with this lifetime.
+    session_timeout_hours = db.Column(db.Integer, default=24, nullable=False, server_default="24")
+
     # --- Notification toggles ---
     # Auth emails (invite, password reset, account activation) are always sent
     # and cannot be toggled.  The flags below control operational notifications.

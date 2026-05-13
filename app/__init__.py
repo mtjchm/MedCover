@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import secrets
 import time as _time
+from datetime import timedelta
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -190,6 +191,9 @@ def create_app(
 
         if not settings.setup_complete:
             return redirect(url_for("setup.step1"))
+
+        # Keep session lifetime in sync with DB setting.
+        app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=settings.session_timeout_hours)
 
         # Keep Flask-Mail config in sync with DB — skip reinit when SMTP settings unchanged.
         fingerprint = (
