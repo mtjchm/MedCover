@@ -10,12 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.14.0] - 2026-05-14
 
 ### Added
-- Equipment item availability status tracking: items can be marked as Unavailable with a reason and "since" timestamp; new permission `equipment_item.availability_modify` (Admin + Coordinator)
-- Equipment availability check button on event create and event detail pages: checks selected/assigned items for conflicts with other events and unavailability before saving
-- Unavailable items shown highlighted in orange on event create and detail pages; cannot be assigned to events or people
-- Event create page: equipment items can now be pre-assigned directly when creating the event (previously only on the detail page)
-- Warning banners on event detail page show all conflicts for already-assigned items, with clickable links to the conflicting events
-- Equipment list: new Dostupnost column showing unavailable items with a badge
+- Equipment item availability status tracking: items can be marked as Unavailable with a reason and "since" timestamp; new permission `equipment_item.availability_modify` (Admin + Coordinator) (closes #67, #196)
+- Equipment availability check button on event create and event detail pages: checks selected/assigned items for conflicts with other events and unavailability before saving (closes #196)
+- Unavailable items shown highlighted in orange on event create and detail pages; cannot be assigned to events or people (closes #196)
+- Event create page: equipment items can now be pre-assigned directly when creating the event (previously only on the detail page) (closes #196)
+- Warning banners on event detail page show all conflicts for already-assigned items, with clickable links to the conflicting events (closes #196)
+- Equipment list: new Dostupnost column showing unavailable items with a badge (closes #196)
 
 ## [0.13.2] - 2026-05-13
 
