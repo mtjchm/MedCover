@@ -833,3 +833,87 @@ class TestEquipmentCheckEndpoint:
                 )
             )
             assert assn is None
+
+
+class TestEventCreateWithEquipment:
+    """Equipment pre-assignment on the /events/create page."""
+
+    def test_create_form_shows_equipment_section_for_admin(self, app, admin_client):
+        type_id = _make_type(app, name="Typ formulář create")
+        _make_item(app, type_id, name="Item formulář create")
+        response = admin_client.get("/events/create")
+        assert response.status_code == 200
+        assert b"equipment_item_ids" in response.data
+
+    def test_create_event_with_equipment_assigns_items(self, app, admin_client):
+        type_id = _make_type(app, name="Typ pre-assign")
+        item_id = _make_item(app, type_id, name="Item pre-assign")
+        with app.app_context():
+            me = MasterEvent(name="ME pre-assign")
+            db.session.add(me)
+            db.session.commit()
+            me_id = me.id
+
+        response = admin_client.post(
+            "/events/create",
+            data={
+                "name": "Akce s vybavením",
+                "event_type": "MEDICAL_COVER",
+                "master_event_id": str(me_id),
+                "start_datetime": "2035-07-01T10:00",
+                "end_datetime": "2035-07-01T18:00",
+                "spot_count": "0",
+                "action": "create",
+                "equipment_item_ids": str(item_id),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Akce s vybavením"))
+            assert event is not None
+            assn = db.session.scalar(
+                db.select(EventEquipmentAssignment).where(
+                    EventEquipmentAssignment.event_id == event.id,
+                    EventEquipmentAssignment.equipment_item_id == item_id,
+                )
+            )
+            assert assn is not None
+
+    def test_create_event_skips_unavailable_equipment(self, app, admin_client):
+        type_id = _make_type(app, name="Typ unavail create")
+        item_id = _make_item(app, type_id, name="Item unavail create")
+        with app.app_context():
+            item = db.session.get(EquipmentItem, item_id)
+            item.status = EquipmentItemStatus.UNAVAILABLE
+            item.unavailability_reason = "V opravě"
+            me = MasterEvent(name="ME unavail create")
+            db.session.add(me)
+            db.session.commit()
+            me_id = me.id
+
+        response = admin_client.post(
+            "/events/create",
+            data={
+                "name": "Akce se zakázaným vybavením",
+                "event_type": "MEDICAL_COVER",
+                "master_event_id": str(me_id),
+                "start_datetime": "2035-08-01T10:00",
+                "end_datetime": "2035-08-01T18:00",
+                "spot_count": "0",
+                "action": "create",
+                "equipment_item_ids": str(item_id),
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        with app.app_context():
+            event = db.session.scalar(db.select(Event).where(Event.name == "Akce se zakázaným vybavením"))
+            assert event is not None
+            assn = db.session.scalar(
+                db.select(EventEquipmentAssignment).where(
+                    EventEquipmentAssignment.event_id == event.id,
+                    EventEquipmentAssignment.equipment_item_id == item_id,
+                )
+            )
+            assert assn is None

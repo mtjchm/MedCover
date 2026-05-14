@@ -41,7 +41,7 @@ from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.constants import RECORD_MODIFIED_MSG
 from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
-from app.queries import active_master_events_list, active_users_list, rp_eligible_users_list, user_fillable_qual_ids
+from app.queries import active_master_events_list, active_users_list, assignable_equipment_items, rp_eligible_users_list, user_fillable_qual_ids
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -312,6 +312,19 @@ def feed() -> Response:
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
+def _build_equipment_assignments(event: Event, item_ids: list[int]) -> None:
+    """Create EventEquipmentAssignment records for *item_ids* on *event*.
+
+    Silently skips unavailable items or IDs that don't resolve to a real item.
+    Caller must have already flushed the event so event.id is set.
+    """
+    for item_id in item_ids:
+        item = db.session.get(EquipmentItem, item_id)
+        if item is None or not item.is_available:
+            continue
+        db.session.add(EventEquipmentAssignment(event_id=event.id, equipment_item_id=item.id))
+
+
 @events_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
@@ -320,12 +333,20 @@ def create() -> str | Response:
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
+    equipment_groups = assignable_equipment_items() if current_user.has_permission("event.equipment.assign") else []
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
         if error or event is None:
             flash(error or "Chyba formuláře.", "danger")
-            return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
+            return render_template(
+                "events/create.html",
+                master_events=master_events,
+                users=users,
+                all_qualifications=all_qualifications,
+                equipment_groups=equipment_groups,
+                EventType=EventType,
+            )
 
         quick_publish = request.form.get("action") == "quick_publish"
         if quick_publish:
@@ -350,6 +371,10 @@ def create() -> str | Response:
         else:
             _build_spots(event, request.form)
 
+        if current_user.has_permission("event.equipment.assign"):
+            selected_ids = request.form.getlist("equipment_item_ids", type=int)
+            _build_equipment_assignments(event, selected_ids)
+
         audit("create", "Event", event.id, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
@@ -359,7 +384,14 @@ def create() -> str | Response:
             flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
+    return render_template(
+        "events/create.html",
+        master_events=master_events,
+        users=users,
+        all_qualifications=all_qualifications,
+        equipment_groups=equipment_groups,
+        EventType=EventType,
+    )
 
 
 # ── Create from template ──────────────────────────────────────────────────────
@@ -373,6 +405,7 @@ def create_from_template(template_id: int) -> str | Response:
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
+    equipment_groups = assignable_equipment_items() if current_user.has_permission("event.equipment.assign") else []
 
     return render_template(
         "events/create.html",
@@ -380,6 +413,7 @@ def create_from_template(template_id: int) -> str | Response:
         users=users,
         template=tmpl,
         all_qualifications=all_qualifications,
+        equipment_groups=equipment_groups,
         EventType=EventType,
     )
 

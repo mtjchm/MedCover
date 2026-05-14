@@ -190,6 +190,43 @@
           <textarea class="form-control" id="description" name="description" rows="3">{{ request.form.get('description', '') }}</textarea>
         </div>
       </div>
+
+      {% if equipment_groups %}
+      <hr class="my-4">
+      <h5 class="mb-3">Vybavení
+        {{ help_icon("Zaškrtněte položky, které chcete přiřadit k akci. Položky označené ⚠ jsou momentálně nedostupné a nelze je přiřadit.") }}
+      </h5>
+      <div class="row g-2">
+        {% for type_name, items in equipment_groups %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="card h-100">
+            <div class="card-header py-1 px-3">
+              <strong class="small">{{ type_name }}</strong>
+            </div>
+            <div class="card-body py-2 px-3">
+              {% for item in items %}
+              <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox"
+                       name="equipment_item_ids" value="{{ item.id }}"
+                       id="eq_item_{{ item.id }}"
+                       {% if request.form.getlist('equipment_item_ids') and item.id|string in request.form.getlist('equipment_item_ids') %}checked{% endif %}
+                       {% if not item.is_available %}disabled{% endif %}>
+                <label class="form-check-label small {% if not item.is_available %}text-warning{% endif %}"
+                       for="eq_item_{{ item.id }}">
+                  {% if not item.is_available %}⚠ {% endif %}{{ item.name }}
+                  {% if not item.is_available %}
+                  <span class="text-muted">({{ item.unavailability_reason or 'nedostupná' }})</span>
+                  {% endif %}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <div class="d-flex gap-2 mt-4 flex-wrap">
         <button type="submit" name="action" value="create" class="btn btn-danger">Vytvořit akci</button>
         {% if current_user.has_permission("event.publish") and current_user.has_permission("event.assignments.open") %}
