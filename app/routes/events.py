@@ -1227,6 +1227,7 @@ def _equipment_warnings_for_event(event: Event) -> list[dict]:
                     "name": ce.name,
                     "start": ce.start_datetime,
                     "end": ce.end_datetime,
+                    "url": url_for("events.detail", event_id=ce.id),
                 },
             })
     return warnings
@@ -1321,6 +1322,7 @@ def equipment_check() -> Response:
                     "name": ce.name,
                     "start": ce.start_datetime.isoformat(),
                     "end": ce.end_datetime.isoformat(),
+                    "url": url_for("events.detail", event_id=ce.id),
                 },
             })
 

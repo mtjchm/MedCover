@@ -586,7 +586,7 @@
           — nedostupná: {{ w.reason or "bez udaného důvodu" }}
         {% elif w.status == "conflict" %}
           — přiřazena jiné akci:
-          „{{ w.conflicting_event.name }}"
+          <a href="{{ w.conflicting_event.url }}">„{{ w.conflicting_event.name }}"</a>
           ({{ w.conflicting_event.start | localdt }} – {{ w.conflicting_event.end | localdt }})
         {% endif %}
       </li>
@@ -722,7 +722,7 @@
               var ce = r.conflicting_event;
               var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
               var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 přiřazena jiné akci: \u201E' + ce.name + '\u201C (' + s + '\u2013' + edt + ')</p>';
+              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 přiřazena jiné akci: <a href="' + ce.url + '">\u201E' + ce.name + '\u201C</a> (' + s + '\u2013' + edt + ')</p>';
             }
           });
         }

@@ -307,7 +307,7 @@
             var ce = r.conflicting_event;
             var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
             var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-            html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: \u201E" + ce.name + "\u201C (" + s + "\u2013" + edt + ")</li>";
+            html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: <a href=\"" + ce.url + "\">\u201E" + ce.name + "\u201C</a> (" + s + "\u2013" + edt + ")</li>";
           }
         });
         html += "</ul></div>";
