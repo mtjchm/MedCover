@@ -1196,8 +1196,8 @@ def _equipment_warnings_for_event(event: Event) -> list[dict]:
                 "conflicting_event": None,
             })
             continue
-        # Check for time-overlap with another event (excluding self)
-        conflicting = db.session.scalar(
+        # Check for time-overlap with other events (excluding self)
+        conflicts = db.session.scalars(
             db.select(EventEquipmentAssignment)
             .join(Event, EventEquipmentAssignment.event_id == Event.id)
             .where(
@@ -1206,10 +1206,9 @@ def _equipment_warnings_for_event(event: Event) -> list[dict]:
                 Event.start_datetime < event.end_datetime,
                 Event.end_datetime > event.start_datetime,
             )
-            .limit(1)
-        )
-        if conflicting:
-            ce = conflicting.event
+        ).all()
+        for c in conflicts:
+            ce = c.event
             warnings.append({
                 "item_name": item.name,
                 "status": "conflict",
@@ -1284,25 +1283,25 @@ def equipment_check() -> Response:
         if exclude_event_id:
             conflict_filter.append(EventEquipmentAssignment.event_id != exclude_event_id)
 
-        conflicting = db.session.scalar(
+        conflicts = db.session.scalars(
             db.select(EventEquipmentAssignment)
             .join(Event, EventEquipmentAssignment.event_id == Event.id)
             .where(*conflict_filter)
-            .limit(1)
-        )
+        ).all()
 
-        if conflicting:
-            ce = conflicting.event
-            results.append({
-                "item_id": item.id,
-                "item_name": item.name,
-                "status": "conflict",
-                "conflicting_event": {
-                    "name": ce.name,
-                    "start": ce.start_datetime.isoformat(),
-                    "end": ce.end_datetime.isoformat(),
-                },
-            })
+        if conflicts:
+            for c in conflicts:
+                ce = c.event
+                results.append({
+                    "item_id": item.id,
+                    "item_name": item.name,
+                    "status": "conflict",
+                    "conflicting_event": {
+                        "name": ce.name,
+                        "start": ce.start_datetime.isoformat(),
+                        "end": ce.end_datetime.isoformat(),
+                    },
+                })
         else:
             results.append({
                 "item_id": item.id,
