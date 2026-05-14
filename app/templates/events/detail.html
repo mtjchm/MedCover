@@ -574,7 +574,27 @@
   {% endif %}
 
   {# Auto-populated on page load by JS — shows conflicts/unavailability for already-assigned items #}
-  <div id="eq-assigned-check"></div>
+  <div id="eq-assigned-check">
+  {% if equipment_warnings %}
+  <div class="alert alert-warning py-2 mt-2">
+    <strong>⚠ Upozornění na přiřazené vybavení:</strong>
+    <ul class="mb-0 mt-1">
+      {% for w in equipment_warnings %}
+      <li>
+        <strong>{{ w.item_name }}</strong>
+        {% if w.status == "unavailable" %}
+          — nedostupná: {{ w.reason or "bez udaného důvodu" }}
+        {% elif w.status == "conflict" %}
+          — přiřazena jiné akci:
+          „{{ w.conflicting_event.name }}"
+          ({{ w.conflicting_event.start | localdt }} – {{ w.conflicting_event.end | localdt }})
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  </div>
 
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
   <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}"
@@ -660,69 +680,18 @@
 
 <script nonce="{{ g.csp_nonce }}">
 (function () {
-  var CHECK_URL  = {{ url_for('events.equipment_check') | tojson }};
-  var EVENT_ID   = {{ event.id }};
-  var START      = {{ event.start_datetime.isoformat() | tojson }};
-  var END        = {{ event.end_datetime.isoformat() | tojson }};
-  var CSRF       = document.querySelector("meta[name=csrf-token]").content;
+  try {
+    var CHECK_URL = {{ url_for('events.equipment_check') | tojson }};
+    var EVENT_ID  = {{ event.id }};
+    var START     = {{ event.start_datetime.isoformat() | tojson }};
+    var END       = {{ event.end_datetime.isoformat() | tojson }};
+    var csrfMeta  = document.querySelector("meta[name=csrf-token]");
+    var CSRF      = csrfMeta ? csrfMeta.content : "";
 
-  // IDs of items already assigned to this event
-  var ASSIGNED_IDS = [{% for ea in event.equipment_assignments %}{{ ea.equipment_item_id }}{% if not loop.last %},{% endif %}{% endfor %}];
+    var btn    = document.getElementById("eq-check-btn");
+    var dropOut = document.getElementById("eq-check-results");
+    if (!btn || !dropOut) return;
 
-  function renderResults(results, container) {
-    if (!results || results.length === 0) {
-      container.innerHTML = "";
-      return;
-    }
-    var warnings = results.filter(function (r) { return r.status !== "ok"; });
-    if (warnings.length === 0) {
-      container.innerHTML = "";
-      return;
-    }
-    var html = '<div class="alert alert-warning py-2 mt-2"><strong>⚠ Upozornění na přiřazené vybavení:</strong><ul class="mb-0 mt-1">';
-    warnings.forEach(function (r) {
-      if (r.status === "unavailable") {
-        html += "<li><strong>" + r.item_name + "</strong> — nedostupná: " + (r.reason || "bez udaného důvodu") + "</li>";
-      } else if (r.status === "conflict") {
-        var ce = r.conflicting_event;
-        var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-        var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-        html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: „" + ce.name + "" (" + s + "–" + e + ")</li>";
-      }
-    });
-    html += "</ul></div>";
-    container.innerHTML = html;
-  }
-
-  function doCheck(itemIds, excludeEventId, onResult, onError, onDone) {
-    fetch(CHECK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
-      body: JSON.stringify({
-        item_ids: itemIds,
-        start_datetime: START,
-        end_datetime: END,
-        exclude_event_id: excludeEventId
-      })
-    })
-    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(function (data) { onResult(data.results || []); })
-    .catch(function (err) { if (onError) onError(err); })
-    .finally(function () { if (onDone) onDone(); });
-  }
-
-  // ── Auto-check assigned items on page load ───────────────────────────────────
-  var autoOut = document.getElementById("eq-assigned-check");
-  if (autoOut && ASSIGNED_IDS.length > 0) {
-    doCheck(ASSIGNED_IDS, EVENT_ID, function (results) {
-      renderResults(results, autoOut);
-    });
-  }
-
-  // ── Check button for dropdown item ──────────────────────────────────────────
-  var btn = document.getElementById("eq-check-btn");
-  var dropOut = document.getElementById("eq-check-results");
-  if (btn && dropOut) {
     btn.addEventListener("click", function () {
       var select = document.getElementById("eq-item-select");
       var itemId = select ? parseInt(select.value, 10) : NaN;
@@ -732,25 +701,35 @@
       }
       btn.disabled = true;
       btn.textContent = "Kontroluji…";
-      doCheck([itemId], EVENT_ID,
-        function (results) {
-          if (!results.length) { dropOut.innerHTML = ""; return; }
-          var r = results[0];
-          if (r.status === "ok") {
-            dropOut.innerHTML = '<p class="text-success small mb-1">✅ ' + r.item_name + ' — dostupná pro tuto akci.</p>';
-          } else if (r.status === "unavailable") {
-            dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — nedostupná: ' + (r.reason || "—") + '</p>';
-          } else if (r.status === "conflict") {
-            var ce = r.conflicting_event;
-            var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-            var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-            dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — přiřazena jiné akci: „' + ce.name + '" (' + s + '–' + e + ')</p>';
-          }
-        },
-        function () { dropOut.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole.</p>'; },
-        function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost"; }
-      );
+      fetch(CHECK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ item_ids: [itemId], start_datetime: START, end_datetime: END, exclude_event_id: EVENT_ID })
+      })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (data) {
+        var results = data.results || [];
+        if (!results.length) { dropOut.innerHTML = ""; return; }
+        var r = results[0];
+        if (r.status === "ok") {
+          dropOut.innerHTML = '<p class="text-success small mb-1">✅ ' + r.item_name + ' — dostupná pro tuto akci.</p>';
+        } else if (r.status === "unavailable") {
+          dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — nedostupná: ' + (r.reason || "—") + '</p>';
+        } else if (r.status === "conflict") {
+          var ce = r.conflicting_event;
+          var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+          var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+          dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — přiřazena jiné akci: „' + ce.name + '" (' + s + '–' + e + ')</p>';
+        }
+      })
+      .catch(function (err) {
+        dropOut.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole: ' + err.message + '</p>';
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost"; });
     });
+  } catch (err) {
+    var out = document.getElementById("eq-check-results");
+    if (out) out.innerHTML = '<p class="text-danger small mb-1">Chyba skriptu: ' + err.message + '</p>';
   }
 })();
 </script>

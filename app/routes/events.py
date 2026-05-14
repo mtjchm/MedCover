@@ -453,6 +453,7 @@ def detail(event_id: int) -> str | Response:
         all_qualifications=all_qualifications,
         fillers_map=fillers_map,
         rp_eligible_attendees=rp_eligible_attendees,
+        equipment_warnings=_equipment_warnings_for_event(event),
     )
 
 
@@ -1140,6 +1141,52 @@ def equipment_unassign(event_id: int) -> Response:
 
     flash("Položka vybavení byla vrácena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Equipment conflict helper (used by detail route + AJAX endpoint) ──────────
+
+def _equipment_warnings_for_event(event: Event) -> list[dict]:
+    """Return a list of warning dicts for items already assigned to *event*.
+
+    Each dict has keys: item_name, status ("unavailable"|"conflict"),
+    reason (str|None), conflicting_event (dict|None).
+    """
+    warnings: list[dict] = []
+    for ea in event.equipment_assignments:
+        item = ea.equipment_item
+        if not item.is_available:
+            warnings.append({
+                "item_name": item.name,
+                "status": "unavailable",
+                "reason": item.unavailability_reason or "Bez udaného důvodu",
+                "conflicting_event": None,
+            })
+            continue
+        # Check for time-overlap with another event (excluding self)
+        conflicting = db.session.scalar(
+            db.select(EventEquipmentAssignment)
+            .join(Event, EventEquipmentAssignment.event_id == Event.id)
+            .where(
+                EventEquipmentAssignment.equipment_item_id == item.id,
+                EventEquipmentAssignment.event_id != event.id,
+                Event.start_datetime < event.end_datetime,
+                Event.end_datetime > event.start_datetime,
+            )
+            .limit(1)
+        )
+        if conflicting:
+            ce = conflicting.event
+            warnings.append({
+                "item_name": item.name,
+                "status": "conflict",
+                "reason": None,
+                "conflicting_event": {
+                    "name": ce.name,
+                    "start": ce.start_datetime,
+                    "end": ce.end_datetime,
+                },
+            })
+    return warnings
 
 
 # ── Equipment Availability Check (AJAX) ───────────────────────────────────────
