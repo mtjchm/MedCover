@@ -225,6 +225,10 @@
         </div>
         {% endfor %}
       </div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-outline-warning btn-sm" id="eq-check-btn">Zkontrolovat dostupnost vybraných</button>
+        <div id="eq-check-results" class="mt-2"></div>
+      </div>
       {% endif %}
 
       <div class="d-flex gap-2 mt-4 flex-wrap">
@@ -243,4 +247,81 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/event-form.js') }}?v={{ static_ver }}"></script>
+{% if equipment_groups %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  try {
+    var CHECK_URL = {{ url_for('events.equipment_check') | tojson }};
+    var csrfMeta  = document.querySelector("meta[name=csrf-token]");
+    var CSRF      = csrfMeta ? csrfMeta.content : "";
+
+    var btn    = document.getElementById("eq-check-btn");
+    var output = document.getElementById("eq-check-results");
+    if (!btn || !output) return;
+
+    btn.addEventListener("click", function () {
+      var checked = Array.from(
+        document.querySelectorAll("input[name='equipment_item_ids']:checked")
+      ).map(function (el) { return parseInt(el.value, 10); });
+
+      if (checked.length === 0) {
+        output.innerHTML = '<p class="text-warning small mb-1">Zaškrtněte nejprve alespoň jednu položku.</p>';
+        return;
+      }
+
+      var start = document.getElementById("start_datetime").value;
+      var end   = document.getElementById("end_datetime").value;
+      if (!start || !end) {
+        output.innerHTML = '<p class="text-warning small mb-1">Vyplňte nejprve datum a čas začátku a konce akce.</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Kontroluji…";
+
+      fetch(CHECK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null })
+      })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (data) {
+        var results = data.results || [];
+        var warnings = results.filter(function (r) { return r.status !== "ok"; });
+        var ok       = results.filter(function (r) { return r.status === "ok"; });
+
+        if (results.length === 0) { output.innerHTML = ""; return; }
+
+        var html = "";
+        if (warnings.length > 0) {
+          html += '<div class="alert alert-warning py-2"><strong>⚠ Upozornění:</strong><ul class="mb-0 mt-1">';
+          warnings.forEach(function (r) {
+            if (r.status === "unavailable") {
+              html += "<li><strong>" + r.item_name + "</strong> — nedostupná: " + (r.reason || "—") + "</li>";
+            } else if (r.status === "conflict") {
+              var ce = r.conflicting_event;
+              var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+              var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+              html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: „" + ce.name + "" (" + s + "–" + e + ")</li>";
+            }
+          });
+          html += "</ul></div>";
+        }
+        if (ok.length > 0) {
+          html += '<p class="text-success small mb-1">✅ Dostupné: ' + ok.map(function (r) { return r.item_name; }).join(", ") + "</p>";
+        }
+        output.innerHTML = html;
+      })
+      .catch(function (err) {
+        output.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole: ' + err.message + '</p>';
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost vybraných"; });
+    });
+  } catch (err) {
+    var out = document.getElementById("eq-check-results");
+    if (out) out.innerHTML = '<p class="text-danger small mb-1">Chyba skriptu: ' + err.message + '</p>';
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}
