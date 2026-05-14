@@ -254,13 +254,8 @@
   var csrfMeta  = document.querySelector("meta[name=csrf-token]");
   var CSRF      = csrfMeta ? csrfMeta.content : "";
 
-  function getOutput() { return document.getElementById("eq-check-results"); }
-
-  document.addEventListener("click", function (e) {
-    var target = e.target.closest ? e.target.closest("#eq-check-btn") : (e.target.id === "eq-check-btn" ? e.target : null);
-    if (!target) return;
-
-    var output = getOutput();
+  function doCheck() {
+    var output = document.getElementById("eq-check-results");
     if (!output) return;
 
     var checked = Array.from(
@@ -274,28 +269,29 @@
 
     var startEl = document.getElementById("start_datetime");
     var endEl   = document.getElementById("end_datetime");
-    var start = (startEl && startEl._flatpickr && startEl._flatpickr.selectedDates.length)
-      ? startEl._flatpickr.input.value
-      : (startEl ? startEl.value : "");
-    var end = (endEl && endEl._flatpickr && endEl._flatpickr.selectedDates.length)
-      ? endEl._flatpickr.input.value
-      : (endEl ? endEl.value : "");
+    var start = startEl ? startEl.value : "";
+    var end   = endEl   ? endEl.value   : "";
 
     if (!start || !end) {
       output.innerHTML = '<div class="alert alert-warning py-2 mt-2">Vyplňte nejprve datum a čas začátku a konce akce.</div>';
       return;
     }
 
-    target.disabled = true;
-    target.textContent = "Kontroluji…";
+    var btn = document.getElementById("eq-check-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Kontroluji…"; }
+
+    var payload = { item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null };
 
     fetch(CHECK_URL, {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
-      body: JSON.stringify({ item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null })
+      body: JSON.stringify(payload)
     })
-    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
     .then(function (data) {
       var results = data.results || [];
       var warnings = results.filter(function (r) { return r.status !== "ok"; });
@@ -310,8 +306,8 @@
           } else if (r.status === "conflict") {
             var ce = r.conflicting_event;
             var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-            var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-            html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: „" + ce.name + "" (" + s + "–" + e + ")</li>";
+            var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+            html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: \u201E" + ce.name + "\u201C (" + s + "\u2013" + edt + ")</li>";
           }
         });
         html += "</ul></div>";
@@ -324,8 +320,23 @@
     .catch(function (err) {
       output.innerHTML = '<div class="alert alert-danger py-2 mt-2">Chyba při kontrole: ' + err.message + '</div>';
     })
-    .finally(function () { target.disabled = false; target.textContent = "Zkontrolovat dostupnost vybavení"; });
-  });
+    .finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost vybavení"; }
+    });
+  }
+
+  /* Bind check button — wait for DOM if needed */
+  function bindBtn() {
+    var btn = document.getElementById("eq-check-btn");
+    if (btn) {
+      btn.addEventListener("click", doCheck);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindBtn);
+  } else {
+    bindBtn();
+  }
 })();
 </script>
 {% endif %}
