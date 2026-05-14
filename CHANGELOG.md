@@ -10,12 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.14.0] - 2026-05-14
 
 ### Added
-- Equipment item availability status tracking: items can be marked as Unavailable with a reason and "since" timestamp; new permission `equipment_item.availability_modify` (Admin + Coordinator) (closes #67, #196)
-- Equipment availability check button on event create and event detail pages: checks selected/assigned items for conflicts with other events and unavailability before saving (closes #196)
-- Unavailable items shown highlighted in orange on event create and detail pages; cannot be assigned to events or people (closes #196)
-- Event create page: equipment items can now be pre-assigned directly when creating the event (previously only on the detail page) (closes #196)
-- Warning banners on event detail page show all conflicts for already-assigned items, with clickable links to the conflicting events (closes #196)
-- Equipment list: new Dostupnost column showing unavailable items with a badge (closes #196)
+- Equipment item availability status tracking: items can be marked as Unavailable with a reason and "since" timestamp; new permission `equipment_item.availability_modify` (Admin + Coordinator) (closes #67, #196) (#210)
+- Equipment availability check button on event create and event detail pages: checks selected/assigned items for conflicts with other events and unavailability before saving (closes #196) (#210)
+- Unavailable items shown highlighted in orange on event create and detail pages; cannot be assigned to events or people (closes #196) (#210)
+- Event create page: equipment items can now be pre-assigned directly when creating the event (previously only on the detail page) (closes #196) (#210)
+- Warning banners on event detail page show all conflicts for already-assigned items, with clickable links to the conflicting events (closes #196) (#210)
+- Equipment list: new Dostupnost column showing unavailable items with a badge (closes #196) (#210)
+- Reports date-range page: quick shortcut buttons for this month, last month, year-to-date, and full year (closes #186) (#186)
+- Users: new "Manuálně vytvořit uživatele" button — create a user account without an invite (closes #187) (#187)
+- Event detail: "✂ Rozdělit akci" button — splits an event into two consecutive parts; both inherit spots, assignments, and equipment (closes #140) (#188)
+- Event detail: ‹ › navigation buttons to switch between events in the list (keyboard ← → also works) (closes #140) (#188)
+- User profile: iCal calendar feed subscription link — subscribe in Google Calendar, Apple Calendar, or Outlook for automatic updates (closes #106) (#190)
 
 ## [0.13.2] - 2026-05-13
 
