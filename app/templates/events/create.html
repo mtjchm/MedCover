@@ -190,6 +190,47 @@
           <textarea class="form-control" id="description" name="description" rows="3">{{ request.form.get('description', '') }}</textarea>
         </div>
       </div>
+
+      {% if equipment_groups %}
+      <hr class="my-4">
+      <h5 class="mb-3">Vybavení
+        {{ help_icon("Zaškrtněte položky, které chcete přiřadit k akci. Položky označené ⚠ jsou momentálně nedostupné a nelze je přiřadit.") }}
+      </h5>
+      <div class="row g-2">
+        {% for type_name, items in equipment_groups %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="card h-100">
+            <div class="card-header py-1 px-3">
+              <strong class="small">{{ type_name }}</strong>
+            </div>
+            <div class="card-body py-2 px-3">
+              {% for item in items %}
+              <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox"
+                       name="equipment_item_ids" value="{{ item.id }}"
+                       id="eq_item_{{ item.id }}"
+                       {% if request.form.getlist('equipment_item_ids') and item.id|string in request.form.getlist('equipment_item_ids') %}checked{% endif %}
+                       {% if not item.is_available %}disabled{% endif %}>
+                <label class="form-check-label small {% if not item.is_available %}text-warning{% endif %}"
+                       for="eq_item_{{ item.id }}">
+                  {% if not item.is_available %}⚠ {% endif %}{{ item.name }}
+                  {% if not item.is_available %}
+                  <span class="text-muted">({{ item.unavailability_reason or 'nedostupná' }})</span>
+                  {% endif %}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="mt-3">
+        <button type="button" class="btn btn-outline-warning btn-sm" id="eq-check-btn">Zkontrolovat dostupnost vybavení</button>
+        <div id="eq-check-results" class="mt-2"></div>
+      </div>
+      {% endif %}
+
       <div class="d-flex gap-2 mt-4 flex-wrap">
         <button type="submit" name="action" value="create" class="btn btn-danger">Vytvořit akci</button>
         {% if current_user.has_permission("event.publish") and current_user.has_permission("event.assignments.open") %}
@@ -206,4 +247,97 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/event-form.js') }}?v={{ static_ver }}"></script>
+{% if equipment_groups %}
+<script nonce="{{ g.csp_nonce }}">
+(function () {
+  var CHECK_URL = {{ url_for('events.equipment_check') | tojson }};
+  var csrfMeta  = document.querySelector("meta[name=csrf-token]");
+  var CSRF      = csrfMeta ? csrfMeta.content : "";
+
+  function doCheck() {
+    var output = document.getElementById("eq-check-results");
+    if (!output) return;
+
+    var checked = Array.from(
+      document.querySelectorAll("input[name='equipment_item_ids']:checked")
+    ).map(function (el) { return parseInt(el.value, 10); });
+
+    if (checked.length === 0) {
+      output.innerHTML = '<div class="alert alert-warning py-2 mt-2">Zaškrtněte nejprve alespoň jednu položku vybavení.</div>';
+      return;
+    }
+
+    var startEl = document.getElementById("start_datetime");
+    var endEl   = document.getElementById("end_datetime");
+    var start = startEl ? startEl.value : "";
+    var end   = endEl   ? endEl.value   : "";
+
+    if (!start || !end) {
+      output.innerHTML = '<div class="alert alert-warning py-2 mt-2">Vyplňte nejprve datum a čas začátku a konce akce.</div>';
+      return;
+    }
+
+    var btn = document.getElementById("eq-check-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Kontroluji…"; }
+
+    var payload = { item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null };
+
+    fetch(CHECK_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify(payload)
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      var results = data.results || [];
+      var warnings = results.filter(function (r) { return r.status !== "ok"; });
+      var ok       = results.filter(function (r) { return r.status === "ok"; });
+      if (results.length === 0) { output.innerHTML = ""; return; }
+      var html = "";
+      if (warnings.length > 0) {
+        html += '<div class="alert alert-warning py-2"><strong>⚠ Upozornění:</strong><ul class="mb-0 mt-1">';
+        warnings.forEach(function (r) {
+          if (r.status === "unavailable") {
+            html += "<li><strong>" + r.item_name + "</strong> — nedostupná: " + (r.reason || "—") + "</li>";
+          } else if (r.status === "conflict") {
+            var ce = r.conflicting_event;
+            var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+            var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+            html += "<li><strong>" + r.item_name + "</strong> — přiřazena jiné akci: <a href=\"" + ce.url + "\">\u201E" + ce.name + "\u201C</a> (" + s + "\u2013" + edt + ")</li>";
+          }
+        });
+        html += "</ul></div>";
+      }
+      if (ok.length > 0) {
+        html += '<p class="text-success small mb-0 mt-2">✅ Dostupné: ' + ok.map(function (r) { return r.item_name; }).join(", ") + "</p>";
+      }
+      output.innerHTML = html;
+    })
+    .catch(function (err) {
+      output.innerHTML = '<div class="alert alert-danger py-2 mt-2">Chyba při kontrole: ' + err.message + '</div>';
+    })
+    .finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost vybavení"; }
+    });
+  }
+
+  /* Bind check button — wait for DOM if needed */
+  function bindBtn() {
+    var btn = document.getElementById("eq-check-btn");
+    if (btn) {
+      btn.addEventListener("click", doCheck);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindBtn);
+  } else {
+    bindBtn();
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

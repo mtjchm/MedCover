@@ -96,3 +96,24 @@ def user_fillable_qual_ids(user: UserAccount) -> set[int]:
         )
 
     return {q.id for q in all_quals if _user_can_fill(q.id, frozenset())}
+
+
+def assignable_equipment_items() -> list[tuple[str, list]]:
+    """Return non-personal equipment items grouped by type, ordered alphabetically.
+
+    Returns a list of ``(type_name, [EquipmentItem, ...])`` tuples.
+    Used on the event create/edit forms to let the user pre-assign items.
+    """
+    from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory
+
+    items = db.session.scalars(
+        db.select(EquipmentItem)
+        .join(EquipmentType)
+        .where(EquipmentType.category != EquipmentCategory.PERSONAL)
+        .order_by(collate(EquipmentType.name, CS_COLLATION), collate(EquipmentItem.name, CS_COLLATION))
+    ).all()
+
+    groups: dict[str, list] = {}
+    for item in items:
+        groups.setdefault(item.equipment_type.name, []).append(item)
+    return list(groups.items())

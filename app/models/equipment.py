@@ -16,6 +16,11 @@ class EquipmentCategory(str, enum.Enum):
     SHARED = "shared"
 
 
+class EquipmentItemStatus(str, enum.Enum):
+    AVAILABLE = "available"
+    UNAVAILABLE = "unavailable"
+
+
 class EquipmentType(db.Model):  # type: ignore[misc]
     __tablename__ = "equipment_type"
 
@@ -57,6 +62,14 @@ class EquipmentItem(db.Model):  # type: ignore[misc]
     issued_to_id = db.Column(db.Uuid, db.ForeignKey("user_account.id"), nullable=True)
     issued_at = db.Column(db.DateTime(timezone=True), nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    status = db.Column(
+        db.Enum(EquipmentItemStatus, name="equipment_item_status_enum"),
+        nullable=False,
+        default=EquipmentItemStatus.AVAILABLE,
+        server_default=EquipmentItemStatus.AVAILABLE.name,
+    )
+    unavailability_reason = db.Column(db.Text, nullable=True)
+    unavailability_since = db.Column(db.DateTime(timezone=True), nullable=True)
     version = db.Column(db.Integer, default=1, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
@@ -73,6 +86,10 @@ class EquipmentItem(db.Model):  # type: ignore[misc]
     equipment_type = db.relationship("EquipmentType", back_populates="items", lazy="selectin")
     issued_to = db.relationship("UserAccount", foreign_keys=[issued_to_id])
     event_assignments = db.relationship("EventEquipmentAssignment", back_populates="equipment_item", cascade="all, delete-orphan")
+
+    @property
+    def is_available(self) -> bool:
+        return self.status == EquipmentItemStatus.AVAILABLE
 
     def __repr__(self) -> str:
         return f"<EquipmentItem {self.name}>"

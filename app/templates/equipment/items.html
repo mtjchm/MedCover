@@ -47,6 +47,7 @@
         <th>Sériové číslo</th>
         <th>Umístění</th>
         <th class="sortable" data-col="issued" class="cursor-pointer">Vydáno <span class="sort-icon text-muted">↕</span></th>
+        <th>Dostupnost</th>
         <th></th>
       </tr>
     </thead>
@@ -66,6 +67,13 @@
             {{ badge_warning(item.issued_to.name) }}
           {% else %}
             <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if not item.is_available %}
+            <span class="badge text-bg-warning" title="{{ item.unavailability_reason or '' }}">Nedostupná</span>
+          {% else %}
+            <span class="text-muted small">—</span>
           {% endif %}
         </td>
         <td class="text-end">

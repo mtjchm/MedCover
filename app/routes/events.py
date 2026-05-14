@@ -25,7 +25,7 @@ Permissions:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
@@ -36,12 +36,12 @@ from app.models.event import Event, EventSpot, EventStatus, EventTemplate, Event
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
-from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
+from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EquipmentItemStatus, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.constants import RECORD_MODIFIED_MSG
 from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
-from app.queries import active_master_events_list, active_users_list, rp_eligible_users_list, user_fillable_qual_ids
+from app.queries import active_master_events_list, active_users_list, assignable_equipment_items, rp_eligible_users_list, user_fillable_qual_ids
 import app.mail as mailer
 from zoneinfo import ZoneInfo
 
@@ -312,6 +312,19 @@ def feed() -> Response:
 
 # ── Create ────────────────────────────────────────────────────────────────────
 
+def _build_equipment_assignments(event: Event, item_ids: list[int]) -> None:
+    """Create EventEquipmentAssignment records for *item_ids* on *event*.
+
+    Silently skips unavailable items or IDs that don't resolve to a real item.
+    Caller must have already flushed the event so event.id is set.
+    """
+    for item_id in item_ids:
+        item = db.session.get(EquipmentItem, item_id)
+        if item is None or not item.is_available:
+            continue
+        db.session.add(EventEquipmentAssignment(event_id=event.id, equipment_item_id=item.id))
+
+
 @events_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create() -> str | Response:
@@ -320,12 +333,20 @@ def create() -> str | Response:
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
+    equipment_groups = assignable_equipment_items() if current_user.has_permission("event.equipment.assign") else []
 
     if request.method == "POST":
         event, error = _parse_event_form(request.form)
         if error or event is None:
             flash(error or "Chyba formuláře.", "danger")
-            return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
+            return render_template(
+                "events/create.html",
+                master_events=master_events,
+                users=users,
+                all_qualifications=all_qualifications,
+                equipment_groups=equipment_groups,
+                EventType=EventType,
+            )
 
         quick_publish = request.form.get("action") == "quick_publish"
         if quick_publish:
@@ -350,6 +371,10 @@ def create() -> str | Response:
         else:
             _build_spots(event, request.form)
 
+        if current_user.has_permission("event.equipment.assign"):
+            selected_ids = request.form.getlist("equipment_item_ids", type=int)
+            _build_equipment_assignments(event, selected_ids)
+
         audit("create", "Event", event.id, f"Vytvořena akce '{event.name}'")
         db.session.commit()
 
@@ -359,7 +384,14 @@ def create() -> str | Response:
             flash("Akce byla vytvořena.", "success")
         return redirect(url_for("events.detail", event_id=event.id))
 
-    return render_template("events/create.html", master_events=master_events, users=users, all_qualifications=all_qualifications, EventType=EventType)
+    return render_template(
+        "events/create.html",
+        master_events=master_events,
+        users=users,
+        all_qualifications=all_qualifications,
+        equipment_groups=equipment_groups,
+        EventType=EventType,
+    )
 
 
 # ── Create from template ──────────────────────────────────────────────────────
@@ -373,6 +405,7 @@ def create_from_template(template_id: int) -> str | Response:
     master_events = active_master_events_list()
     users = rp_eligible_users_list()
     all_qualifications = db.session.scalars(db.select(Qualification).where(Qualification.is_deleted.is_(False)).order_by(collate(Qualification.name, CS_COLLATION))).all()
+    equipment_groups = assignable_equipment_items() if current_user.has_permission("event.equipment.assign") else []
 
     return render_template(
         "events/create.html",
@@ -380,6 +413,7 @@ def create_from_template(template_id: int) -> str | Response:
         users=users,
         template=tmpl,
         all_qualifications=all_qualifications,
+        equipment_groups=equipment_groups,
         EventType=EventType,
     )
 
@@ -446,12 +480,14 @@ def detail(event_id: int) -> str | Response:
         event=event,
         EventStatus=EventStatus,
         EventType=EventType,
+        EquipmentItemStatus=EquipmentItemStatus,
         eligible_users=eligible_users,
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
         all_qualifications=all_qualifications,
         fillers_map=fillers_map,
         rp_eligible_attendees=rp_eligible_attendees,
+        equipment_warnings=_equipment_warnings_for_event(event),
     )
 
 
@@ -1087,6 +1123,10 @@ def equipment_assign(event_id: int) -> Response:
 
     item = get_or_404(EquipmentItem, item_id)
 
+    if not item.is_available:
+        flash(f'Položka „{item.name}" je momentálně nedostupná: {item.unavailability_reason or "bez udaného důvodu"}.', "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
     existing = db.session.scalar(
         db.select(EventEquipmentAssignment).where(
             EventEquipmentAssignment.event_id == event_id,
@@ -1135,6 +1175,167 @@ def equipment_unassign(event_id: int) -> Response:
 
     flash("Položka vybavení byla vrácena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Equipment conflict helper (used by detail route + AJAX endpoint) ──────────
+
+def _equipment_warnings_for_event(event: Event) -> list[dict]:
+    """Return a list of warning dicts for items already assigned to *event*.
+
+    Each dict has keys: item_name, status ("unavailable"|"conflict"),
+    reason (str|None), conflicting_event (dict|None).
+    """
+    warnings: list[dict] = []
+    assigned_items = [ea.equipment_item for ea in event.equipment_assignments]
+    if not assigned_items:
+        return warnings
+
+    # Separate unavailable items (no DB query needed)
+    available_ids: list[int] = []
+    for item in assigned_items:
+        if not item.is_available:
+            warnings.append({
+                "item_name": item.name,
+                "status": "unavailable",
+                "reason": item.unavailability_reason or "Bez udaného důvodu",
+                "conflicting_event": None,
+            })
+        else:
+            available_ids.append(item.id)
+
+    # Single query for all conflicts across all available assigned items
+    if available_ids:
+        conflicts = db.session.scalars(
+            db.select(EventEquipmentAssignment)
+            .join(Event, EventEquipmentAssignment.event_id == Event.id)
+            .where(
+                EventEquipmentAssignment.equipment_item_id.in_(available_ids),
+                EventEquipmentAssignment.event_id != event.id,
+                Event.start_datetime < event.end_datetime,
+                Event.end_datetime > event.start_datetime,
+            )
+        ).all()
+        # Build item_id → name lookup
+        id_to_name = {item.id: item.name for item in assigned_items}
+        for c in conflicts:
+            ce = c.event
+            warnings.append({
+                "item_name": id_to_name[c.equipment_item_id],
+                "status": "conflict",
+                "reason": None,
+                "conflicting_event": {
+                    "name": ce.name,
+                    "start": ce.start_datetime,
+                    "end": ce.end_datetime,
+                    "url": url_for("events.detail", event_id=ce.id),
+                },
+            })
+    return warnings
+
+
+# ── Equipment Availability Check (AJAX) ───────────────────────────────────────
+
+@events_bp.post("/equipment-check")
+@login_required
+def equipment_check() -> Response:
+    """Check availability of equipment items for a proposed event time window.
+
+    Request JSON:
+        item_ids: list[int]
+        start_datetime: ISO string
+        end_datetime: ISO string
+        exclude_event_id: int | null  (omit self from conflict search on edit)
+
+    Response JSON:
+        results: list of {item_id, item_name, status, reason?, conflicting_event?}
+        status values: "ok" | "unavailable" | "conflict"
+    """
+    require_permission("equipment.view")
+    data = request.get_json(silent=True) or {}
+    item_ids: list[int] = data.get("item_ids", [])
+    start_raw: str = data.get("start_datetime", "")
+    end_raw: str = data.get("end_datetime", "")
+    exclude_event_id: int | None = data.get("exclude_event_id")
+
+    if not item_ids:
+        return jsonify({"results": []})
+
+    try:
+        start_dt = datetime.fromisoformat(start_raw)
+        end_dt = datetime.fromisoformat(end_raw)
+        # Ensure timezone-aware for comparison with DB TIMESTAMPTZ columns
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Neplatný formát datumu."}), 400
+
+    results = []
+
+    # Batch-load all requested items in one query
+    items = db.session.scalars(
+        db.select(EquipmentItem).where(EquipmentItem.id.in_(item_ids))
+    ).all()
+    items_by_id = {item.id: item for item in items}
+
+    available_ids: list[int] = []
+    for item_id in item_ids:
+        item = items_by_id.get(item_id)
+        if item is None:
+            continue
+        if not item.is_available:
+            results.append({
+                "item_id": item.id,
+                "item_name": item.name,
+                "status": "unavailable",
+                "reason": item.unavailability_reason or "Bez udaného důvodu",
+            })
+        else:
+            available_ids.append(item.id)
+
+    # Single query for all conflicts across all available items
+    if available_ids:
+        conflict_filter = [
+            EventEquipmentAssignment.equipment_item_id.in_(available_ids),
+            Event.start_datetime < end_dt,
+            Event.end_datetime > start_dt,
+        ]
+        if exclude_event_id:
+            conflict_filter.append(EventEquipmentAssignment.event_id != exclude_event_id)
+
+        conflicts = db.session.scalars(
+            db.select(EventEquipmentAssignment)
+            .join(Event, EventEquipmentAssignment.event_id == Event.id)
+            .where(*conflict_filter)
+        ).all()
+
+        conflicting_item_ids: set[int] = set()
+        for c in conflicts:
+            conflicting_item_ids.add(c.equipment_item_id)
+            ce = c.event
+            results.append({
+                "item_id": c.equipment_item_id,
+                "item_name": items_by_id[c.equipment_item_id].name,
+                "status": "conflict",
+                "conflicting_event": {
+                    "name": ce.name,
+                    "start": ce.start_datetime.isoformat(),
+                    "end": ce.end_datetime.isoformat(),
+                    "url": url_for("events.detail", event_id=ce.id),
+                },
+            })
+
+        # Items with no conflicts → ok
+        for aid in available_ids:
+            if aid not in conflicting_item_ids:
+                results.append({
+                    "item_id": aid,
+                    "item_name": items_by_id[aid].name,
+                    "status": "ok",
+                })
+
+    return jsonify({"results": results})
 
 
 # ── Set Responsible Person ────────────────────────────────────────────────────
