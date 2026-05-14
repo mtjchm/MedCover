@@ -36,7 +36,7 @@ from app.models.event import Event, EventSpot, EventStatus, EventTemplate, Event
 from app.models.master_event import MasterEvent
 from app.models.user import UserAccount
 from app.models.role import Role
-from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EventEquipmentPlan, EventEquipmentAssignment
+from app.models.equipment import EquipmentItem, EquipmentType, EquipmentCategory, EquipmentItemStatus, EventEquipmentPlan, EventEquipmentAssignment
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.constants import RECORD_MODIFIED_MSG
@@ -446,6 +446,7 @@ def detail(event_id: int) -> str | Response:
         event=event,
         EventStatus=EventStatus,
         EventType=EventType,
+        EquipmentItemStatus=EquipmentItemStatus,
         eligible_users=eligible_users,
         all_equipment_types=all_equipment_types,
         available_equipment_items=available_equipment_items,
@@ -1087,6 +1088,10 @@ def equipment_assign(event_id: int) -> Response:
 
     item = get_or_404(EquipmentItem, item_id)
 
+    if not item.is_available:
+        flash(f'Položka „{item.name}" je momentálně nedostupná: {item.unavailability_reason or "bez udaného důvodu"}.', "danger")
+        return redirect(url_for("events.detail", event_id=event_id))
+
     existing = db.session.scalar(
         db.select(EventEquipmentAssignment).where(
             EventEquipmentAssignment.event_id == event_id,
@@ -1135,6 +1140,91 @@ def equipment_unassign(event_id: int) -> Response:
 
     flash("Položka vybavení byla vrácena.", "success")
     return redirect(url_for("events.detail", event_id=event_id))
+
+
+# ── Equipment Availability Check (AJAX) ───────────────────────────────────────
+
+@events_bp.post("/equipment-check")
+@login_required
+def equipment_check() -> Response:
+    """Check availability of equipment items for a proposed event time window.
+
+    Request JSON:
+        item_ids: list[int]
+        start_datetime: ISO string
+        end_datetime: ISO string
+        exclude_event_id: int | null  (omit self from conflict search on edit)
+
+    Response JSON:
+        results: list of {item_id, item_name, status, reason?, conflicting_event?}
+        status values: "ok" | "unavailable" | "conflict"
+    """
+    data = request.get_json(silent=True) or {}
+    item_ids: list[int] = data.get("item_ids", [])
+    start_raw: str = data.get("start_datetime", "")
+    end_raw: str = data.get("end_datetime", "")
+    exclude_event_id: int | None = data.get("exclude_event_id")
+
+    if not item_ids:
+        return jsonify({"results": []})
+
+    try:
+        start_dt = datetime.fromisoformat(start_raw)
+        end_dt = datetime.fromisoformat(end_raw)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Neplatný formát datumu."}), 400
+
+    results = []
+    for item_id in item_ids:
+        item = db.session.get(EquipmentItem, item_id)
+        if item is None:
+            continue
+
+        if not item.is_available:
+            results.append({
+                "item_id": item.id,
+                "item_name": item.name,
+                "status": "unavailable",
+                "reason": item.unavailability_reason or "Bez udaného důvodu",
+            })
+            continue
+
+        # Check for overlapping event assignment
+        conflict_filter = [
+            EventEquipmentAssignment.equipment_item_id == item.id,
+            Event.start_datetime < end_dt,
+            Event.end_datetime > start_dt,
+        ]
+        if exclude_event_id:
+            conflict_filter.append(EventEquipmentAssignment.event_id != exclude_event_id)
+
+        conflicting = db.session.scalar(
+            db.select(EventEquipmentAssignment)
+            .join(Event, EventEquipmentAssignment.event_id == Event.id)
+            .where(*conflict_filter)
+            .limit(1)
+        )
+
+        if conflicting:
+            ce = conflicting.event
+            results.append({
+                "item_id": item.id,
+                "item_name": item.name,
+                "status": "conflict",
+                "conflicting_event": {
+                    "name": ce.name,
+                    "start": ce.start_datetime.isoformat(),
+                    "end": ce.end_datetime.isoformat(),
+                },
+            })
+        else:
+            results.append({
+                "item_id": item.id,
+                "item_name": item.name,
+                "status": "ok",
+            })
+
+    return jsonify({"results": results})
 
 
 # ── Set Responsible Person ────────────────────────────────────────────────────

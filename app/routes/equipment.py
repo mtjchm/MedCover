@@ -16,7 +16,7 @@ from flask import Blueprint, Response, flash, redirect, render_template, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentType
+from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentItemStatus, EquipmentType
 from app.models.user import UserAccount
 from app.constants import RECORD_MODIFIED_MSG
 from sqlalchemy import collate
@@ -227,7 +227,8 @@ def item_create() -> str | Response:
         flash(f'Položka vybavení „{item.name}" byla vytvořena.', "success")
         return redirect(url_for("equipment.items"))
 
-    return render_template("equipment/item_form.html", types=types, edit=False)
+    return render_template("equipment/item_form.html", types=types, edit=False,
+                           can_modify_availability=False, EquipmentItemStatus=EquipmentItemStatus)
 
 
 # ── Items: Edit ───────────────────────────────────────────────────────────────
@@ -238,13 +239,16 @@ def item_edit(item_id: int) -> str | Response:
     require_permission("equipment_item.edit")
 
     item = get_or_404(EquipmentItem, item_id)
+    can_modify_availability = current_user.has_permission("equipment_item.availability_modify")
 
     types = db.session.scalars(db.select(EquipmentType).order_by(collate(EquipmentType.name, CS_COLLATION))).all()
 
     if request.method == "POST":
         if check_version_conflict(item, request.form.get("version")):
             flash(RECORD_MODIFIED_MSG, "danger")
-            return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+            return render_template("equipment/item_form.html", item=item, types=types, edit=True,
+                                   can_modify_availability=can_modify_availability,
+                                   EquipmentItemStatus=EquipmentItemStatus)
 
         name = request.form.get("name", "").strip()
         type_id = request.form.get("type_id", type=int)
@@ -254,32 +258,61 @@ def item_edit(item_id: int) -> str | Response:
 
         if not name:
             flash("Název položky vybavení je povinný.", "danger")
-            return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+            return render_template("equipment/item_form.html", item=item, types=types, edit=True,
+                                   can_modify_availability=can_modify_availability,
+                                   EquipmentItemStatus=EquipmentItemStatus)
 
         before = {
             "name": item.name, "type_id": item.type_id,
             "serial_number": item.serial_number, "home_location": item.home_location,
             "notes": item.notes,
+            "status": item.status.name if item.status else None,
         }
+
         item.name = name
         item.type_id = type_id
         item.serial_number = serial_number
         item.home_location = home_location
         item.notes = notes
+
+        if can_modify_availability:
+            new_status_raw = request.form.get("status", "AVAILABLE")
+            new_status = EquipmentItemStatus[new_status_raw] if new_status_raw in EquipmentItemStatus.__members__ else EquipmentItemStatus.AVAILABLE
+            unavailability_reason = request.form.get("unavailability_reason", "").strip() or None
+            unavailability_since_raw = request.form.get("unavailability_since", "").strip()
+            if new_status == EquipmentItemStatus.UNAVAILABLE and unavailability_since_raw:
+                try:
+                    unavailability_since: datetime | None = datetime.fromisoformat(unavailability_since_raw).replace(tzinfo=timezone.utc)
+                except ValueError:
+                    unavailability_since = None
+            elif new_status == EquipmentItemStatus.UNAVAILABLE:
+                unavailability_since = item.unavailability_since or datetime.now(timezone.utc)
+            else:
+                unavailability_since = None
+                unavailability_reason = None
+
+            item.status = new_status
+            item.unavailability_reason = unavailability_reason
+            item.unavailability_since = unavailability_since
+
         item.version += 1
 
+        after = {
+            "name": item.name, "type_id": item.type_id,
+            "serial_number": item.serial_number, "home_location": item.home_location,
+            "notes": item.notes,
+            "status": item.status.name if item.status else None,
+        }
         audit("edit", "EquipmentItem", str(item.id), f"Upravena položka vybavení '{item.name}'",
-              diff_changes(before, {
-                   "name": item.name, "type_id": item.type_id,
-                   "serial_number": item.serial_number, "home_location": item.home_location,
-                   "notes": item.notes,
-              }))
+              diff_changes(before, after))
         db.session.commit()
 
         flash(f'Položka vybavení „{item.name}" byla uložena.', "success")
         return redirect(url_for("equipment.items"))
 
-    return render_template("equipment/item_form.html", item=item, types=types, edit=True)
+    return render_template("equipment/item_form.html", item=item, types=types, edit=True,
+                           can_modify_availability=can_modify_availability,
+                           EquipmentItemStatus=EquipmentItemStatus)
 
 
 # ── Items: Delete ─────────────────────────────────────────────────────────────
