@@ -1186,8 +1186,13 @@ def _equipment_warnings_for_event(event: Event) -> list[dict]:
     reason (str|None), conflicting_event (dict|None).
     """
     warnings: list[dict] = []
-    for ea in event.equipment_assignments:
-        item = ea.equipment_item
+    assigned_items = [ea.equipment_item for ea in event.equipment_assignments]
+    if not assigned_items:
+        return warnings
+
+    # Separate unavailable items (no DB query needed)
+    available_ids: list[int] = []
+    for item in assigned_items:
         if not item.is_available:
             warnings.append({
                 "item_name": item.name,
@@ -1195,22 +1200,27 @@ def _equipment_warnings_for_event(event: Event) -> list[dict]:
                 "reason": item.unavailability_reason or "Bez udaného důvodu",
                 "conflicting_event": None,
             })
-            continue
-        # Check for time-overlap with other events (excluding self)
+        else:
+            available_ids.append(item.id)
+
+    # Single query for all conflicts across all available assigned items
+    if available_ids:
         conflicts = db.session.scalars(
             db.select(EventEquipmentAssignment)
             .join(Event, EventEquipmentAssignment.event_id == Event.id)
             .where(
-                EventEquipmentAssignment.equipment_item_id == item.id,
+                EventEquipmentAssignment.equipment_item_id.in_(available_ids),
                 EventEquipmentAssignment.event_id != event.id,
                 Event.start_datetime < event.end_datetime,
                 Event.end_datetime > event.start_datetime,
             )
         ).all()
+        # Build item_id → name lookup
+        id_to_name = {item.id: item.name for item in assigned_items}
         for c in conflicts:
             ce = c.event
             warnings.append({
-                "item_name": item.name,
+                "item_name": id_to_name[c.equipment_item_id],
                 "status": "conflict",
                 "reason": None,
                 "conflicting_event": {
@@ -1239,6 +1249,7 @@ def equipment_check() -> Response:
         results: list of {item_id, item_name, status, reason?, conflicting_event?}
         status values: "ok" | "unavailable" | "conflict"
     """
+    require_permission("equipment.view")
     data = request.get_json(silent=True) or {}
     item_ids: list[int] = data.get("item_ids", [])
     start_raw: str = data.get("start_datetime", "")
@@ -1260,11 +1271,18 @@ def equipment_check() -> Response:
         return jsonify({"error": "Neplatný formát datumu."}), 400
 
     results = []
+
+    # Batch-load all requested items in one query
+    items = db.session.scalars(
+        db.select(EquipmentItem).where(EquipmentItem.id.in_(item_ids))
+    ).all()
+    items_by_id = {item.id: item for item in items}
+
+    available_ids: list[int] = []
     for item_id in item_ids:
-        item = db.session.get(EquipmentItem, item_id)
+        item = items_by_id.get(item_id)
         if item is None:
             continue
-
         if not item.is_available:
             results.append({
                 "item_id": item.id,
@@ -1272,11 +1290,13 @@ def equipment_check() -> Response:
                 "status": "unavailable",
                 "reason": item.unavailability_reason or "Bez udaného důvodu",
             })
-            continue
+        else:
+            available_ids.append(item.id)
 
-        # Check for overlapping event assignment
+    # Single query for all conflicts across all available items
+    if available_ids:
         conflict_filter = [
-            EventEquipmentAssignment.equipment_item_id == item.id,
+            EventEquipmentAssignment.equipment_item_id.in_(available_ids),
             Event.start_datetime < end_dt,
             Event.end_datetime > start_dt,
         ]
@@ -1289,25 +1309,29 @@ def equipment_check() -> Response:
             .where(*conflict_filter)
         ).all()
 
-        if conflicts:
-            for c in conflicts:
-                ce = c.event
-                results.append({
-                    "item_id": item.id,
-                    "item_name": item.name,
-                    "status": "conflict",
-                    "conflicting_event": {
-                        "name": ce.name,
-                        "start": ce.start_datetime.isoformat(),
-                        "end": ce.end_datetime.isoformat(),
-                    },
-                })
-        else:
+        conflicting_item_ids: set[int] = set()
+        for c in conflicts:
+            conflicting_item_ids.add(c.equipment_item_id)
+            ce = c.event
             results.append({
-                "item_id": item.id,
-                "item_name": item.name,
-                "status": "ok",
+                "item_id": c.equipment_item_id,
+                "item_name": items_by_id[c.equipment_item_id].name,
+                "status": "conflict",
+                "conflicting_event": {
+                    "name": ce.name,
+                    "start": ce.start_datetime.isoformat(),
+                    "end": ce.end_datetime.isoformat(),
+                },
             })
+
+        # Items with no conflicts → ok
+        for aid in available_ids:
+            if aid not in conflicting_item_ids:
+                results.append({
+                    "item_id": aid,
+                    "item_name": items_by_id[aid].name,
+                    "status": "ok",
+                })
 
     return jsonify({"results": results})
 

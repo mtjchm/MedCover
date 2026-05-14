@@ -703,6 +703,7 @@
       btn.textContent = "Kontroluji…";
       fetch(CHECK_URL, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify({ item_ids: [itemId], start_datetime: START, end_datetime: END, exclude_event_id: EVENT_ID })
       })
@@ -710,17 +711,25 @@
       .then(function (data) {
         var results = data.results || [];
         if (!results.length) { dropOut.innerHTML = ""; return; }
-        var r = results[0];
-        if (r.status === "ok") {
-          dropOut.innerHTML = '<p class="text-success small mb-1">✅ ' + r.item_name + ' — dostupná pro tuto akci.</p>';
-        } else if (r.status === "unavailable") {
-          dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — nedostupná: ' + (r.reason || "—") + '</p>';
-        } else if (r.status === "conflict") {
-          var ce = r.conflicting_event;
-          var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-          var e = ce.end   ? new Date(ce.end  ).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-          dropOut.innerHTML = '<p class="text-warning small mb-1">⚠ <strong>' + r.item_name + '</strong> — přiřazena jiné akci: „' + ce.name + '" (' + s + '–' + e + ')</p>';
+        var warnings = results.filter(function (r) { return r.status !== "ok"; });
+        var ok = results.filter(function (r) { return r.status === "ok"; });
+        var html = "";
+        if (warnings.length > 0) {
+          warnings.forEach(function (r) {
+            if (r.status === "unavailable") {
+              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 nedostupná: ' + (r.reason || "\u2014") + '</p>';
+            } else if (r.status === "conflict") {
+              var ce = r.conflicting_event;
+              var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+              var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
+              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 přiřazena jiné akci: \u201E' + ce.name + '\u201C (' + s + '\u2013' + edt + ')</p>';
+            }
+          });
         }
+        if (ok.length > 0) {
+          html += '<p class="text-success small mb-1">\u2705 ' + ok[0].item_name + ' \u2014 dostupná pro tuto akci.</p>';
+        }
+        dropOut.innerHTML = html;
       })
       .catch(function (err) {
         dropOut.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole: ' + err.message + '</p>';
