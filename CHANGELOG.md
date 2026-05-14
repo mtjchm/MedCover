@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Quick date-range shortcut buttons on `/reports/date-range/`: this month, last month, from start of year, whole year
-- Manual user creation: admins can create user accounts directly without sending an invitation (`user.create` permission, Admin role)
-- JS field validation on the manual user creation form: name (non-empty), email (format), phone (format)
-- Event split: "✂ Rozdělit akci" button on event detail page splits the event into two contiguous parts; both parts inherit spots, assignments and equipment (closes #140)
-- Event detail: prev/next navigation buttons (‹ ›) and arrow-key support when arriving from the events list
-- Logging improvements: `INSTANCE_ID` env var stored on every outbox row and sent as `X-MedCover-Instance` SMTP header; skip-reason log lines in digest and backup tasks; per-task INFO log on each scheduler job execution; hourly "Scheduler alive" heartbeat log; JSON-file log rotation (50 MB × 7 files) for web and scheduler containers
-- iCal calendar feed: each user can subscribe to a personal `.ics` feed containing their active event assignments; token managed on the profile page (closes #106)
+## [0.14.0] - 2026-05-14
+
+### Added
+- Equipment item availability status tracking: items can be marked as Unavailable with a reason and "since" timestamp; new permission `equipment_item.availability_modify` (Admin + Coordinator)
+- Equipment availability check button on event create and event detail pages: checks selected/assigned items for conflicts with other events and unavailability before saving
+- Unavailable items shown highlighted in orange on event create and detail pages; cannot be assigned to events or people
+- Event create page: equipment items can now be pre-assigned directly when creating the event (previously only on the detail page)
+- Warning banners on event detail page show all conflicts for already-assigned items, with clickable links to the conflicting events
+- Equipment list: new Dostupnost column showing unavailable items with a badge
 
 ## [0.13.2] - 2026-05-13
 
@@ -189,8 +191,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sslmode=require` enforced for production `DATABASE_URL`
 - Feedback deletion blocked when `DEV_LOGIN_ENABLED=True` (test environment guard)
 
-[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.13.0...HEAD
-[0.13.0]: https://github.com/spidermila/MedCover/compare/v0.12.0...v0.13.0
+[Unreleased]: https://github.com/spidermila/MedCover/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/spidermila/MedCover/compare/v0.13.2...v0.14.0
+[0.13.2]: https://github.com/spidermila/MedCover/compare/v0.13.1...v0.13.2
+[0.13.1]: https://github.com/spidermila/MedCover/compare/v0.13.0...v0.13.1
 [0.12.0]: https://github.com/spidermila/MedCover/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/spidermila/MedCover/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/spidermila/MedCover/compare/v0.11.0...v0.11.1
