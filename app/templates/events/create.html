@@ -226,7 +226,7 @@
         {% endfor %}
       </div>
       <div class="mt-3">
-        <button type="button" class="btn btn-outline-warning btn-sm" id="eq-check-btn">Zkontrolovat dostupnost vybraných</button>
+        <button type="button" class="btn btn-outline-warning btn-sm" id="eq-check-btn">Zkontrolovat dostupnost vybavení</button>
         <div id="eq-check-results" class="mt-2"></div>
       </div>
       {% endif %}
@@ -265,14 +265,22 @@
       ).map(function (el) { return parseInt(el.value, 10); });
 
       if (checked.length === 0) {
-        output.innerHTML = '<p class="text-warning small mb-1">Zaškrtněte nejprve alespoň jednu položku.</p>';
+        output.innerHTML = '<div class="alert alert-warning py-2 mt-2">Zaškrtněte nejprve alespoň jednu položku vybavení.</div>';
         return;
       }
 
-      var start = document.getElementById("start_datetime").value;
-      var end   = document.getElementById("end_datetime").value;
+      // Read datetimes — prefer flatpickr instance value, fall back to raw input value
+      var startEl = document.getElementById("start_datetime");
+      var endEl   = document.getElementById("end_datetime");
+      var start = (startEl && startEl._flatpickr && startEl._flatpickr.selectedDates.length)
+        ? startEl._flatpickr.input.value
+        : (startEl ? startEl.value : "");
+      var end = (endEl && endEl._flatpickr && endEl._flatpickr.selectedDates.length)
+        ? endEl._flatpickr.input.value
+        : (endEl ? endEl.value : "");
+
       if (!start || !end) {
-        output.innerHTML = '<p class="text-warning small mb-1">Vyplňte nejprve datum a čas začátku a konce akce.</p>';
+        output.innerHTML = '<div class="alert alert-warning py-2 mt-2">Vyplňte nejprve datum a čas začátku a konce akce.</div>';
         return;
       }
 
@@ -281,6 +289,7 @@
 
       fetch(CHECK_URL, {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify({ item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null })
       })
@@ -308,18 +317,18 @@
           html += "</ul></div>";
         }
         if (ok.length > 0) {
-          html += '<p class="text-success small mb-1">✅ Dostupné: ' + ok.map(function (r) { return r.item_name; }).join(", ") + "</p>";
+          html += '<p class="text-success small mb-0">✅ Dostupné: ' + ok.map(function (r) { return r.item_name; }).join(", ") + "</p>";
         }
         output.innerHTML = html;
       })
       .catch(function (err) {
-        output.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole: ' + err.message + '</p>';
+        output.innerHTML = '<div class="alert alert-danger py-2 mt-2">Chyba při kontrole: ' + err.message + '</div>';
       })
-      .finally(function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost vybraných"; });
+      .finally(function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost vybavení"; });
     });
   } catch (err) {
     var out = document.getElementById("eq-check-results");
-    if (out) out.innerHTML = '<p class="text-danger small mb-1">Chyba skriptu: ' + err.message + '</p>';
+    if (out) out.innerHTML = '<div class="alert alert-danger py-2 mt-2">Chyba skriptu: ' + err.message + '</div>';
   }
 })();
 </script>
