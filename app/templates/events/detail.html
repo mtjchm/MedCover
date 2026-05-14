@@ -622,124 +622,14 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='js/events-detail.js') }}?v={{ static_ver }}"></script>
-<script nonce="{{ g.csp_nonce }}">
-(function () {
-  var CURRENT_ID = {{ event.id }};
-  try {
-    var raw = sessionStorage.getItem("medcover_event_nav");
-    if (!raw) return;
-    var nav = JSON.parse(raw);
-    var ids = nav.ids;
-    var base = nav.base;
-    var idx = ids.indexOf(CURRENT_ID);
-    if (idx === -1) return;
+<div id="event-nav-config" style="display:none" data-event-id="{{ event.id }}"></div>
+<script src="{{ url_for('static', filename='js/events-detail-nav.js') }}?v={{ static_ver }}" nonce="{{ g.csp_nonce }}"></script>
 
-    var prevId = idx > 0 ? ids[idx - 1] : null;
-    var nextId = idx < ids.length - 1 ? ids[idx + 1] : null;
-    var pos = (idx + 1) + " / " + ids.length;
-
-    var bar = document.querySelector(".d-flex.gap-2.flex-wrap");
-    if (!bar) return;
-
-    var group = document.createElement("div");
-    group.className = "btn-group btn-group-sm";
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", "Předchozí / následující akce");
-
-    var prevBtn = document.createElement("a");
-    prevBtn.className = "btn btn-outline-secondary px-3" + (prevId ? "" : " disabled");
-    prevBtn.setAttribute("aria-label", "Předchozí akce");
-    prevBtn.href = prevId ? (base + prevId) : "#";
-    prevBtn.textContent = "‹";
-
-    var posSpan = document.createElement("span");
-    posSpan.className = "btn btn-outline-secondary disabled px-2";
-    posSpan.style.pointerEvents = "none";
-    posSpan.textContent = pos;
-
-    var nextBtn = document.createElement("a");
-    nextBtn.className = "btn btn-outline-secondary px-3" + (nextId ? "" : " disabled");
-    nextBtn.setAttribute("aria-label", "Následující akce");
-    nextBtn.href = nextId ? (base + nextId) : "#";
-    nextBtn.textContent = "›";
-
-    group.appendChild(prevBtn);
-    group.appendChild(posSpan);
-    group.appendChild(nextBtn);
-    bar.insertBefore(group, bar.firstChild);
-
-    document.addEventListener("keydown", function (e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      if (e.key === "ArrowLeft"  && prevId) { e.preventDefault(); window.location.href = base + prevId; }
-      if (e.key === "ArrowRight" && nextId) { e.preventDefault(); window.location.href = base + nextId; }
-    });
-  } catch(e) {}
-})();
-</script>
-
-<script nonce="{{ g.csp_nonce }}">
-(function () {
-  try {
-    var CHECK_URL = {{ url_for('events.equipment_check') | tojson }};
-    var EVENT_ID  = {{ event.id }};
-    var START     = {{ event.start_datetime.isoformat() | tojson }};
-    var END       = {{ event.end_datetime.isoformat() | tojson }};
-    var csrfMeta  = document.querySelector("meta[name=csrf-token]");
-    var CSRF      = csrfMeta ? csrfMeta.content : "";
-
-    var btn    = document.getElementById("eq-check-btn");
-    var dropOut = document.getElementById("eq-check-results");
-    if (!btn || !dropOut) return;
-
-    btn.addEventListener("click", function () {
-      var select = document.getElementById("eq-item-select");
-      var itemId = select ? parseInt(select.value, 10) : NaN;
-      if (!itemId) {
-        dropOut.innerHTML = '<p class="text-warning small mb-1">Vyberte nejprve položku vybavení.</p>';
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = "Kontroluji…";
-      fetch(CHECK_URL, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
-        body: JSON.stringify({ item_ids: [itemId], start_datetime: START, end_datetime: END, exclude_event_id: EVENT_ID })
-      })
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (data) {
-        var results = data.results || [];
-        if (!results.length) { dropOut.innerHTML = ""; return; }
-        var warnings = results.filter(function (r) { return r.status !== "ok"; });
-        var ok = results.filter(function (r) { return r.status === "ok"; });
-        var html = "";
-        if (warnings.length > 0) {
-          warnings.forEach(function (r) {
-            if (r.status === "unavailable") {
-              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 nedostupná: ' + (r.reason || "\u2014") + '</p>';
-            } else if (r.status === "conflict") {
-              var ce = r.conflicting_event;
-              var s = ce.start ? new Date(ce.start).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-              var edt = ce.end ? new Date(ce.end).toLocaleString("cs-CZ", {dateStyle:"short",timeStyle:"short"}) : "?";
-              html += '<p class="text-warning small mb-1">\u26A0 <strong>' + r.item_name + '</strong> \u2014 přiřazena jiné akci: <a href="' + ce.url + '">\u201E' + ce.name + '\u201C</a> (' + s + '\u2013' + edt + ')</p>';
-            }
-          });
-        }
-        if (ok.length > 0) {
-          html += '<p class="text-success small mb-1">\u2705 ' + ok[0].item_name + ' \u2014 dostupná pro tuto akci.</p>';
-        }
-        dropOut.innerHTML = html;
-      })
-      .catch(function (err) {
-        dropOut.innerHTML = '<p class="text-danger small mb-1">Chyba při kontrole: ' + err.message + '</p>';
-      })
-      .finally(function () { btn.disabled = false; btn.textContent = "Zkontrolovat dostupnost"; });
-    });
-  } catch (err) {
-    var out = document.getElementById("eq-check-results");
-    if (out) out.innerHTML = '<p class="text-danger small mb-1">Chyba skriptu: ' + err.message + '</p>';
-  }
-})();
-</script>
+<div id="eq-check-config" style="display:none"
+     data-check-url="{{ url_for('events.equipment_check') }}"
+     data-event-id="{{ event.id }}"
+     data-start="{{ event.start_datetime.isoformat() }}"
+     data-end="{{ event.end_datetime.isoformat() }}">
+</div>
+<script src="{{ url_for('static', filename='js/events-detail-equipment.js') }}?v={{ static_ver }}" nonce="{{ g.csp_nonce }}"></script>
 {% endblock %}
