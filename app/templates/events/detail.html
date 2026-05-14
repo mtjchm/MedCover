@@ -586,26 +586,22 @@
   {% endif %}
 
   {% if current_user.has_permission('event.equipment.assign') and event.status != EventStatus.CANCELLED %}
-  <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}" class="d-flex gap-2 mb-2">
+  <form method="POST" action="{{ url_for('events.equipment_assign', event_id=event.id) }}"
+        id="eq-assign-form" class="d-flex gap-2 mb-2 align-items-center flex-wrap">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="item_id" class="form-select form-select-sm maxw-250" required>
+    <select name="item_id" id="eq-item-select" class="form-select form-select-sm maxw-250" required>
       <option value="">— položka —</option>
       {% for item in available_equipment_items %}
         <option value="{{ item.id }}"
-                {% if not item.is_available %}class="text-warning" data-unavailable="1"{% endif %}>
+                {% if not item.is_available %}data-unavailable="1"{% endif %}>
           {% if not item.is_available %}⚠ {% endif %}{{ item.name }} ({{ item.equipment_type.name }})
         </option>
       {% endfor %}
     </select>
+    <button type="button" class="btn btn-outline-warning btn-sm" id="eq-check-btn">Zkontrolovat dostupnost</button>
     <button class="btn btn-outline-danger btn-sm">Přiřadit</button>
   </form>
-  {% endif %}
-
-  {% if event.equipment_assignments %}
-  <button type="button" class="btn btn-outline-warning btn-sm mt-1" id="eq-check-btn">
-    Zkontrolovat dostupnost
-  </button>
-  <div id="eq-check-results" class="mt-2"></div>
+  <div id="eq-check-results" class="mb-2"></div>
   {% endif %}
 </div>
 
@@ -677,8 +673,16 @@
   if (!btn) return;
 
   btn.addEventListener("click", function () {
+    var select = document.getElementById("eq-item-select");
+    var itemId = select ? parseInt(select.value, 10) : NaN;
+    var out = document.getElementById("eq-check-results");
+
+    if (!itemId) {
+      out.innerHTML = '<p class="text-warning small">Vyberte nejprve položku vybavení.</p>';
+      return;
+    }
+
     var csrf = document.querySelector("meta[name=csrf-token]").content;
-    var itemIds = [{% for ea in event.equipment_assignments %}{{ ea.equipment_item_id }}{% if not loop.last %},{% endif %}{% endfor %}];
     var start = {{ event.start_datetime.isoformat() | tojson }};
     var end   = {{ event.end_datetime.isoformat() | tojson }};
 
@@ -689,7 +693,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
       body: JSON.stringify({
-        item_ids: itemIds,
+        item_ids: [itemId],
         start_datetime: start,
         end_datetime: end,
         exclude_event_id: {{ event.id }}
@@ -697,9 +701,8 @@
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      var out = document.getElementById("eq-check-results");
       if (!data.results || data.results.length === 0) {
-        out.innerHTML = '<p class="text-muted small">Žádné přiřazené položky ke kontrole.</p>';
+        out.innerHTML = '<p class="text-muted small">Položka nenalezena.</p>';
         return;
       }
       var html = '<ul class="list-group list-group-flush small">';
@@ -719,7 +722,7 @@
       out.innerHTML = html;
     })
     .catch(function () {
-      document.getElementById("eq-check-results").innerHTML = '<p class="text-danger small">Chyba při kontrole dostupnosti.</p>';
+      out.innerHTML = '<p class="text-danger small">Chyba při kontrole dostupnosti.</p>';
     })
     .finally(function () {
       btn.disabled = false;

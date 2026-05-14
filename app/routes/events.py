@@ -25,7 +25,7 @@ Permissions:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, Response, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_required, current_user
@@ -1171,6 +1171,11 @@ def equipment_check() -> Response:
     try:
         start_dt = datetime.fromisoformat(start_raw)
         end_dt = datetime.fromisoformat(end_raw)
+        # Ensure timezone-aware for comparison with DB TIMESTAMPTZ columns
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return jsonify({"error": "Neplatný formát datumu."}), 400
 
