@@ -19,8 +19,6 @@
     var EVENT_ID  = parseInt(cfg.dataset.eventId, 10);
     var START     = cfg.dataset.start;
     var END       = cfg.dataset.end;
-    var csrfMeta  = document.querySelector("meta[name=csrf-token]");
-    var CSRF      = csrfMeta ? csrfMeta.content : "";
 
     var btn    = document.getElementById("eq-check-btn");
     var dropOut = document.getElementById("eq-check-results");
@@ -35,10 +33,10 @@
       }
       btn.disabled = true;
       btn.textContent = "Kontroluji\u2026";
-      fetch(CHECK_URL, {
+      csrfFetch(CHECK_URL, {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ item_ids: [itemId], start_datetime: START, end_datetime: END, exclude_event_id: EVENT_ID })
       })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })

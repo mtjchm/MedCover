@@ -148,6 +148,9 @@
   <!-- Client-side validation -->
   <script src="{{ url_for('static', filename='js/validate.js') }}?v={{ static_ver }}"></script>
 
+  <!-- Centralized CSRF fetch wrapper -->
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}?v={{ static_ver }}"></script>
+
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -89,8 +89,7 @@
     </div>
     <div class="card-body p-0">
       <div id="block-list"
-           data-reorder-url="{{ url_for('admin_digest.reorder_blocks') }}"
-           data-csrf="{{ csrf_token() }}">
+           data-reorder-url="{{ url_for('admin_digest.reorder_blocks') }}">
         {% for block in schedule.blocks %}
         {% set cls = block_registry.get(block.block_type) %}
         {% if cls %}
@@ -107,7 +106,6 @@
             <button type="button"
                     class="btn btn-sm ms-auto {% if block.enabled %}btn-success{% else %}btn-outline-secondary{% endif %}"
                     data-toggle-url="{{ url_for('admin_digest.toggle_block', block_id=block.id) }}"
-                    data-csrf="{{ csrf_token() }}"
                     data-toggle-block-id="{{ block.id }}"
                     data-bs-toggle="tooltip" title="Kliknutím zapnete nebo vypnete tento blok bez uložení nastavení.">
               {% if block.enabled %}Zapnuto{% else %}Vypnuto{% endif %}

@@ -13,7 +13,7 @@
  *        data-can-open-assignments="1|0">
  *   </div>
  *
- * CSRF token is read from <meta name="csrf-token">.
+ * CSRF token is injected automatically by csrfFetch() (csrf-fetch.js).
  */
 (function () {
   "use strict";
@@ -22,8 +22,6 @@
   if (!cfg) return;
 
   var ME_ID = parseInt(cfg.dataset.meId, 10);
-  var csrfMeta = document.querySelector("meta[name=csrf-token]");
-  var CSRF_TOKEN = csrfMeta ? csrfMeta.content : "";
 
   var canAssign          = cfg.dataset.canAssign === "1";
   var canEditEvent       = cfg.dataset.canEditEvent === "1";
@@ -78,9 +76,9 @@
         var cell = this.closest("td");
         var originalHtml = cell.innerHTML;
 
-        fetch("/master-events/" + ME_ID + "/table/assign/" + spotId, {
+        csrfFetch("/master-events/" + ME_ID + "/table/assign/" + spotId, {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "user_id=" + encodeURIComponent(userId),
         })
         .then(function (r) { return r.json(); })
@@ -116,9 +114,9 @@
         var spotId = this.dataset.spotId;
         var cell = this.closest("td");
         var originalHtml = cell.innerHTML;
-        fetch("/master-events/" + ME_ID + "/table/assign/" + spotId, {
+        csrfFetch("/master-events/" + ME_ID + "/table/assign/" + spotId, {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "user_id=" + encodeURIComponent(userId),
         })
         .then(function (r) { return r.json(); })
@@ -146,9 +144,8 @@
         var assignmentId = this.dataset.assignmentId;
         var cell = this.closest("td");
 
-        fetch("/master-events/" + ME_ID + "/table/unassign/" + assignmentId, {
+        csrfFetch("/master-events/" + ME_ID + "/table/unassign/" + assignmentId, {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN },
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -231,9 +228,9 @@
 
       var value = timeDateInput.value + "T" + timeVal;
 
-      fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+      csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
         method: "POST",
-        headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "field=" + encodeURIComponent(field) + "&value=" + encodeURIComponent(value),
       })
       .then(function (r) { return r.json(); })
@@ -297,9 +294,9 @@
         nameError.style.display = "block";
         return;
       }
-      fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+      csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
         method: "POST",
-        headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "field=name&value=" + encodeURIComponent(value),
       })
       .then(function (r) { return r.json(); })
@@ -354,9 +351,9 @@
       btn.addEventListener("click", function () {
         var eventId = this.dataset.eventId;
         var delta = this.dataset.delta;
-        fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+        csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "field=shift_day&value=" + encodeURIComponent(delta),
         })
         .then(function (r) { return r.json(); })
@@ -377,9 +374,9 @@
         var eventId = this.dataset.eventId;
         var which = this.dataset.which;
         var delta = this.dataset.delta;
-        fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+        csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "field=shift_hour&value=" + encodeURIComponent(which + ":" + delta),
         })
         .then(function (r) { return r.json(); })
@@ -401,9 +398,9 @@
       var newCount = parseInt(btn.dataset.count, 10) + delta;
       if (newCount < 0) return;
 
-      fetch("/master-events/" + ME_ID + "/table/spots/update", {
+      csrfFetch("/master-events/" + ME_ID + "/table/spots/update", {
         method: "POST",
-        headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "event_id=" + encodeURIComponent(eventId) +
               "&qual_ids_json=" + encodeURIComponent(qualIdsJson) +
               "&new_count=" + encodeURIComponent(newCount),
@@ -438,9 +435,8 @@
     document.querySelectorAll(".tm-clone-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var eventId = this.dataset.eventId;
-        fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/clone", {
+        csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/clone", {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN },
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -462,9 +458,9 @@
         var eventId = this.dataset.eventId;
         var eventName = this.dataset.eventName;
         if (!confirm('Opravdu smazat akci \u201E' + eventName + '\u201C? Tato akce je nevratn\u00e1.')) return;
-        fetch("/events/" + eventId + "/delete", {
+        csrfFetch("/events/" + eventId + "/delete", {
           method: "POST",
-          headers: { "X-CSRFToken": CSRF_TOKEN, "Accept": "application/json" },
+          headers: { "Accept": "application/json" },
         })
         .then(function (r) {
           return r.json().catch(function () { return null; }).then(function (data) { return { ok: r.ok, data: data }; });
@@ -514,9 +510,9 @@
       var eventId = _advEventId;
       advPopup.style.display = "none";
       _advEventId = null;
-      fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+      csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
         method: "POST",
-        headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "field=advance_status",
       })
       .then(function (r) { return r.json(); })
@@ -554,9 +550,9 @@
   }
 
   function saveEventColor(eventId, color) {
-    fetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
+    csrfFetch("/master-events/" + ME_ID + "/table/event/" + eventId + "/update", {
       method: "POST",
-      headers: { "X-CSRFToken": CSRF_TOKEN, "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "field=color&value=" + encodeURIComponent(color),
     }).catch(function () {});
   }

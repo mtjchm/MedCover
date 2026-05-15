@@ -10,8 +10,6 @@
   if (!cfg) return;
 
   var CHECK_URL = cfg.dataset.checkUrl;
-  var csrfMeta  = document.querySelector("meta[name=csrf-token]");
-  var CSRF      = csrfMeta ? csrfMeta.content : "";
 
   function doCheck() {
     var output = document.getElementById("eq-check-results");
@@ -41,10 +39,10 @@
 
     var payload = { item_ids: checked, start_datetime: start, end_datetime: end, exclude_event_id: null };
 
-    fetch(CHECK_URL, {
+    csrfFetch(CHECK_URL, {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
     .then(function (r) {
