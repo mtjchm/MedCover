@@ -72,7 +72,7 @@
         <th class="text-nowrap" title="Počet hodin">Hod.</th>
         <th class="text-nowrap" title="Počet pozic">Pozic</th>
         {% for i in range(max_spot_cols) %}
-        <th class="text-nowrap text-center">{{ i + 1 }}</th>
+        <th class="text-nowrap text-center tm-spot-header-col">{{ i + 1 }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -91,7 +91,7 @@
       {% endif %}
       {% set ns.prev_event_id = event.id %}
       {% set ns.prev_date = row_date %}
-      <tr data-event-id="{{ event.id }}" data-status="{{ event.status.name }}" data-event-type="{{ event.event_type.name }}" class="{{ row_class }}">
+      <tr data-event-id="{{ event.id }}" data-status="{{ event.status.name }}" data-event-type="{{ event.event_type.name }}" data-spot-count="{{ row.spots | length }}" class="{{ row_class }}">
         {% if loop.first or rows[loop.index0 - 1].event.id != event.id %}
         <td class="border-0 align-middle text-center tm-action-cell" rowspan="{{ event_row_spans[event.id] }}">
           {% if can_create_event %}
@@ -216,7 +216,7 @@
 
         {# ── Spot cells ── #}
         {% for spot in row.spots %}
-        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="background-color: {{ row.color }}">
+        <td class="tm-spot-cell tm-spot-data-col text-nowrap small" data-spot-id="{{ spot.id }}" style="background-color: {{ row.color }}">
           {% if spot.assignment %}
             <span class="tm-assigned-name">{{ spot.assignment.user.name }}</span>
             {% if can_assign %}
@@ -240,7 +240,7 @@
 
         {# ── Empty padding cells ── #}
         {% for _ in range(max_spot_cols - (row.spots | length)) %}
-        <td style="background-color: {{ row.color }}"></td>
+        <td class="tm-spot-data-col" style="background-color: {{ row.color }}"></td>
         {% endfor %}
       </tr>
       {% endfor %}

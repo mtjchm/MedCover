@@ -33,6 +33,8 @@
   // ── Client-side status + type filters ──────────────────────────────────────
   var DEFAULT_STATUSES = ["DRAFT", "PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
   var allRows = document.querySelectorAll("#tm-table tbody tr[data-event-id]");
+  var spotHeaderCols = document.querySelectorAll(".tm-spot-header-col");
+  var totalSpotCols = spotHeaderCols.length;
 
   function getActiveFilters(containerSelector, dataAttr) {
     var active = [];
@@ -48,6 +50,7 @@
     // Collect which event IDs pass both filters
     var visibleEvents = {};
     var anyVisible = false;
+    var maxVisibleSpots = 0;
     allRows.forEach(function (row) {
       var eid = row.dataset.eventId;
       if (visibleEvents[eid] !== undefined) return;
@@ -56,9 +59,27 @@
       visibleEvents[eid] = statusOk && typeOk;
       if (visibleEvents[eid]) anyVisible = true;
     });
+    // Compute max spot count among visible rows
+    allRows.forEach(function (row) {
+      if (visibleEvents[row.dataset.eventId]) {
+        var sc = parseInt(row.dataset.spotCount, 10) || 0;
+        if (sc > maxVisibleSpots) maxVisibleSpots = sc;
+      }
+    });
     // Show/hide all rows for each event
     allRows.forEach(function (row) {
       row.style.display = visibleEvents[row.dataset.eventId] ? "" : "none";
+    });
+    // Hide excess spot columns (header + data cells)
+    for (var i = 0; i < totalSpotCols; i++) {
+      var show = i < maxVisibleSpots;
+      spotHeaderCols[i].style.display = show ? "" : "none";
+    }
+    allRows.forEach(function (row) {
+      var cells = row.querySelectorAll(".tm-spot-data-col");
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].style.display = i < maxVisibleSpots ? "" : "none";
+      }
     });
     // Toggle empty-filter message
     var emptyMsg = document.getElementById("tm-filter-empty-msg");
