@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Reports CSV exports now convert UTC datetimes to the configured app timezone before formatting
+- Fixed 28 `<label>` elements not associated with form controls in `events/detail.html` and `admin/digest/index.html` (accessibility) (#218)
 
 ## [0.14.0] - 2026-05-14
 
