@@ -2,7 +2,7 @@
 
 ## Run E2E browser tests (Playwright in Docker)
 e2e:
-	@rm -rf e2e-report
+	@docker run --rm -v "$(CURDIR)/e2e-report:/data" alpine rm -rf /data/* 2>/dev/null || true
 	docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e; \
 	EXIT_CODE=$$?; \
 	docker compose -f docker-compose.e2e.yml down -v; \

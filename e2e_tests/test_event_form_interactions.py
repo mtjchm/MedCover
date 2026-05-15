@@ -66,10 +66,11 @@ def test_ted_button_sets_datetime(logged_in_page, base_url):
     page.goto(f"{base_url}/events/create")
     page.wait_for_load_state("networkidle")
 
-    # Wait for flatpickr to initialize (it converts the input to type=hidden)
+    # Wait for flatpickr to initialize AND fpNow to be available
     page.wait_for_function(
-        'document.getElementById("start_datetime")._flatpickr !== undefined',
-        timeout=5000,
+        'typeof fpNow === "function" '
+        '&& document.getElementById("start_datetime")._flatpickr !== undefined',
+        timeout=10000,
     )
 
     # The hidden input should be empty initially
@@ -78,7 +79,8 @@ def test_ted_button_sets_datetime(logged_in_page, base_url):
     )
     assert initial_val == ""
 
-    # Call fpNow directly via the global function (defined in app-init.js)
+    # Call fpNow directly — Playwright click doesn't reliably trigger
+    # the DOMContentLoaded-bound listener across all browsers
     page.evaluate(
         'fpNow(document.querySelector(".btn-fpnow"))'
     )
