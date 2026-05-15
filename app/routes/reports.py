@@ -142,6 +142,96 @@ def _csv_response(rows: list[list[str]], filename: str) -> Response:
     return response
 
 
+def _spot_and_assignment_data(event_ids: list[int], events: list[Event]) -> tuple[
+    dict[int, tuple[int, int]],
+    list[tuple[Assignment, Event]],
+]:
+    """Shared queries for spot aggregation and assignment pairs.
+
+    Returns (spot_map, pairs) where:
+      spot_map: event_id → (total_spots, filled_spots)
+      pairs: list of (Assignment, Event) tuples
+    """
+    spot_agg = db.session.execute(
+        db.select(
+            EventSpot.event_id,
+            func.count(EventSpot.id).label("total_spots"),
+            func.count(Assignment.id).label("filled_spots"),
+        )
+        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+        .group_by(EventSpot.event_id)
+    ).all()
+    spot_map: dict[int, tuple[int, int]] = {
+        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
+    }
+
+    asgn_rows = db.session.execute(
+        db.select(Assignment, EventSpot.event_id)
+        .join(EventSpot, Assignment.spot_id == EventSpot.id)
+        .where(EventSpot.event_id.in_(event_ids))
+    ).all()
+    event_map = {ev.id: ev for ev in events}
+    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
+
+    return spot_map, pairs
+
+
+def _build_event_rows(
+    events: list[Event], spot_map: dict[int, tuple[int, int]],
+) -> tuple[list[dict], int, int, Decimal, int]:
+    """Build per-event row dicts and accumulate grand totals.
+
+    Returns (rows, grand_total_spots, grand_filled_spots, grand_worked_hours, grand_patients).
+    """
+    rows = []
+    grand_total_spots = 0
+    grand_filled_spots = 0
+    grand_worked_hours = Decimal("0")
+    grand_patients = 0
+
+    for ev in events:
+        total_spots, filled_spots = spot_map.get(ev.id, (0, 0))
+        worked_hours = ev.actual_hours or Decimal("0")
+        patients = ev.post_event_count or 0
+
+        rows.append({
+            "event": ev,
+            "total_spots": total_spots,
+            "filled_spots": filled_spots,
+            "worked_hours": worked_hours,
+            "patients": patients,
+        })
+
+        grand_total_spots += total_spots
+        grand_filled_spots += filled_spots
+        grand_worked_hours += worked_hours
+        grand_patients += patients
+
+    return rows, grand_total_spots, grand_filled_spots, grand_worked_hours, grand_patients
+
+
+def _user_stat_csv_rows(user_stat_rows: list[tuple[UserAccount, UserStats]]) -> list[list[str]]:
+    """Build CSV rows for the per-user statistics section."""
+    header = ["Účastník", "Směny odsloužené", "Směny plánované",
+              "Hodiny odsloužené", "Hodiny plánované", "Hodiny celkem",
+              "Hodiny zdarma", "Poslední směna", "Příští směna"]
+    rows = [header]
+    for u, s in user_stat_rows:
+        rows.append([
+            u.name,
+            str(s.shifts_served),
+            str(s.shifts_planned),
+            f"{s.hours_served:.1f}",
+            f"{s.hours_planned:.1f}",
+            f"{s.hours_total:.1f}",
+            f"{s.hours_free:.1f}",
+            s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
+            s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
+        ])
+    return rows
+
+
 # ── Index ─────────────────────────────────────────────────────────────────────
 
 @reports_bp.get("/")
@@ -247,72 +337,21 @@ def me_report(me_id: int) -> str | Response:
 
     now = datetime.now(timezone.utc)
 
-    # Query 1: events (no spots relationship — counts come from SQL aggregation below)
     events: list[Event] = list(db.session.scalars(
         db.select(Event)
         .where(Event.master_event_id == me_id)
         .order_by(Event.start_datetime)
     ).all())
-
     event_ids = [ev.id for ev in events]
 
-    # Query 2: spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
-    spot_agg = db.session.execute(
-        db.select(
-            EventSpot.event_id,
-            func.count(EventSpot.id).label("total_spots"),
-            func.count(Assignment.id).label("filled_spots"),
-        )
-        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
-        .where(EventSpot.event_id.in_(event_ids))
-        .group_by(EventSpot.event_id)
-    ).all()
-    spot_map: dict[int, tuple[int, int]] = {
-        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
-    }
+    spot_map, pairs = _spot_and_assignment_data(event_ids, events)
 
-    # Query 3: assignments joined to event_spot to get (assignment, event_id) pairs
-    # Assignment.user is loaded automatically via lazy="selectin"
-    asgn_rows = db.session.execute(
-        db.select(Assignment, EventSpot.event_id)
-        .join(EventSpot, Assignment.spot_id == EventSpot.id)
-        .where(EventSpot.event_id.in_(event_ids))
-    ).all()
-    event_map = {ev.id: ev for ev in events}
-    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
-
-    # Count events by status
     status_counts: dict[str, int] = {}
     for ev in events:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
 
-    # Build per-event rows using pre-computed SQL spot counts
-    rows = []
-    grand_total_spots = 0
-    grand_filled_spots = 0
-    grand_worked_hours = Decimal("0")
-    grand_patients = 0
-
-    for ev in events:
-        total_spots, filled_spots = spot_map.get(ev.id, (0, 0))
-        worked_hours = ev.actual_hours or Decimal("0")
-        patients = ev.post_event_count or 0
-
-        rows.append({
-            "event": ev,
-            "total_spots": total_spots,
-            "filled_spots": filled_spots,
-            "worked_hours": worked_hours,
-            "patients": patients,
-        })
-
-        grand_total_spots += total_spots
-        grand_filled_spots += filled_spots
-        grand_worked_hours += worked_hours
-        grand_patients += patients
-
-    # Per-user statistics
+    rows, grand_total_spots, grand_filled_spots, grand_worked_hours, grand_patients = _build_event_rows(events, spot_map)
     user_stat_rows = _build_user_stat_rows(pairs, now)
 
     if request.args.get("format") == "csv":
@@ -330,19 +369,7 @@ def me_report(me_id: int) -> str | Response:
                 str(r["patients"]),
             ])
         csv_rows.append([])
-        csv_rows.append(["Účastník", "Směny odsloužené", "Směny plánované", "Hodiny odsloužené", "Hodiny plánované", "Hodiny celkem", "Hodiny zdarma", "Poslední směna", "Příští směna"])
-        for u, s in user_stat_rows:
-            csv_rows.append([
-                u.name,
-                str(s.shifts_served),
-                str(s.shifts_planned),
-                f"{s.hours_served:.1f}",
-                f"{s.hours_planned:.1f}",
-                f"{s.hours_total:.1f}",
-                f"{s.hours_free:.1f}",
-                s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
-                s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
-            ])
+        csv_rows.extend(_user_stat_csv_rows(user_stat_rows))
         safe_name = master_event.name.replace(" ", "_")
         return _csv_response(csv_rows, f"prehled_ME_{safe_name}.csv")
 
@@ -362,77 +389,24 @@ def me_report(me_id: int) -> str | Response:
 
 # ── Date-range report ─────────────────────────────────────────────────────────
 
-@reports_bp.get("/date-range")
-@login_required
-def date_range_report() -> str | Response:
-    require_permission("report.view")
-
-    from_date_str = request.args.get("from_date", "").strip()
-    to_date_str = request.args.get("to_date", "").strip()
-
-    if not from_date_str or not to_date_str:
-        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str, quick_ranges=_quick_ranges())
-
-    try:
-        from_dt = datetime.strptime(from_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        to_dt = datetime.strptime(to_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
-    except ValueError:
-        return render_template("reports/date_range.html", results=None, from_date=from_date_str, to_date=to_date_str, error="Neplatný formát data.", quick_ranges=_quick_ranges())
-
-    events: list[Event] = list(db.session.scalars(
-        db.select(Event)
-        .where(Event.start_datetime >= from_dt)
-        .where(Event.start_datetime < to_dt)
-        .options(
-            selectinload(Event.master_event),  # type: ignore[arg-type]
-        )
-        .order_by(Event.start_datetime)
-    ).unique().all())
-
-    event_ids = [ev.id for ev in events]
-
-    # Spot/fill counts via SQL GROUP BY — avoids loading all EventSpot ORM objects
-    spot_agg = db.session.execute(
-        db.select(
-            EventSpot.event_id,
-            func.count(EventSpot.id).label("total_spots"),
-            func.count(Assignment.id).label("filled_spots"),
-        )
-        .outerjoin(Assignment, Assignment.spot_id == EventSpot.id)
-        .where(EventSpot.event_id.in_(event_ids))
-        .group_by(EventSpot.event_id)
-    ).all()
-    spot_map: dict[int, tuple[int, int]] = {
-        row.event_id: (row.total_spots, row.filled_spots) for row in spot_agg
-    }
-
-    # Assignments for per-user stats (Assignment.user auto-loaded via selectin)
-    asgn_rows = db.session.execute(
-        db.select(Assignment, EventSpot.event_id)
-        .join(EventSpot, Assignment.spot_id == EventSpot.id)
-        .where(EventSpot.event_id.in_(event_ids))
-    ).all()
-    event_map = {ev.id: ev for ev in events}
-    pairs = [(row.Assignment, event_map[row.event_id]) for row in asgn_rows]
-
-    # Group by master event
+def _aggregate_date_range(
+    events: list[Event],
+    spot_map: dict[int, tuple[int, int]],
+    pairs: list[tuple[Assignment, Event]],
+) -> dict:
+    """Build the results dict for a date-range report."""
     me_map: dict[int, dict] = {}
     for ev in events:
         me_id_key = ev.master_event_id
         if me_id_key not in me_map:
-            me_map[me_id_key] = {
-                "master_event": ev.master_event,
-                "events": [],
-            }
+            me_map[me_id_key] = {"master_event": ev.master_event, "events": []}
         me_map[me_id_key]["events"].append(ev)
 
-    # Aggregate totals
     status_counts: dict[str, int] = {}
     total_spots = 0
     filled_spots = 0
     total_worked_hours = Decimal("0")
     total_patients = 0
-
     for ev in events:
         key = ev.status.value
         status_counts[key] = status_counts.get(key, 0) + 1
@@ -442,11 +416,10 @@ def date_range_report() -> str | Response:
         total_worked_hours += ev.actual_hours or Decimal("0")
         total_patients += ev.post_event_count or 0
 
-    # Per-user statistics across the date range
     now = datetime.now(timezone.utc)
     user_stat_rows = _build_user_stat_rows(pairs, now)
 
-    results = {
+    return {
         "me_groups": list(me_map.values()),
         "status_counts": status_counts,
         "total_events": len(events),
@@ -457,45 +430,70 @@ def date_range_report() -> str | Response:
         "user_stat_rows": user_stat_rows,
     }
 
+
+def _date_range_csv(
+    events: list[Event],
+    spot_map: dict[int, tuple[int, int]],
+    user_stat_rows: list[tuple[UserAccount, UserStats]],
+) -> list[list[str]]:
+    """Build CSV rows for the date-range report."""
+    rows: list[list[str]] = [[
+        "Nadřazená akce", "Akce", "Začátek", "Konec",
+        "Stav", "Místa celkem", "Obsazená místa",
+        "Odprac. hodin", "Ošetřených",
+    ]]
+    for ev in events:
+        me_name = ev.master_event.name if ev.master_event else ""
+        t_s, f_s = spot_map.get(ev.id, (0, 0))
+        rows.append([
+            me_name, ev.name,
+            ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
+            ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+            ev.status.value, str(t_s), str(f_s),
+            f"{ev.actual_hours or Decimal('0'):.1f}",
+            str(ev.post_event_count or 0),
+        ])
+    rows.append([])
+    rows.extend(_user_stat_csv_rows(user_stat_rows))
+    return rows
+
+
+@reports_bp.get("/date-range")
+@login_required
+def date_range_report() -> str | Response:
+    require_permission("report.view")
+
+    from_date_str = request.args.get("from_date", "").strip()
+    to_date_str = request.args.get("to_date", "").strip()
+
+    if not from_date_str or not to_date_str:
+        return render_template("reports/date_range.html", results=None,
+                               from_date=from_date_str, to_date=to_date_str,
+                               quick_ranges=_quick_ranges())
+    try:
+        from_dt = datetime.strptime(from_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        to_dt = datetime.strptime(to_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+    except ValueError:
+        return render_template("reports/date_range.html", results=None,
+                               from_date=from_date_str, to_date=to_date_str,
+                               error="Neplatný formát data.",
+                               quick_ranges=_quick_ranges())
+
+    events: list[Event] = list(db.session.scalars(
+        db.select(Event)
+        .where(Event.start_datetime >= from_dt)
+        .where(Event.start_datetime < to_dt)
+        .options(selectinload(Event.master_event))  # type: ignore[arg-type]
+        .order_by(Event.start_datetime)
+    ).unique().all())
+
+    spot_map, pairs = _spot_and_assignment_data([ev.id for ev in events], events)
+    results = _aggregate_date_range(events, spot_map, pairs)
+
     if request.args.get("format") == "csv":
-        csv_rows = [["Nadřazená akce", "Akce", "Začátek", "Konec", "Stav", "Místa celkem", "Obsazená místa", "Odprac. hodin", "Ošetřených"]]
-        for ev in events:
-            me_name = ev.master_event.name if ev.master_event else ""
-            total_s = len(ev.spots)
-            filled_s = sum(1 for s in ev.spots if s.assignment is not None)
-            worked_h = ev.actual_hours or Decimal("0")
-            patients = ev.post_event_count or 0
-            csv_rows.append([
-                me_name,
-                ev.name,
-                ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
-                ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
-                ev.status.value,
-                str(total_s),
-                str(filled_s),
-                f"{worked_h:.1f}",
-                str(patients),
-            ])
-        csv_rows.append([])
-        csv_rows.append(["Účastník", "Směny odsloužené", "Směny plánované", "Hodiny odsloužené", "Hodiny plánované", "Hodiny celkem", "Hodiny zdarma", "Poslední směna", "Příští směna"])
-        for u, s in user_stat_rows:
-            csv_rows.append([
-                u.name,
-                str(s.shifts_served),
-                str(s.shifts_planned),
-                f"{s.hours_served:.1f}",
-                f"{s.hours_planned:.1f}",
-                f"{s.hours_total:.1f}",
-                f"{s.hours_free:.1f}",
-                s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
-                s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
-            ])
+        csv_rows = _date_range_csv(events, spot_map, results["user_stat_rows"])
         return _csv_response(csv_rows, f"prehled_{from_date_str}_{to_date_str}.csv")
 
-    return render_template(
-        "reports/date_range.html",
-        results=results,
-        from_date=from_date_str,
-        to_date=to_date_str,
-        quick_ranges=_quick_ranges(),
-    )
+    return render_template("reports/date_range.html", results=results,
+                           from_date=from_date_str, to_date=to_date_str,
+                           quick_ranges=_quick_ranges())
