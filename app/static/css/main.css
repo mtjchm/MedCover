@@ -339,3 +339,17 @@
 .notif-test-btn     { font-size: 0.7rem; }
 .notif-code         { font-size: 0.75rem; }
 .notif-template     { font-size: 0.72rem; }
+
+/* ── Custom toggle switches ───────────────────────────────────────────────── */
+:root {
+  --color-paid: #198754;
+  --color-dark-mode: #6f42c1;
+}
+
+.paid-toggle  { width: 3em; height: 1.5em; cursor: pointer; }
+.paid-toggle:checked  { background-color: var(--color-paid); border-color: var(--color-paid); }
+.paid-label.is-paid   { color: var(--color-paid); }
+
+.dark-toggle  { width: 3em; height: 1.5em; cursor: pointer; }
+.dark-toggle:checked  { background-color: var(--color-dark-mode); border-color: var(--color-dark-mode); }
+.dark-label.is-dark   { color: var(--color-dark-mode); }
