@@ -608,6 +608,15 @@ def table_event_update(me_id: int, event_id: int) -> Response:
     if field == "advance_status":
         return _handle_advance_status(event)
 
+    if field == "color":
+        color = value if _HEX_RE.match(value) else None
+        event.description = _set_tm_color(event.description, color)
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Nastavena barva řádku (tabulkový manažer): {color or 'reset'}")
+        db.session.commit()
+        return jsonify({"ok": True, "color": color or ""})
+
     if not value:
         return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
 
@@ -628,15 +637,6 @@ def table_event_update(me_id: int, event_id: int) -> Response:
 
     if field == "shift_hour":
         return _handle_shift_hour(event, value)
-
-    if field == "color":
-        color = value if _HEX_RE.match(value) else None
-        event.description = _set_tm_color(event.description, color)
-        event.version += 1
-        audit("edit", "Event", event.id,
-              f"Nastavena barva řádku (tabulkový manažer): {color or 'reset'}")
-        db.session.commit()
-        return jsonify({"ok": True, "color": color or ""})
 
     return _handle_datetime_field(event, field, value)
 
