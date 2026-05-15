@@ -23,8 +23,8 @@ SCHEDULER_ACTOR_ID = None
 INSTANCE_ID: str = os.environ.get("INSTANCE_ID", "")
 
 # How long to wait between individual SMTP sends (seconds).
-# 6 s ≈ 10 emails/min — safely under typical relay limits (e.g. MS365: 30/min).
-MAIL_QUEUE_INTERVAL_SECONDS: int = int(os.environ.get("MAIL_QUEUE_INTERVAL_SECONDS", "6"))
+# 3 s ≈ 20 emails/min — safely under typical relay limits (e.g. MS365: 30/min).
+MAIL_QUEUE_INTERVAL_SECONDS: int = int(os.environ.get("MAIL_QUEUE_INTERVAL_SECONDS", "3"))
 
 
 def _logged_task(name: str, fn: Callable[[], None]) -> Callable[[], None]:
@@ -39,7 +39,7 @@ def _logged_task(name: str, fn: Callable[[], None]) -> Callable[[], None]:
 def process_email_queue() -> None:
     """Drain the outbox_email queue one message at a time.
 
-    Called every MAIL_QUEUE_INTERVAL_SECONDS (default 6 s).  Delegates to
+    Called every MAIL_QUEUE_INTERVAL_SECONDS (default 3 s).  Delegates to
     app.mail.drain_one_outbox_email which contains the actual logic and can
     also be called directly in tests without importing the scheduler.
 

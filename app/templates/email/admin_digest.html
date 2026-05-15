@@ -5,14 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ schedule.email_subject }}</title>
   <style>
+    /*
+     * Admin digest — standalone table-based layout for email clients.
+     * Colour palette shared with email/base.html (see palette comment there).
+     */
     /* Reset */
     body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
     img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
     /* Base */
-    body { margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #333333; }
+    body { margin: 0; padding: 0; background-color: #f9f9f9; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #333333; }
     /* Wrapper */
-    .wrapper { width: 100%; background-color: #f4f4f4; padding: 20px 0; }
+    .wrapper { width: 100%; background-color: #f9f9f9; padding: 20px 0; }
     /* Container */
     .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 6px; overflow: hidden; }
     /* Header */
@@ -28,7 +32,7 @@
     /* Table */
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .data-table th { background-color: #f9f9f9; color: #666666; font-weight: bold; text-align: left; padding: 6px 8px; border-bottom: 1px solid #dddddd; }
-    .data-table td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    .data-table td { padding: 5px 8px; border-bottom: 1px solid #eeeeee; vertical-align: top; }
     .data-table tr:last-child td { border-bottom: none; }
     /* Status badges */
     .badge { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: bold; }
