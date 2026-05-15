@@ -68,110 +68,117 @@ def can_view(event: Event) -> bool:
     return current_user.has_permission("event.view")
 
 
+def _parse_form_fields(form: dict) -> dict:
+    """Extract and normalize raw field values from the event form."""
+    return {
+        "name": form.get("name", "").strip(),
+        "master_event_id": form.get("master_event_id", "").strip(),
+        "start_str": form.get("start_datetime", "").strip(),
+        "end_str": form.get("end_datetime", "").strip(),
+        "address": form.get("address", "").strip() or None,
+        "contact_person": form.get("contact_person", "").strip() or None,
+        "description": form.get("description", "").strip() or None,
+        "paid": form.get("paid") == "1",
+        "responsible_person_id": form.get("responsible_person_id") or None,
+        "assignments_open_str": form.get("assignments_open_datetime", "").strip(),
+        "event_type_str": form.get("event_type", "").strip(),
+        "planned_participants_count_str": form.get("planned_participants_count", "").strip(),
+    }
+
+
+def _validate_event_fields(fields: dict) -> tuple[str | None, EventType, int | None, datetime | None, datetime | None, datetime | None]:
+    """Validate parsed form fields and return (error, event_type, ppc, start_dt, end_dt, assignments_open_dt).
+
+    On error, only the first element is non-None.
+    """
+    _PRAGUE = ZoneInfo("Europe/Prague")
+
+    def _local_to_utc(s: str) -> datetime:
+        return datetime.fromisoformat(s).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
+
+    event_type_str = fields["event_type_str"]
+    event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
+
+    planned_participants_count: int | None = None
+    if event_type == EventType.TRAINING and fields["planned_participants_count_str"]:
+        try:
+            planned_participants_count = int(fields["planned_participants_count_str"])
+            if planned_participants_count < 0:
+                return "Plánovaný počet účastníků musí být nezáporné číslo.", event_type, None, None, None, None
+        except ValueError:
+            return "Plánovaný počet účastníků musí být celé číslo.", event_type, None, None, None, None
+
+    if not fields["name"]:
+        return "Název akce je povinný.", event_type, None, None, None, None
+    if not fields["master_event_id"]:
+        return "Nadřazená akce je povinná.", event_type, None, None, None, None
+    if not fields["start_str"] or not fields["end_str"]:
+        return "Datum a čas začátku i konce jsou povinné.", event_type, None, None, None, None
+
+    try:
+        start_dt = _local_to_utc(fields["start_str"])
+        end_dt = _local_to_utc(fields["end_str"])
+    except ValueError:
+        return "Neplatný formát data a času.", event_type, None, None, None, None
+
+    if end_dt <= start_dt:
+        return "Konec akce musí být po začátku.", event_type, None, None, None, None
+
+    # Validate RP: Viewer-only users cannot be RP (AD17)
+    if fields["responsible_person_id"]:
+        rp_user = db.session.get(UserAccount, fields["responsible_person_id"])
+        if rp_user:
+            rp_role_names = {r.name for r in rp_user.roles}
+            if rp_role_names <= {Role.VIEWER}:
+                return (
+                    f"Uživatel {rp_user.name} má pouze roli Pozorovatel a nemůže být "
+                    "odpovědnou osobou. Jako OP je potřeba mít roli Člen nebo vyšší."
+                ), event_type, None, None, None, None
+
+    assignments_open_dt = None
+    if fields["assignments_open_str"]:
+        try:
+            assignments_open_dt = _local_to_utc(fields["assignments_open_str"])
+        except ValueError:
+            return "Neplatný formát data otevření přihlášek.", event_type, None, None, None, None
+
+    return None, event_type, planned_participants_count, start_dt, end_dt, assignments_open_dt
+
+
 def parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event | None, str | None]:
     """Parse the event form and return (event, error_message).
 
     All datetime inputs are interpreted as Europe/Prague local time and stored
     as UTC in the database.
     """
-    _PRAGUE = ZoneInfo("Europe/Prague")
+    fields = _parse_form_fields(form)
+    error, event_type, planned_participants_count, start_dt, end_dt, assignments_open_dt = _validate_event_fields(fields)
+    if error:
+        return None, error
 
-    def _local_to_utc(s: str) -> datetime:
-        """Parse a naive datetime string (Prague local time) and return UTC."""
-        return datetime.fromisoformat(s).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
+    assert start_dt is not None and end_dt is not None  # mypy: validated above
 
-    name = form.get("name", "").strip()
-    master_event_id = form.get("master_event_id", "").strip()
-    start_str = form.get("start_datetime", "").strip()
-    end_str = form.get("end_datetime", "").strip()
-    address = form.get("address", "").strip() or None
-    contact_person = form.get("contact_person", "").strip() or None
-    description = form.get("description", "").strip() or None
-    paid = form.get("paid") == "1"
-    responsible_person_id = form.get("responsible_person_id") or None
-    assignments_open_str = form.get("assignments_open_datetime", "").strip()
-
-    # Event type
-    event_type_str = form.get("event_type", "").strip()
-    event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
-
-    # Training-specific: planned participant count (optional)
-    planned_participants_count: int | None = None
-    if event_type == EventType.TRAINING:
-        ppc_str = form.get("planned_participants_count", "").strip()
-        if ppc_str:
-            try:
-                planned_participants_count = int(ppc_str)
-                if planned_participants_count < 0:
-                    return None, "Plánovaný počet účastníků musí být nezáporné číslo."
-            except ValueError:
-                return None, "Plánovaný počet účastníků musí být celé číslo."
-
-    if not name:
-        return None, "Název akce je povinný."
-    if not master_event_id:
-        return None, "Nadřazená akce je povinná."
-    if not start_str or not end_str:
-        return None, "Datum a čas začátku i konce jsou povinné."
-
-    try:
-        start_dt = _local_to_utc(start_str)
-        end_dt = _local_to_utc(end_str)
-    except ValueError:
-        return None, "Neplatný formát data a času."
-
-    if end_dt <= start_dt:
-        return None, "Konec akce musí být po začátku."
-
-    # Validate RP: Viewer-only users cannot be RP (AD17)
-    if responsible_person_id:
-        rp_user = db.session.get(UserAccount, responsible_person_id)
-        if rp_user:
-            rp_role_names = {r.name for r in rp_user.roles}
-            if rp_role_names <= {Role.VIEWER}:
-                return None, (
-                    f"Uživatel {rp_user.name} má pouze roli Pozorovatel a nemůže být "
-                    "odpovědnou osobou. Jako OP je potřeba mít roli Člen nebo vyšší."
-                )
-
-    assignments_open_dt = None
-    if assignments_open_str:
-        try:
-            assignments_open_dt = _local_to_utc(assignments_open_str)
-        except ValueError:
-            return None, "Neplatný formát data otevření přihlášek."
+    kwargs = {
+        "name": fields["name"],
+        "master_event_id": int(fields["master_event_id"]),
+        "start_datetime": start_dt,
+        "end_datetime": end_dt,
+        "address": fields["address"],
+        "contact_person": fields["contact_person"],
+        "description": fields["description"],
+        "paid": fields["paid"],
+        "responsible_person_id": fields["responsible_person_id"],
+        "assignments_open_datetime": assignments_open_dt,
+        "event_type": event_type,
+        "planned_participants_count": planned_participants_count,
+    }
 
     if existing is not None:
-        existing.name = name
-        existing.master_event_id = int(master_event_id)
-        existing.start_datetime = start_dt
-        existing.end_datetime = end_dt
-        existing.address = address
-        existing.contact_person = contact_person
-        existing.description = description
-        existing.paid = paid
-        existing.responsible_person_id = responsible_person_id
-        existing.assignments_open_datetime = assignments_open_dt
-        existing.event_type = event_type
-        # Reset planned_participants_count when type changes away from TRAINING
-        existing.planned_participants_count = planned_participants_count
+        for attr, val in kwargs.items():
+            setattr(existing, attr, val)
         return existing, None
 
-    event = Event(
-        name=name,
-        master_event_id=int(master_event_id),
-        start_datetime=start_dt,
-        end_datetime=end_dt,
-        address=address,
-        contact_person=contact_person,
-        description=description,
-        paid=paid,
-        responsible_person_id=responsible_person_id,
-        assignments_open_datetime=assignments_open_dt,
-        created_by_id=current_user.id,
-        event_type=event_type,
-        planned_participants_count=planned_participants_count,
-    )
+    event = Event(**kwargs, created_by_id=current_user.id)
     return event, None
 
 

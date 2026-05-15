@@ -24,71 +24,59 @@ _DB_WARN_MS = 200    # warn above 200 ms
 _SMTP_WARN_MS = 1000  # warn above 1 s
 
 
-@admin_bp.route("/")
-@login_required
-def index() -> str:
-    require_permission("admin.view")
+def _check_db_health() -> dict:
+    """Probe DB and return {status, ms, error}."""
+    try:
+        t0 = time.monotonic()
+        db.session.execute(db.text("SELECT 1"))
+        ms = int((time.monotonic() - t0) * 1000)
+        status = "warning" if ms > _DB_WARN_MS else "ok"
+        return {"status": status, "ms": ms, "error": None}
+    except Exception as exc:
+        return {"status": "error", "ms": None, "error": type(exc).__name__}
 
+
+def _check_scheduler(settings: object, now: datetime) -> dict:
+    """Check scheduler heartbeat and return {status, last, age_s}."""
+    sched_last = settings.scheduler_last_seen  # type: ignore[attr-defined]
+    if sched_last is None:
+        return {"status": "unknown", "last": None, "age_s": None}
+    age_s = int((now - sched_last).total_seconds())
+    if age_s < 30:
+        status = "ok"
+    elif age_s < 300:
+        status = "warning"
+    else:
+        status = "error"
+    return {"status": status, "last": sched_last, "age_s": age_s}
+
+
+def _check_smtp(settings: object) -> dict:
+    """Probe SMTP and return {configured, status, ms, error}."""
+    if not settings.smtp_configured:  # type: ignore[attr-defined]
+        return {"configured": False, "status": "unconfigured", "ms": None, "error": None}
+    try:
+        t0 = time.monotonic()
+        with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=3):  # type: ignore[attr-defined]
+            pass
+        ms = int((time.monotonic() - t0) * 1000)
+        status = "warning" if ms > _SMTP_WARN_MS else "ok"
+        return {"configured": True, "status": status, "ms": ms, "error": None}
+    except TimeoutError:
+        return {"configured": True, "status": "error", "ms": None,
+                "error": f"Spojení na {settings.smtp_server}:{settings.smtp_port} vypršelo (timeout 3 s)"}  # type: ignore[attr-defined]
+    except OSError as exc:
+        return {"configured": True, "status": "error", "ms": None, "error": str(exc)}
+
+
+def _admin_statistics(now: datetime) -> dict:
+    """Collect user/event/outbox/audit statistics for the admin dashboard."""
     from app.models.event import Event, EventStatus
     from app.models.outbox import OutboxEmail
     from app.models.audit import AuditLogEntry
 
-    settings = get_settings()
-    now = datetime.now(timezone.utc)
-
-    # ── DB health ──────────────────────────────────────────────────────────────
-    db_ms: int | None = None
-    db_error: str | None = None
-    db_status: str  # ok / warning / error
-    try:
-        t0 = time.monotonic()
-        db.session.execute(db.text("SELECT 1"))
-        db_ms = int((time.monotonic() - t0) * 1000)
-        db_status = "warning" if db_ms > _DB_WARN_MS else "ok"
-    except Exception as exc:
-        db_status = "error"
-        db_error = type(exc).__name__
-
-    # ── Scheduler heartbeat ────────────────────────────────────────────────────
-    sched_last = settings.scheduler_last_seen
-    if sched_last is None:
-        sched_status = "unknown"
-        sched_age_s = None
-    else:
-        sched_age_s = int((now - sched_last).total_seconds())
-        if sched_age_s < 30:
-            sched_status = "ok"
-        elif sched_age_s < 300:
-            sched_status = "warning"
-        else:
-            sched_status = "error"
-
-    # ── SMTP reachability ──────────────────────────────────────────────────────
-    smtp_configured = settings.smtp_configured
-    smtp_ms: int | None = None
-    smtp_error: str | None = None
-    smtp_status: str  # ok / warning / error / unconfigured
-    if not smtp_configured:
-        smtp_status = "unconfigured"
-    else:
-        try:
-            t0 = time.monotonic()
-            with socket.create_connection((settings.smtp_server, settings.smtp_port), timeout=3):
-                pass
-            smtp_ms = int((time.monotonic() - t0) * 1000)
-            smtp_status = "warning" if smtp_ms > _SMTP_WARN_MS else "ok"
-        except TimeoutError:
-            smtp_status = "error"
-            smtp_error = f"Spojení na {settings.smtp_server}:{settings.smtp_port} vypršelo (timeout 3 s)"
-        except OSError as exc:
-            smtp_status = "error"
-            smtp_error = str(exc)
-
-    # ── Statistics ─────────────────────────────────────────────────────────────
     user_total = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_archived.is_(False)))
     user_active = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_active.is_(True), UserAccount.is_archived.is_(False)))
-    user_pending = user_total - user_active
-    user_archived = db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_archived.is_(True)))
 
     event_counts = {
         s.value: db.session.scalar(
@@ -96,30 +84,23 @@ def index() -> str:
         )
         for s in EventStatus
     }
-    event_total = sum(event_counts.values())
 
     cutoff_24h = now - timedelta(hours=24)
     outbox_pending = db.session.scalar(
         db.select(db.func.count()).select_from(OutboxEmail)
-        .where(OutboxEmail.status == "pending")
-        .where(OutboxEmail.created_at >= cutoff_24h)
+        .where(OutboxEmail.status == "pending", OutboxEmail.created_at >= cutoff_24h)
     )
     outbox_failed = db.session.scalar(
         db.select(db.func.count()).select_from(OutboxEmail)
-        .where(OutboxEmail.status == "failed")
-        .where(OutboxEmail.created_at >= cutoff_24h)
+        .where(OutboxEmail.status == "failed", OutboxEmail.created_at >= cutoff_24h)
     )
     outbox_sent = db.session.scalar(
         db.select(db.func.count()).select_from(OutboxEmail)
-        .where(OutboxEmail.status == "sent")
-        .where(OutboxEmail.created_at >= cutoff_24h)
+        .where(OutboxEmail.status == "sent", OutboxEmail.created_at >= cutoff_24h)
     )
     outbox_last = db.session.scalar(
-        db.select(OutboxEmail)
-        .order_by(OutboxEmail.created_at.desc())
-        .limit(1)
+        db.select(OutboxEmail).order_by(OutboxEmail.created_at.desc()).limit(1)
     )
-    outbox_last_status = outbox_last.status if outbox_last else None
     outbox_last_sent = db.session.scalar(
         db.select(OutboxEmail.sent_at)
         .where(OutboxEmail.status == "sent")
@@ -127,42 +108,57 @@ def index() -> str:
         .limit(1)
     )
 
-    # ── Recent audit log ───────────────────────────────────────────────────────
     recent_audit = db.session.scalars(
-        db.select(AuditLogEntry)
-        .order_by(AuditLogEntry.timestamp.desc())
-        .limit(8)
+        db.select(AuditLogEntry).order_by(AuditLogEntry.timestamp.desc()).limit(8)
     ).all()
 
     feedback_count = db.session.scalar(db.select(db.func.count()).select_from(UserFeedback))
 
+    return {
+        "user_total": user_total,
+        "user_active": user_active,
+        "user_pending": user_total - user_active,
+        "user_archived": db.session.scalar(db.select(db.func.count()).select_from(UserAccount).where(UserAccount.is_archived.is_(True))),
+        "event_total": sum(event_counts.values()),
+        "event_counts": event_counts,
+        "outbox_pending": outbox_pending,
+        "outbox_failed": outbox_failed,
+        "outbox_sent": outbox_sent,
+        "outbox_last_status": outbox_last.status if outbox_last else None,
+        "outbox_last_sent": outbox_last_sent,
+        "recent_audit": recent_audit,
+        "feedback_count": feedback_count,
+    }
+
+
+@admin_bp.route("/")
+@login_required
+def index() -> str:
+    require_permission("admin.view")
+
+    settings = get_settings()
+    now = datetime.now(timezone.utc)
+
+    db_health = _check_db_health()
+    sched = _check_scheduler(settings, now)
+    smtp = _check_smtp(settings)
+    stats = _admin_statistics(now)
+
     return render_template(
         "admin/index.html",
-        db_status=db_status,
-        db_ms=db_ms,
-        db_error=db_error,
-        sched_status=sched_status,
-        sched_last=sched_last,
-        sched_age_s=sched_age_s,
-        smtp_configured=smtp_configured,
-        smtp_status=smtp_status,
-        smtp_ms=smtp_ms,
-        smtp_error=smtp_error,
+        db_status=db_health["status"],
+        db_ms=db_health["ms"],
+        db_error=db_health["error"],
+        sched_status=sched["status"],
+        sched_last=sched["last"],
+        sched_age_s=sched["age_s"],
+        smtp_configured=smtp["configured"],
+        smtp_status=smtp["status"],
+        smtp_ms=smtp["ms"],
+        smtp_error=smtp["error"],
         settings=settings,
-        user_total=user_total,
-        user_active=user_active,
-        user_pending=user_pending,
-        user_archived=user_archived,
-        event_total=event_total,
-        event_counts=event_counts,
-        outbox_pending=outbox_pending,
-        outbox_failed=outbox_failed,
-        outbox_sent=outbox_sent,
-        outbox_last_status=outbox_last_status,
-        outbox_last_sent=outbox_last_sent,
-        recent_audit=recent_audit,
-        feedback_count=feedback_count,
         now=now,
+        **stats,
     )
 
 

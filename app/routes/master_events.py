@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, jsonify, render_template, redirect, url_for, flash, request
@@ -30,6 +31,9 @@ from app.constants import RECORD_MODIFIED_MSG
 from sqlalchemy import collate
 from app.utils import CS_COLLATION, czech_sort_key, audit, check_version_conflict, diff_changes, get_or_404, require_permission
 from app.queries import active_users_list
+
+if TYPE_CHECKING:
+    from app.models.event import Event
 
 master_events_bp = Blueprint("master_events", __name__, url_prefix="/master-events")
 
@@ -466,128 +470,93 @@ def table_unassign(me_id: int, assignment_id: int) -> Response:
     return jsonify({"ok": True})
 
 
-@master_events_bp.post("/<int:me_id>/table/event/<int:event_id>/update")
-@login_required
-def table_event_update(me_id: int, event_id: int) -> Response:
-    require_permission("event.edit")
+def _handle_advance_status(event: Event) -> Response:
+    """Handle the advance_status field action."""
+    from app.models.event import EventStatus
+    _ADVANCE_MAP = {
+        EventStatus.DRAFT: (EventStatus.PUBLISHED, "event.publish"),
+        EventStatus.PUBLISHED: (EventStatus.ASSIGNMENTS_OPEN, "event.assignments.open"),
+    }
+    transition = _ADVANCE_MAP.get(event.status)
+    if transition is None:
+        return jsonify({"ok": False, "error": "Akce není ve stavu, který lze posunout dále."}), 400
+    target_status, required_perm = transition
+    if not current_user.has_permission(required_perm):
+        return jsonify({"ok": False, "error": "Nemáte oprávnění pro tuto operaci."}), 403
+    before_status = event.status.value
+    event.status = target_status
+    event.version += 1
+    audit("status_change", "Event", event.id,
+          f"Stav akce '{event.name}' změněn na '{target_status.value}' (tabulkový manažer)",
+          diff_changes({"status": before_status}, {"status": target_status.value}))
+    db.session.commit()
+    import app.mail as mailer
+    from app.models.user import UserAccount
+    active_users = db.session.scalars(
+        db.select(UserAccount)
+        .where(UserAccount.is_active.is_(True))
+        .where(UserAccount.is_archived.is_(False))
+    ).all()
+    if target_status == EventStatus.PUBLISHED:
+        for u in active_users:
+            mailer.send_event_published(u, event)
+    elif target_status == EventStatus.ASSIGNMENTS_OPEN:
+        for u in active_users:
+            mailer.send_assignments_opened(u, event)
+    return jsonify({"ok": True})
 
-    from app.models.event import Event
 
-    event = db.session.get(Event, event_id)
-    if event is None or event.master_event_id != me_id:
-        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+def _handle_shift_day(event: Event, value: str) -> Response:
+    """Handle the shift_day field action."""
+    try:
+        delta_days = int(value)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Neplatná hodnota posunu."}), 400
+    if delta_days not in (-1, 1):
+        return jsonify({"ok": False, "error": "Povolené hodnoty: -1 nebo 1."}), 400
+    from datetime import timedelta
+    before = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
+    event.start_datetime += timedelta(days=delta_days)
+    event.end_datetime += timedelta(days=delta_days)
+    after = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
+    event.version += 1
+    audit("edit", "Event", event.id,
+          f"Posunut datum akce '{event.name}' o {delta_days:+d} den (tabulkový manažer)",
+          diff_changes(before, after))
+    db.session.commit()
+    return jsonify({"ok": True})
 
-    field = request.form.get("field", "")
-    value = request.form.get("value", "").strip()
 
-    # advance_status does not need a value — handle before the empty-value guard
-    if field == "advance_status":
-        from app.models.event import EventStatus
-        _ADVANCE_MAP = {
-            EventStatus.DRAFT: (EventStatus.PUBLISHED, "event.publish"),
-            EventStatus.PUBLISHED: (EventStatus.ASSIGNMENTS_OPEN, "event.assignments.open"),
-        }
-        transition = _ADVANCE_MAP.get(event.status)
-        if transition is None:
-            return jsonify({"ok": False, "error": "Akce není ve stavu, který lze posunout dále."}), 400
-        target_status, required_perm = transition
-        if not current_user.has_permission(required_perm):
-            return jsonify({"ok": False, "error": "Nemáte oprávnění pro tuto operaci."}), 403
-        before_status = event.status.value
-        event.status = target_status
-        event.version += 1
-        audit("status_change", "Event", event.id,
-              f"Stav akce '{event.name}' změněn na '{target_status.value}' (tabulkový manažer)",
-              diff_changes({"status": before_status}, {"status": target_status.value}))
-        db.session.commit()
-        # Email notifications (same as change_status route)
-        import app.mail as mailer
-        from app.models.user import UserAccount
-        active_users = db.session.scalars(
-            db.select(UserAccount)
-            .where(UserAccount.is_active.is_(True))
-            .where(UserAccount.is_archived.is_(False))
-        ).all()
-        if target_status == EventStatus.PUBLISHED:
-            for u in active_users:
-                mailer.send_event_published(u, event)
-        elif target_status == EventStatus.ASSIGNMENTS_OPEN:
-            for u in active_users:
-                mailer.send_assignments_opened(u, event)
-        return jsonify({"ok": True})
+def _handle_shift_hour(event: Event, value: str) -> Response:
+    """Handle the shift_hour field action."""
+    try:
+        which, delta_str = value.split(":", 1)
+        delta_hours = int(delta_str)
+    except (ValueError, AttributeError):
+        return jsonify({"ok": False, "error": "Neplatná hodnota posunu hodiny."}), 400
+    if which not in ("start", "end") or delta_hours not in (-1, 1):
+        return jsonify({"ok": False, "error": "Neplatné parametry posunu hodiny."}), 400
+    from datetime import timedelta
+    attr = "start_datetime" if which == "start" else "end_datetime"
+    before = {attr: getattr(event, attr).isoformat()}
+    setattr(event, attr, getattr(event, attr) + timedelta(hours=delta_hours))
+    after = {attr: getattr(event, attr).isoformat()}
+    event.version += 1
+    lbl = "začátek" if which == "start" else "konec"
+    audit("edit", "Event", event.id,
+          f"Posunut {lbl} akce '{event.name}' o {delta_hours:+d} hodinu (tabulkový manažer)",
+          diff_changes(before, after))
+    db.session.commit()
+    return jsonify({"ok": True})
 
-    if not value:
-        return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
 
-    if field == "name":
-        if len(value) > 200:
-            return jsonify({"ok": False, "error": "Název je příliš dlouhý (max 200 znaků)."}), 400
-        before = {"name": event.name}
-        event.name = value
-        event.version += 1
-        audit("edit", "Event", event.id,
-              "Přejmenována akce (tabulkový manažer)",
-              diff_changes(before, {"name": value}))
-        db.session.commit()
-        return jsonify({"ok": True, "display": value})
-
-    if field == "shift_day":
-        try:
-            delta_days = int(value)
-        except ValueError:
-            return jsonify({"ok": False, "error": "Neplatná hodnota posunu."}), 400
-        if delta_days not in (-1, 1):
-            return jsonify({"ok": False, "error": "Povolené hodnoty: -1 nebo 1."}), 400
-        from datetime import timedelta
-        before = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
-        event.start_datetime += timedelta(days=delta_days)
-        event.end_datetime += timedelta(days=delta_days)
-        after = {"start_datetime": event.start_datetime.isoformat(), "end_datetime": event.end_datetime.isoformat()}
-        event.version += 1
-        audit("edit", "Event", event.id,
-              f"Posunut datum akce '{event.name}' o {delta_days:+d} den (tabulkový manažer)",
-              diff_changes(before, after))
-        db.session.commit()
-        return jsonify({"ok": True})
-
-    if field == "shift_hour":
-        # value is "<which>:<delta>" where which is "start" or "end", delta is -1 or 1
-        try:
-            which, delta_str = value.split(":", 1)
-            delta_hours = int(delta_str)
-        except (ValueError, AttributeError):
-            return jsonify({"ok": False, "error": "Neplatná hodnota posunu hodiny."}), 400
-        if which not in ("start", "end") or delta_hours not in (-1, 1):
-            return jsonify({"ok": False, "error": "Neplatné parametry posunu hodiny."}), 400
-        from datetime import timedelta
-        attr = "start_datetime" if which == "start" else "end_datetime"
-        before = {attr: getattr(event, attr).isoformat()}
-        setattr(event, attr, getattr(event, attr) + timedelta(hours=delta_hours))
-        after = {attr: getattr(event, attr).isoformat()}
-        event.version += 1
-        lbl = "začátek" if which == "start" else "konec"
-        audit("edit", "Event", event.id,
-              f"Posunut {lbl} akce '{event.name}' o {delta_hours:+d} hodinu (tabulkový manažer)",
-              diff_changes(before, after))
-        db.session.commit()
-        return jsonify({"ok": True})
-
-    if field == "color":
-        # value is hex color like #FFCCCC, or empty string to reset
-        color = value if _HEX_RE.match(value) else None
-        event.description = _set_tm_color(event.description, color)
-        event.version += 1
-        audit("edit", "Event", event.id,
-              f"Nastavena barva řádku (tabulkový manažer): {color or 'reset'}")
-        db.session.commit()
-        return jsonify({"ok": True, "color": color or ""})
-
+def _handle_datetime_field(event: Event, field: str, value: str) -> Response:
+    """Handle start_datetime / end_datetime inline edits."""
     try:
         dt = datetime.fromisoformat(value).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
     except ValueError:
         return jsonify({"ok": False, "error": "Neplatný formát data a času."}), 400
 
-    changes: dict = {}
     if field == "start_datetime":
         if dt >= event.end_datetime:
             return jsonify({"ok": False, "error": "Začátek musí být před koncem akce."}), 400
@@ -621,6 +590,56 @@ def table_event_update(me_id: int, event_id: int) -> Response:
         "display_date": f"{display_date} {display_day}",
         "hours": str(hours).replace(".", ","),
     })
+
+
+@master_events_bp.post("/<int:me_id>/table/event/<int:event_id>/update")
+@login_required
+def table_event_update(me_id: int, event_id: int) -> Response:
+    require_permission("event.edit")
+
+    from app.models.event import Event
+
+    event = db.session.get(Event, event_id)
+    if event is None or event.master_event_id != me_id:
+        return jsonify({"ok": False, "error": "Akce nenalezena."}), 404
+
+    field = request.form.get("field", "")
+    value = request.form.get("value", "").strip()
+
+    if field == "advance_status":
+        return _handle_advance_status(event)
+
+    if not value:
+        return jsonify({"ok": False, "error": "Hodnota nesmí být prázdná."}), 400
+
+    if field == "name":
+        if len(value) > 200:
+            return jsonify({"ok": False, "error": "Název je příliš dlouhý (max 200 znaků)."}), 400
+        before = {"name": event.name}
+        event.name = value
+        event.version += 1
+        audit("edit", "Event", event.id,
+              "Přejmenována akce (tabulkový manažer)",
+              diff_changes(before, {"name": value}))
+        db.session.commit()
+        return jsonify({"ok": True, "display": value})
+
+    if field == "shift_day":
+        return _handle_shift_day(event, value)
+
+    if field == "shift_hour":
+        return _handle_shift_hour(event, value)
+
+    if field == "color":
+        color = value if _HEX_RE.match(value) else None
+        event.description = _set_tm_color(event.description, color)
+        event.version += 1
+        audit("edit", "Event", event.id,
+              f"Nastavena barva řádku (tabulkový manažer): {color or 'reset'}")
+        db.session.commit()
+        return jsonify({"ok": True, "color": color or ""})
+
+    return _handle_datetime_field(event, field, value)
 
 
 @master_events_bp.post("/<int:me_id>/table/spots/update")
