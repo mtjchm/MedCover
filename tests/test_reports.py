@@ -11,22 +11,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.role import Role
 from app.models.user import UserAccount
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _make_user(email: str, name: str, role_name: str) -> UserAccount:
-    role = db.session.scalar(db.select(Role).where(Role.name == role_name))
-    user = UserAccount(email=email, name=name, is_active=True)
-    user.set_password("testpass123")
-    user.roles = [role]
-    db.session.add(user)
-    db.session.commit()
-    return user
-
-
-def _login(client, email: str) -> None:
-    client.post("/auth/login", data={"email": email, "password": "testpass123"}, follow_redirects=True)
+from tests.conftest import _make_user, _login
 
 
 def _make_me(name: str = "Testovací nadřazená akce") -> MasterEvent:

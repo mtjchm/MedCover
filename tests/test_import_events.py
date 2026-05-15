@@ -77,14 +77,9 @@ def _make_master_event(app, name: str = "Test ME") -> int:
 
 def _make_user(app, name: str, email: str, is_zdravotnik: bool = False) -> str:
     """Create an active Member user and return its UUID string."""
+    from tests.conftest import _make_user as _conftest_make_user
     with app.app_context():
-        role = db.session.scalar(db.select(Role).where(Role.name == "Member"))
-        u = UserAccount(name=name, email=email, is_active=True)
-        u.set_password("x")
-        if role:
-            u.roles = [role]
-        db.session.add(u)
-        db.session.commit()
+        u = _conftest_make_user(email, name, Role.MEMBER)
         return str(u.id)
 
 

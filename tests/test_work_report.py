@@ -11,26 +11,7 @@ from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
 from app.models.role import Role
 from app.models.user import UserAccount
-
-
-# ── Shared helpers ─────────────────────────────────────────────────────────────
-
-def _make_user(email: str, name: str = "Vykaz User") -> UserAccount:
-    role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
-    user = UserAccount(email=email, name=name, is_active=True)
-    user.set_password("testpass123")
-    user.roles = [role]
-    db.session.add(user)
-    db.session.commit()
-    return user
-
-
-def _login(client, email: str) -> None:
-    client.post(
-        "/auth/login",
-        data={"email": email, "password": "testpass123"},
-        follow_redirects=True,
-    )
+from tests.conftest import _make_user, _login
 
 
 def _make_paid_event(
@@ -88,7 +69,7 @@ class TestVykazIndex:
 
     def test_index_returns_200(self, app, client):
         with app.app_context():
-            _make_user("vykaz_idx@test.com")
+            _make_user("vykaz_idx@test.com", "Vykaz User", Role.MEMBER)
         _login(client, "vykaz_idx@test.com")
         resp = client.get("/work-report/")
         assert resp.status_code == 200
@@ -98,12 +79,7 @@ class TestVykazIndex:
 
     def test_viewer_gets_403(self, app, client):
         with app.app_context():
-            role = db.session.scalar(db.select(Role).where(Role.name == Role.VIEWER))
-            viewer = UserAccount(email="vykaz_viewer@test.com", name="Viewer", is_active=True)
-            viewer.set_password("testpass123")
-            viewer.roles = [role]
-            db.session.add(viewer)
-            db.session.commit()
+            _make_user("vykaz_viewer@test.com", "Viewer", Role.VIEWER)
         _login(client, "vykaz_viewer@test.com")
         resp = client.get("/work-report/", follow_redirects=False)
         assert resp.status_code == 403
@@ -112,7 +88,7 @@ class TestVykazIndex:
 class TestVykazGenerate:
     def test_invalid_month_rejected(self, app, client):
         with app.app_context():
-            _make_user("vykaz_bad@test.com")
+            _make_user("vykaz_bad@test.com", "Vykaz User", Role.MEMBER)
         _login(client, "vykaz_bad@test.com")
         resp = client.post(
             "/work-report/generate",
@@ -125,7 +101,7 @@ class TestVykazGenerate:
     def test_generate_creates_file_and_shows_list(self, app, client, tmp_path, monkeypatch):
         """POST /work-report/generate creates an xlsx and shows it in the report list."""
         with app.app_context():
-            _make_user("vykaz_gen@test.com", "Jana Nováková")
+            _make_user("vykaz_gen@test.com", "Jana Nováková", Role.MEMBER)
 
         # Patch instance_path so we don't litter the real instance dir
         monkeypatch.setattr(app, "instance_path", str(tmp_path))
@@ -153,7 +129,7 @@ class TestVykazGenerate:
 class TestVykazDownload:
     def test_download_missing_file_redirects(self, app, client):
         with app.app_context():
-            _make_user("vykaz_dl@test.com")
+            _make_user("vykaz_dl@test.com", "Vykaz User", Role.MEMBER)
         _login(client, "vykaz_dl@test.com")
         resp = client.get("/work-report/download?year=2026&month=1", follow_redirects=True)
         assert resp.status_code == 200
@@ -170,7 +146,7 @@ class TestVykazGenerator:
 
         with app.app_context():
             monkeypatch.setattr(app, "instance_path", str(tmp_path))
-            u = _make_user("vykaz_unit@test.com", "Petr Svoboda")
+            u = _make_user("vykaz_unit@test.com", "Petr Svoboda", Role.MEMBER)
             path = generate_work_report(u, 2026, 1)
 
         assert path.exists()
@@ -184,7 +160,7 @@ class TestVykazGenerator:
 
         with app.app_context():
             monkeypatch.setattr(app, "instance_path", str(tmp_path))
-            u = _make_user("vykaz_feb@test.com")
+            u = _make_user("vykaz_feb@test.com", "Vykaz User", Role.MEMBER)
             path = generate_work_report(u, 2026, 2)
 
         wb = openpyxl.load_workbook(str(path))
@@ -204,7 +180,7 @@ class TestVykazGenerator:
 
         with app.app_context():
             monkeypatch.setattr(app, "instance_path", str(tmp_path))
-            u = _make_user("vykaz_ev@test.com")
+            u = _make_user("vykaz_ev@test.com", "Vykaz User", Role.MEMBER)
             _make_paid_event(u, now, end, actual_hours=4.0, name="Hasiči 2026")
             path = generate_work_report(u, 2026, 3)
 
@@ -222,7 +198,7 @@ class TestVykazGenerator:
 
         with app.app_context():
             monkeypatch.setattr(app, "instance_path", str(tmp_path))
-            u = _make_user("vykaz_hol@test.com")
+            u = _make_user("vykaz_hol@test.com", "Vykaz User", Role.MEMBER)
             path = generate_work_report(u, 2026, 1)
 
         wb = openpyxl.load_workbook(str(path))
@@ -237,7 +213,7 @@ class TestVykazGenerator:
 
         with app.app_context():
             monkeypatch.setattr(app, "instance_path", str(tmp_path))
-            u = _make_user("vykaz_wknd@test.com")
+            u = _make_user("vykaz_wknd@test.com", "Vykaz User", Role.MEMBER)
             # January 2026: day 3 = Saturday
             path = generate_work_report(u, 2026, 1)
 
