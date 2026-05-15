@@ -1,0 +1,55 @@
+services:
+  db-e2e:
+    image: postgres:17-alpine
+    tmpfs:
+      - /var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: medcover_e2e
+      POSTGRES_USER: medcover
+      POSTGRES_PASSWORD: e2epassword
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medcover -d medcover_e2e"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  web-e2e:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: e2e
+    entrypoint: ["/e2e-entrypoint.sh"]
+    command: ["flask", "run", "--host=0.0.0.0"]
+    volumes:
+      - ./scripts/e2e-entrypoint.sh:/e2e-entrypoint.sh:ro
+      - ./scripts:/app/scripts:ro
+    environment:
+      FLASK_ENV: development
+      SECRET_KEY: e2e-test-secret-key
+      DATABASE_URL: postgresql://medcover:e2epassword@db-e2e:5432/medcover_e2e
+      DEV_LOGIN_ENABLED: "true"
+      INSTANCE_ID: e2e
+    depends_on:
+      db-e2e:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  e2e:
+    image: mcr.microsoft.com/playwright/python:v1.52.0-noble
+    working_dir: /e2e
+    volumes:
+      - ./e2e_tests:/e2e
+      - ./requirements-e2e.txt:/requirements-e2e.txt:ro
+      - ./e2e-report:/e2e-report
+    environment:
+      BASE_URL: http://web-e2e:5000
+    entrypoint: ["sh", "-c", "pip install --quiet -r /requirements-e2e.txt && pytest /e2e --browser chromium --browser firefox --browser webkit -v --screenshot on --output /e2e-report/traces --html=/e2e-report/report.html --self-contained-html"]
+    depends_on:
+      web-e2e:
+        condition: service_healthy

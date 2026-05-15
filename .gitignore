@@ -22,6 +22,12 @@ env/
 .coverage
 htmlcov/
 
+# E2E test artifacts (Playwright)
+e2e_tests/test-results/
+e2e_tests/videos/
+e2e_tests/screenshots/
+e2e-report/
+
 # IDE
 .vscode/
 .idea/

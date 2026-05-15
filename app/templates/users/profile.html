@@ -26,7 +26,7 @@
               <label for="email" class="form-label">E-mail
                 {{ help_icon("Přihlašovací e-mail. Nelze změnit — kontaktujte administrátora.") }}
               </label>
-              <input type="email" class="form-control" value="{{ user.email }}" disabled>
+              <input type="email" class="form-control" id="email" value="{{ user.email }}" disabled>
             </div>
             <div class="col-12 col-md-4">
               <label for="phone" class="form-label">Telefon
@@ -182,7 +182,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('calendar.regenerate') }}"
-              onsubmit="return confirm('Opravdu chcete vygenerovat nový odkaz? Starý odkaz přestane okamžitě fungovat a budete se muset znovu přihlásit k odběru ve všech svých kalendářích.');">
+              data-confirm="Opravdu chcete vygenerovat nový odkaz? Starý odkaz přestane okamžitě fungovat a budete se muset znovu přihlásit k odběru ve všech svých kalendářích.">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-sm btn-outline-warning">
             <i class="bi bi-arrow-clockwise"></i> Vygenerovat nový odkaz
@@ -203,16 +203,16 @@
 <script src="{{ url_for('static', filename='js/user-form.js') }}?v={{ static_ver }}"></script>
 <script nonce="{{ g.csp_nonce }}">
 (function () {
-  const btn = document.getElementById('ical-copy-btn');
-  const inp = document.getElementById('ical-url-input');
-  if (btn && inp) {
-    btn.addEventListener('click', function () {
-      navigator.clipboard.writeText(inp.value).then(function () {
-        btn.textContent = '✓ Zkopírováno';
-        btn.classList.replace('btn-outline-secondary', 'btn-success');
+  var copyBtn = document.getElementById('ical-copy-btn');
+  var copyInp = document.getElementById('ical-url-input');
+  if (copyBtn && copyInp) {
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(copyInp.value).then(function () {
+        copyBtn.textContent = '✓ Zkopírováno';
+        copyBtn.classList.replace('btn-outline-secondary', 'btn-success');
         setTimeout(function () {
-          btn.innerHTML = '<i class="bi bi-clipboard"></i> Kopírovat';
-          btn.classList.replace('btn-success', 'btn-outline-secondary');
+          copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Kopírovat';
+          copyBtn.classList.replace('btn-success', 'btn-outline-secondary');
         }, 2000);
       });
     });
