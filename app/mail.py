@@ -286,88 +286,73 @@ def _enqueue(
         log.warning("Failed to enqueue mail to %s — %s", to, exc)
 
 
+def _guarded_send(
+    setting: str,
+    notif_type: str,
+    user: UserAccount,
+    subject: str,
+    template: str,
+    notification_type: str,
+    **ctx: object,
+) -> None:
+    """Guard + render + enqueue in one call.
+
+    Checks the global setting toggle and the per-user preference, then renders
+    *template* with ``user_name`` + ``_base_context()`` + any extra **ctx**
+    kwargs, and enqueues the email.  Covers the common pattern shared by the
+    majority of ``send_*`` functions.
+    """
+    if not _is_notify_enabled(setting):
+        return
+    if not user_can_receive_notification(user, notif_type):
+        return
+    html = render_template(template, user_name=user.name, **_base_context(), **ctx)
+    _enqueue(user.email, subject, _PLAIN_FALLBACK,
+             html_body=html, notification_type=notification_type)
+
+
 # ── Assignment notifications ──────────────────────────────────────────────────
 
 def send_assignment_confirmed(user: UserAccount, event: Event) -> None:
     """Notify a user that their spot assignment was confirmed."""
-    if not _is_notify_enabled("notify_assignment"):
-        return
-    if not user_can_receive_notification(user, "assignment"):
-        return
-    html_body = render_template(
-        "email/assignment_confirmed.html",
-        user_name=user.name,
-        event=event,
-        **_base_context(),
-    )
-    _enqueue(user.email, f"MedCover — Přihlášení na akci: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="assignment_confirmed")
+    _guarded_send("notify_assignment", "assignment", user,
+                  f"MedCover — Přihlášení na akci: {event.name}",
+                  "email/assignment_confirmed.html",
+                  "assignment_confirmed", event=event)
 
 
 def send_assignment_released(user: UserAccount, event: Event) -> None:
     """Notify a user that their assignment was released (by themselves or coordinator)."""
-    if not _is_notify_enabled("notify_assignment"):
-        return
-    if not user_can_receive_notification(user, "assignment"):
-        return
-    html_body = render_template(
-        "email/assignment_released.html",
-        user_name=user.name,
-        event=event,
-        **_base_context(),
-    )
-    _enqueue(user.email, f"MedCover — Odhlášení z akce: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="assignment_released")
+    _guarded_send("notify_assignment", "assignment", user,
+                  f"MedCover — Odhlášení z akce: {event.name}",
+                  "email/assignment_released.html",
+                  "assignment_released", event=event)
 
 
 # ── Event lifecycle notifications ─────────────────────────────────────────────
 
 def send_event_published(user: UserAccount, event: Event) -> None:
     """Notify a user that an event they might be interested in was published."""
-    if not _is_notify_enabled("notify_event_published"):
-        return
-    if not user_can_receive_notification(user, "event_published"):
-        return
-    html_body = render_template(
-        "email/event_published.html",
-        user_name=user.name,
-        event=event,
-        **_base_context(),
-    )
-    _enqueue(user.email, f"MedCover — Nová akce: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="event_published")
+    _guarded_send("notify_event_published", "event_published", user,
+                  f"MedCover — Nová akce: {event.name}",
+                  "email/event_published.html",
+                  "event_published", event=event)
 
 
 def send_assignments_opened(user: UserAccount, event: Event) -> None:
     """Notify a user that assignments opened for an event."""
-    if not _is_notify_enabled("notify_assignments_opened"):
-        return
-    if not user_can_receive_notification(user, "assignments_opened"):
-        return
-    html_body = render_template(
-        "email/assignments_opened.html",
-        user_name=user.name,
-        event=event,
-        **_base_context(),
-    )
-    _enqueue(user.email, f"MedCover — Otevřeny přihlášky: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="assignments_opened")
+    _guarded_send("notify_assignments_opened", "assignments_opened", user,
+                  f"MedCover — Otevřeny přihlášky: {event.name}",
+                  "email/assignments_opened.html",
+                  "assignments_opened", event=event)
 
 
 def send_event_cancelled(user: UserAccount, event: Event) -> None:
     """Notify an assigned user that an event was cancelled."""
-    if not _is_notify_enabled("notify_event_cancelled"):
-        return
-    if not user_can_receive_notification(user, "event_cancelled"):
-        return
-    html_body = render_template(
-        "email/event_cancelled.html",
-        user_name=user.name,
-        event=event,
-        **_base_context(),
-    )
-    _enqueue(user.email, f"MedCover — Akce zrušena: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="event_cancelled")
+    _guarded_send("notify_event_cancelled", "event_cancelled", user,
+                  f"MedCover — Akce zrušena: {event.name}",
+                  "email/event_cancelled.html",
+                  "event_cancelled", event=event)
 
 
 # Human-readable Czech labels for event fields shown in change notifications.
@@ -422,7 +407,6 @@ def send_event_changed(
         return
     if not user_can_receive_notification(user, "event_changed"):
         return
-
     formatted: list[tuple[str, str, str]] = [
         (
             _EVENT_FIELD_LABELS.get(field, field),
@@ -433,11 +417,8 @@ def send_event_changed(
     ]
     html_body = render_template(
         "email/event_changed.html",
-        user_name=user.name,
-        event=event,
-        event_url=event_url,
-        changes=formatted,
-        **_base_context(),
+        user_name=user.name, event=event, event_url=event_url,
+        changes=formatted, **_base_context(),
     )
     _enqueue(user.email, f"MedCover — Změna akce: {event.name}", _PLAIN_FALLBACK,
              html_body=html_body, notification_type="event_changed")
@@ -451,24 +432,11 @@ def send_unfilled_spots_reminder(
     unfilled: list,
 ) -> None:
     """Remind coordinator/RP that an event still has unfilled spots."""
-    if not _is_notify_enabled("notify_unfilled_reminder"):
-        return
-    if not user_can_receive_notification(user, "unfilled_reminder"):
-        return
-    html_body = render_template(
-        "email/unfilled_spots_reminder.html",
-        coordinator_name=user.name,
-        event=event,
-        unfilled=unfilled,
-        **_base_context(),
-    )
-    _enqueue(
-        user.email,
-        f"MedCover — Připomínka: volná místa na akci {event.name}",
-        _PLAIN_FALLBACK,
-        html_body=html_body,
-        notification_type="unfilled_reminder",
-    )
+    _guarded_send("notify_unfilled_reminder", "unfilled_reminder", user,
+                  f"MedCover — Připomínka: volná místa na akci {event.name}",
+                  "email/unfilled_spots_reminder.html",
+                  "unfilled_reminder",
+                  coordinator_name=user.name, event=event, unfilled=unfilled)
 
 
 # ── Admin digest ──────────────────────────────────────────────────────────────
@@ -579,20 +547,14 @@ def send_debriefing_invitation(assignment: Assignment, event: Event) -> None:
     if not user_can_receive_notification(user, "assignment"):
         return
     from flask import url_for
-    debriefing_url = url_for(
-        "debriefing.submit",
-        assignment_id=assignment.id,
-        _external=True,
-    )
-    html_body = render_template(
+    debriefing_url = url_for("debriefing.submit", assignment_id=assignment.id, _external=True)
+    html = render_template(
         "email/debriefing_invitation.html",
-        user_name=user.name,
-        event=event,
-        debriefing_url=debriefing_url,
+        user_name=user.name, event=event, debriefing_url=debriefing_url,
         **_base_context(),
     )
     _enqueue(user.email, f"MedCover — Výjezdová zpráva: {event.name}", _PLAIN_FALLBACK,
-             html_body=html_body, notification_type="debriefing_invitation")
+             html_body=html, notification_type="debriefing_invitation")
 
 
 # ── Account activation ────────────────────────────────────────────────────────
