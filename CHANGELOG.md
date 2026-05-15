@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Extracted large inline `<script>` blocks from 4 templates into external JS files for better CSP compliance and maintainability: `table-manager.js`, `events-detail-nav.js`, `events-detail-equipment.js`, `events-create-equipment.js`, `admin-notifications.js` (closes #203)
-- Refactored 10 oversized route functions (>60 lines) across 8 files into thin route handlers + private helpers; no behaviour changes (closes #195)
+- Refactored 10 oversized route functions (>60 lines) across 8 files into thin route handlers + private helpers; no behaviour changes (closes #195) (#213)
+- DRY up duplicated guard/render/enqueue pattern in `mail.py` via `_guarded_send()` helper; −38 lines of boilerplate (closes #196)
 
 ## [0.14.0] - 2026-05-14
 
