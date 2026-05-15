@@ -32,6 +32,14 @@
   var canPublish         = cfg.dataset.canPublish === "1";
   var canOpenAssignments = cfg.dataset.canOpenAssignments === "1";
 
+  // ── Error toast close button ────────────────────────────────────────────────
+  var errClose = document.getElementById("tm-spots-error-close");
+  if (errClose) {
+    errClose.addEventListener("click", function () {
+      this.closest(".alert").style.display = "none";
+    });
+  }
+
   // ── Flash helpers ───────────────────────────────────────────────────────────
   function flashRows(eventId) {
     document.querySelectorAll('tr[data-event-id="' + eventId + '"]').forEach(function (tr) {
