@@ -479,6 +479,7 @@ class TestComputeUserStats:
         assert stats.hours_free == 0
 
     def test_last_and_next_shift_dates(self):
+        """_compute_user_stats sets last_shift but not next_shift (handled by _resolve_next_shifts)."""
         from app.routes.reports import _compute_user_stats
 
         now = datetime.now(timezone.utc)
@@ -494,9 +495,9 @@ class TestComputeUserStats:
         )
         stats = _compute_user_stats([(None, past_ev), (None, future_ev)], now)  # type: ignore[arg-type]
         assert stats.last_shift is not None
-        assert stats.next_shift is not None
         assert stats.last_shift < now
-        assert stats.next_shift > now
+        # next_shift is resolved globally by _resolve_next_shifts, not here
+        assert stats.next_shift is None
 
     def test_shifts_and_hours_totals(self):
         from app.routes.reports import _compute_user_stats
