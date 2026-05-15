@@ -47,17 +47,22 @@
     var activeTypes = getActiveFilters("#tm-type-filter", "filterType");
     // Collect which event IDs pass both filters
     var visibleEvents = {};
+    var anyVisible = false;
     allRows.forEach(function (row) {
       var eid = row.dataset.eventId;
-      if (visibleEvents[eid] !== undefined) return; // already decided
+      if (visibleEvents[eid] !== undefined) return;
       var statusOk = activeStatuses.indexOf(row.dataset.status) !== -1;
       var typeOk = activeTypes.indexOf(row.dataset.eventType) !== -1;
       visibleEvents[eid] = statusOk && typeOk;
+      if (visibleEvents[eid]) anyVisible = true;
     });
     // Show/hide all rows for each event
     allRows.forEach(function (row) {
       row.style.display = visibleEvents[row.dataset.eventId] ? "" : "none";
     });
+    // Toggle empty-filter message
+    var emptyMsg = document.getElementById("tm-filter-empty-msg");
+    if (emptyMsg) emptyMsg.classList.toggle("d-none", anyVisible);
   }
 
   function setupFilterBar(containerSelector, dataAttr) {
