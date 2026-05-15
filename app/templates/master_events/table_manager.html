@@ -38,6 +38,26 @@
   <p class="text-muted">Tato nadřazená akce neobsahuje žádné akce.</p>
 {% else %}
 
+{# ── Status filter bar ──────────────────────────────────────────────────── #}
+<div class="mb-2 d-flex gap-1 flex-wrap align-items-center" id="tm-status-filter">
+  <small class="text-muted me-1">Stav:</small>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn active" data-filter-status="DRAFT">Koncept</button>
+  <button type="button" class="btn btn-sm btn-outline-primary filter-btn active" data-filter-status="PUBLISHED">Zveřejněná</button>
+  <button type="button" class="btn btn-sm btn-outline-success filter-btn active" data-filter-status="ASSIGNMENTS_OPEN">Přihlášky otevřeny</button>
+  <button type="button" class="btn btn-sm btn-outline-warning filter-btn active" data-filter-status="ASSIGNMENTS_CLOSED">Přihlášky uzavřeny</button>
+  <button type="button" class="btn btn-sm filter-btn-neutral filter-btn" data-filter-status="COMPLETED">Dokončena</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn" data-filter-status="CANCELLED">Zrušena</button>
+  <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2" id="tm-filter-reset">Výchozí</button>
+</div>
+
+{# ── Event type filter bar ────────────────────────────────────────────────── #}
+<div class="mb-3 d-flex gap-1 flex-wrap align-items-center" id="tm-type-filter">
+  <small class="text-muted me-1">Typ:</small>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn active" data-filter-type="MEDICAL_COVER">Zdravotní dozor</button>
+  <button type="button" class="btn btn-sm btn-outline-info filter-btn active" data-filter-type="TRAINING">Školení</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary filter-btn active" data-filter-type="PRESENTATION">Prezentační akce</button>
+</div>
+
 <div class="table-responsive">
   <table class="table table-sm table-bordered align-middle tm-table" id="tm-table">
     <thead class="table-dark">
@@ -52,7 +72,7 @@
         <th class="text-nowrap" title="Počet hodin">Hod.</th>
         <th class="text-nowrap" title="Počet pozic">Pozic</th>
         {% for i in range(max_spot_cols) %}
-        <th class="text-nowrap text-center">{{ i + 1 }}</th>
+        <th class="text-nowrap text-center tm-spot-header-col">{{ i + 1 }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -71,7 +91,7 @@
       {% endif %}
       {% set ns.prev_event_id = event.id %}
       {% set ns.prev_date = row_date %}
-      <tr data-event-id="{{ event.id }}" class="{{ row_class }}">
+      <tr data-event-id="{{ event.id }}" data-status="{{ event.status.name }}" data-event-type="{{ event.event_type.name }}" data-spot-count="{{ row.spots | length }}" class="{{ row_class }}">
         {% if loop.first or rows[loop.index0 - 1].event.id != event.id %}
         <td class="border-0 align-middle text-center tm-action-cell" rowspan="{{ event_row_spans[event.id] }}">
           {% if can_create_event %}
@@ -196,7 +216,7 @@
 
         {# ── Spot cells ── #}
         {% for spot in row.spots %}
-        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="background-color: {{ row.color }}">
+        <td class="tm-spot-cell tm-spot-data-col text-nowrap small" data-spot-id="{{ spot.id }}" style="background-color: {{ row.color }}">
           {% if spot.assignment %}
             <span class="tm-assigned-name">{{ spot.assignment.user.name }}</span>
             {% if can_assign %}
@@ -220,13 +240,14 @@
 
         {# ── Empty padding cells ── #}
         {% for _ in range(max_spot_cols - (row.spots | length)) %}
-        <td style="background-color: {{ row.color }}"></td>
+        <td class="tm-spot-data-col" style="background-color: {{ row.color }}"></td>
         {% endfor %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+<p class="text-muted small d-none" id="tm-filter-empty-msg">Žádné akce neodpovídají aktivním filtrům.</p>
 
 {# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
 <div id="tm-time-edit-popup" class="card shadow-sm p-2 tm-popup tm-popup-time" style="display:none">
@@ -286,6 +307,18 @@
 .tm-time-cell { cursor: default; }
 .tm-sep-event td { border-top: 2px solid #adb5bd !important; }
 .tm-sep-day td { border-top: 3px solid #495057 !important; }
+
+/* Theme-aware "dark/completed" filter button — matches events/index */
+.filter-btn-neutral {
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-secondary-color);
+  --bs-btn-hover-color: var(--bs-body-bg);
+  --bs-btn-hover-bg: var(--bs-body-color);
+  --bs-btn-hover-border-color: var(--bs-body-color);
+  --bs-btn-active-color: var(--bs-body-bg);
+  --bs-btn-active-bg: var(--bs-body-color);
+  --bs-btn-active-border-color: var(--bs-body-color);
+}
 
 @keyframes tm-flash-kf {
   0%   { outline: 3px solid #ffc107; outline-offset: -2px; }

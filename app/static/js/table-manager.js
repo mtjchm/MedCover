@@ -30,6 +30,91 @@
   var canPublish         = cfg.dataset.canPublish === "1";
   var canOpenAssignments = cfg.dataset.canOpenAssignments === "1";
 
+  // ── Client-side status + type filters ──────────────────────────────────────
+  var DEFAULT_STATUSES = ["DRAFT", "PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+  var allRows = document.querySelectorAll("#tm-table tbody tr[data-event-id]");
+  var spotHeaderCols = document.querySelectorAll(".tm-spot-header-col");
+  var totalSpotCols = spotHeaderCols.length;
+
+  function getActiveFilters(containerSelector, dataAttr) {
+    var active = [];
+    document.querySelectorAll(containerSelector + " .filter-btn.active").forEach(function (btn) {
+      active.push(btn.dataset[dataAttr]);
+    });
+    return active;
+  }
+
+  function applyFilters() {
+    var activeStatuses = getActiveFilters("#tm-status-filter", "filterStatus");
+    var activeTypes = getActiveFilters("#tm-type-filter", "filterType");
+    // Collect which event IDs pass both filters
+    var visibleEvents = {};
+    var anyVisible = false;
+    var maxVisibleSpots = 0;
+    allRows.forEach(function (row) {
+      var eid = row.dataset.eventId;
+      if (visibleEvents[eid] !== undefined) return;
+      var statusOk = activeStatuses.indexOf(row.dataset.status) !== -1;
+      var typeOk = activeTypes.indexOf(row.dataset.eventType) !== -1;
+      visibleEvents[eid] = statusOk && typeOk;
+      if (visibleEvents[eid]) anyVisible = true;
+    });
+    // Compute max spot count among visible rows
+    allRows.forEach(function (row) {
+      if (visibleEvents[row.dataset.eventId]) {
+        var sc = parseInt(row.dataset.spotCount, 10) || 0;
+        if (sc > maxVisibleSpots) maxVisibleSpots = sc;
+      }
+    });
+    // Show/hide all rows for each event
+    allRows.forEach(function (row) {
+      row.style.display = visibleEvents[row.dataset.eventId] ? "" : "none";
+    });
+    // Hide excess spot columns (header + data cells)
+    for (var i = 0; i < totalSpotCols; i++) {
+      var show = i < maxVisibleSpots;
+      spotHeaderCols[i].style.display = show ? "" : "none";
+    }
+    allRows.forEach(function (row) {
+      var cells = row.querySelectorAll(".tm-spot-data-col");
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].style.display = i < maxVisibleSpots ? "" : "none";
+      }
+    });
+    // Toggle empty-filter message
+    var emptyMsg = document.getElementById("tm-filter-empty-msg");
+    if (emptyMsg) emptyMsg.classList.toggle("d-none", anyVisible);
+  }
+
+  function setupFilterBar(containerSelector, dataAttr) {
+    document.querySelectorAll(containerSelector + " .filter-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        btn.classList.toggle("active");
+        applyFilters();
+      });
+    });
+  }
+
+  setupFilterBar("#tm-status-filter", "filterStatus");
+  setupFilterBar("#tm-type-filter", "filterType");
+
+  var resetBtn = document.getElementById("tm-filter-reset");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      document.querySelectorAll("#tm-status-filter .filter-btn").forEach(function (btn) {
+        var isDefault = DEFAULT_STATUSES.indexOf(btn.dataset.filterStatus) !== -1;
+        btn.classList.toggle("active", isDefault);
+      });
+      document.querySelectorAll("#tm-type-filter .filter-btn").forEach(function (btn) {
+        btn.classList.add("active");
+      });
+      applyFilters();
+    });
+  }
+
+  // Apply default filters on page load
+  applyFilters();
+
   // ── Error toast close button ────────────────────────────────────────────────
   var errClose = document.getElementById("tm-spots-error-close");
   if (errClose) {
