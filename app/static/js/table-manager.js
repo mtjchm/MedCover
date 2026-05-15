@@ -30,6 +30,65 @@
   var canPublish         = cfg.dataset.canPublish === "1";
   var canOpenAssignments = cfg.dataset.canOpenAssignments === "1";
 
+  // ── Client-side status + type filters ──────────────────────────────────────
+  var DEFAULT_STATUSES = ["DRAFT", "PUBLISHED", "ASSIGNMENTS_OPEN", "ASSIGNMENTS_CLOSED"];
+  var allRows = document.querySelectorAll("#tm-table tbody tr[data-event-id]");
+
+  function getActiveFilters(containerSelector, dataAttr) {
+    var active = [];
+    document.querySelectorAll(containerSelector + " .filter-btn.active").forEach(function (btn) {
+      active.push(btn.dataset[dataAttr]);
+    });
+    return active;
+  }
+
+  function applyFilters() {
+    var activeStatuses = getActiveFilters("#tm-status-filter", "filterStatus");
+    var activeTypes = getActiveFilters("#tm-type-filter", "filterType");
+    // Collect which event IDs pass both filters
+    var visibleEvents = {};
+    allRows.forEach(function (row) {
+      var eid = row.dataset.eventId;
+      if (visibleEvents[eid] !== undefined) return; // already decided
+      var statusOk = activeStatuses.indexOf(row.dataset.status) !== -1;
+      var typeOk = activeTypes.indexOf(row.dataset.eventType) !== -1;
+      visibleEvents[eid] = statusOk && typeOk;
+    });
+    // Show/hide all rows for each event
+    allRows.forEach(function (row) {
+      row.style.display = visibleEvents[row.dataset.eventId] ? "" : "none";
+    });
+  }
+
+  function setupFilterBar(containerSelector, dataAttr) {
+    document.querySelectorAll(containerSelector + " .filter-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        btn.classList.toggle("active");
+        applyFilters();
+      });
+    });
+  }
+
+  setupFilterBar("#tm-status-filter", "filterStatus");
+  setupFilterBar("#tm-type-filter", "filterType");
+
+  var resetBtn = document.getElementById("tm-filter-reset");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      document.querySelectorAll("#tm-status-filter .filter-btn").forEach(function (btn) {
+        var isDefault = DEFAULT_STATUSES.indexOf(btn.dataset.filterStatus) !== -1;
+        btn.classList.toggle("active", isDefault);
+      });
+      document.querySelectorAll("#tm-type-filter .filter-btn").forEach(function (btn) {
+        btn.classList.add("active");
+      });
+      applyFilters();
+    });
+  }
+
+  // Apply default filters on page load
+  applyFilters();
+
   // ── Error toast close button ────────────────────────────────────────────────
   var errClose = document.getElementById("tm-spots-error-close");
   if (errClose) {
