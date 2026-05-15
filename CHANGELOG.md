@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized timezone handling via `get_app_tz()` helper — all datetime conversions now read `AppSettings.timezone` from the database instead of hardcoding `Europe/Prague` (closes #197)
 - Split 180-line `generate_work_report()` in `work_report_generator.py` into 5 focused helpers; main function is now a 28-line orchestrator (closes #199)
 - Deduplicated `_make_user()` / `_login()` test helpers from 5 test files into `conftest.py`; −72 lines of copy-paste code (closes #200)
+- Replaced 34 inline `style=` attributes in `table_manager.html` and `notifications.html` with semantic CSS classes; added mobile-responsive overrides (closes #204)
 
 ### Fixed
 - Reports CSV exports now convert UTC datetimes to the configured app timezone before formatting
