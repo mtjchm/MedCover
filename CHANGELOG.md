@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTML test report with per-test screenshots (`make e2e-report` to view)
 
 ### Changed
+- Consolidated email template CSS: standardized colour palette across `base.html` and `admin_digest.html` (`#c00` → `#c0392b`, `#222` → `#333333`, consistent grey tones); added canonical palette comment; no layout changes (closes #206)
 - Extracted large inline `<script>` blocks from 4 templates into external JS files for better CSP compliance and maintainability: `table-manager.js`, `events-detail-nav.js`, `events-detail-equipment.js`, `events-create-equipment.js`, `admin-notifications.js` (closes #203)
 - Refactored 10 oversized route functions (>60 lines) across 8 files into thin route handlers + private helpers; no behaviour changes (closes #195) (#213)
 - DRY up duplicated guard/render/enqueue pattern in `mail.py` via `_guarded_send()` helper; −38 lines of boilerplate (closes #196) (#214)
