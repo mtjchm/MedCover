@@ -32,32 +32,28 @@ from ._helpers import (
 )
 
 
-# ── List ──────────────────────────────────────────────────────────────────────
+# ── List helpers ──────────────────────────────────────────────────────────────
 
-@events_bp.get("/")
-@login_required
-def index() -> str:
-    require_permission("event.view", "event.view_draft")
+_ALL_STATUSES = [s.name for s in EventStatus]
+_DEFAULT_STATUSES = [
+    s.name for s in EventStatus
+    if s not in (EventStatus.DRAFT, EventStatus.CANCELLED, EventStatus.COMPLETED)
+]
+_ALL_EVENT_TYPES = [t.name for t in EventType]
+_VALID_SORT_COLS = {"start", "name", "status", "me_name", "total", "rp"}
 
+
+def _parse_index_filters() -> dict:
+    """Extract and validate all filter/sort params from the request query string."""
     show_archived = request.args.get("archived") == "1"
     page = request.args.get("page", 1, type=int)
 
-    # Status filter: comma-separated list of EventStatus names in URL.
-    # If the ?statuses param is absent (first visit / direct link) use defaults.
-    # If it is present but empty, the user explicitly disabled all filters → respect that.
-    _all_statuses = [s.name for s in EventStatus]
-    _default_statuses = [
-        s.name for s in EventStatus
-        if s not in (EventStatus.DRAFT, EventStatus.CANCELLED, EventStatus.COMPLETED)
-    ]
     if "statuses" not in request.args:
-        active_statuses = _default_statuses
+        active_statuses = list(_DEFAULT_STATUSES)
     else:
-        raw_statuses = request.args.get("statuses", "")
-        active_statuses = [s for s in raw_statuses.split(",") if s in _all_statuses]
+        raw = request.args.get("statuses", "")
+        active_statuses = [s for s in raw.split(",") if s in _ALL_STATUSES]
 
-    # Sort: server-side ORDER BY before pagination
-    _VALID_SORT_COLS = {"start", "name", "status", "me_name", "total", "rp"}
     sort_col = request.args.get("sort", "start")
     sort_dir = request.args.get("dir", "asc")
     if sort_col not in _VALID_SORT_COLS:
@@ -65,56 +61,38 @@ def index() -> str:
     if sort_dir not in ("asc", "desc"):
         sort_dir = "desc"
 
-    # ME filter: filter by master event ID (UUID in URL)
     me_id_param = request.args.get("me_id", "").strip()
     active_me: MasterEvent | None = None
     if me_id_param:
         active_me = db.session.get(MasterEvent, me_id_param)
         if active_me and (active_me.is_general or active_me.archived):
-            active_me = None  # ignore general/archived ME params
+            active_me = None
 
-    # Event type filter: comma-separated EventType names, absent = all types
-    _all_event_types = [t.name for t in EventType]
     if "types" not in request.args:
-        active_types = _all_event_types
+        active_types = list(_ALL_EVENT_TYPES)
     else:
         raw_types = request.args.get("types", "")
-        active_types = [t for t in raw_types.split(",") if t in _all_event_types]
+        active_types = [t for t in raw_types.split(",") if t in _ALL_EVENT_TYPES]
 
-    query = db.select(Event)
+    return {
+        "show_archived": show_archived,
+        "page": page,
+        "active_statuses": active_statuses,
+        "sort_col": sort_col,
+        "sort_dir": sort_dir,
+        "active_me": active_me,
+        "active_types": active_types,
+    }
 
-    if not current_user.has_permission("event.view_draft"):
-        query = query.where(Event.status != EventStatus.DRAFT)
-    if not show_archived:
-        query = query.where(Event.archived.is_(False))
 
-    # Apply ME filter
-    if active_me:
-        query = query.where(Event.master_event_id == active_me.id)
-
-    # Apply event type filter
-    type_values = [EventType[t] for t in active_types if t in EventType.__members__]
-    if not type_values:
-        # Nothing selected → return empty result
-        query = query.where(db.false())
-    elif len(type_values) < len(_all_event_types):
-        query = query.where(Event.event_type.in_(type_values))
-
-    # Apply server-side status filter
-    status_values = [EventStatus[s] for s in active_statuses if s in EventStatus.__members__]
-    if status_values:
-        query = query.where(Event.status.in_(status_values))
-    else:
-        # Nothing selected → return empty result
-        query = query.where(db.false())
-
-    # Apply server-side ORDER BY (covers all pages, not just current)
+def _apply_index_order(query: db.select, sort_col: str, sort_dir: str) -> db.select:  # type: ignore[name-defined, type-arg]
+    """Apply ORDER BY clause to the event list query."""
     _asc = sort_dir == "asc"
     if sort_col == "name":
-        query = query.order_by(collate(Event.name, CS_COLLATION).asc() if _asc else collate(Event.name, CS_COLLATION).desc())
-    elif sort_col == "status":
-        query = query.order_by(Event.status.asc() if _asc else Event.status.desc())
-    elif sort_col == "me_name":
+        return query.order_by(collate(Event.name, CS_COLLATION).asc() if _asc else collate(Event.name, CS_COLLATION).desc())
+    if sort_col == "status":
+        return query.order_by(Event.status.asc() if _asc else Event.status.desc())
+    if sort_col == "me_name":
         me_name_expr = (
             db.select(case((MasterEvent.is_general.is_(True), None), else_=MasterEvent.name))
             .where(MasterEvent.id == Event.master_event_id)
@@ -122,16 +100,16 @@ def index() -> str:
             .scalar_subquery()
         )
         order_expr = me_name_expr.asc() if _asc else me_name_expr.desc()
-        query = query.order_by(order_expr.nulls_last())
-    elif sort_col == "total":
+        return query.order_by(order_expr.nulls_last())
+    if sort_col == "total":
         spot_count_sq = (
             db.select(func.count(EventSpot.id))
             .where(EventSpot.event_id == Event.id, EventSpot.is_optional.is_(False))
             .correlate(Event)
             .scalar_subquery()
         )
-        query = query.order_by(spot_count_sq.asc() if _asc else spot_count_sq.desc())
-    elif sort_col == "rp":
+        return query.order_by(spot_count_sq.asc() if _asc else spot_count_sq.desc())
+    if sort_col == "rp":
         rp_name_sq = (
             db.select(UserAccount.name)
             .where(UserAccount.id == Event.responsible_person_id)
@@ -139,11 +117,68 @@ def index() -> str:
             .scalar_subquery()
         )
         order_expr = rp_name_sq.asc() if _asc else rp_name_sq.desc()
-        query = query.order_by(order_expr.nulls_last())
-    else:  # start (default)
-        query = query.order_by(Event.start_datetime.asc() if _asc else Event.start_datetime.desc())
+        return query.order_by(order_expr.nulls_last())
+    # start (default)
+    return query.order_by(Event.start_datetime.asc() if _asc else Event.start_datetime.desc())
 
-    pagination = db.paginate(query, page=page, per_page=PER_PAGE, error_out=False)
+
+def _build_eligible_spot_map(events: list[Event]) -> dict[int, list[tuple[int, str | None]]]:
+    """For each event on the current page, find spots the user can claim."""
+    if not current_user.has_permission("event.assign_own"):
+        return {}
+
+    user_assigned_spot_ids = set(db.session.scalars(
+        db.select(Assignment.spot_id).where(Assignment.user_id == current_user.id)
+    ).all())
+    fillable_ids = user_fillable_qual_ids(current_user)
+    result: dict[int, list[tuple[int, str | None]]] = {}
+    for e in events:
+        if e.status != EventStatus.ASSIGNMENTS_OPEN:
+            continue
+        eligible = [
+            (s.id, s.description)
+            for s in e.spots
+            if s.assignment is None and s.id not in user_assigned_spot_ids
+            and s.is_eligible_for(fillable_ids)
+        ]
+        if eligible:
+            result[e.id] = eligible
+    return result
+
+
+# ── List ──────────────────────────────────────────────────────────────────────
+
+@events_bp.get("/")
+@login_required
+def index() -> str:
+    require_permission("event.view", "event.view_draft")
+
+    f = _parse_index_filters()
+    query = db.select(Event)
+
+    if not current_user.has_permission("event.view_draft"):
+        query = query.where(Event.status != EventStatus.DRAFT)
+    if not f["show_archived"]:
+        query = query.where(Event.archived.is_(False))
+    if f["active_me"]:
+        query = query.where(Event.master_event_id == f["active_me"].id)
+
+    # Apply event type filter
+    type_values = [EventType[t] for t in f["active_types"] if t in EventType.__members__]
+    if not type_values:
+        query = query.where(db.false())
+    elif len(type_values) < len(_ALL_EVENT_TYPES):
+        query = query.where(Event.event_type.in_(type_values))
+
+    # Apply status filter
+    status_values = [EventStatus[s] for s in f["active_statuses"] if s in EventStatus.__members__]
+    if status_values:
+        query = query.where(Event.status.in_(status_values))
+    else:
+        query = query.where(db.false())
+
+    query = _apply_index_order(query, f["sort_col"], f["sort_dir"])
+    pagination = db.paginate(query, page=f["page"], per_page=PER_PAGE, error_out=False)
     events = pagination.items
 
     active_named_mes = db.session.scalars(
@@ -158,44 +193,24 @@ def index() -> str:
             db.select(EventTemplate).order_by(collate(EventTemplate.name, CS_COLLATION))
         ).all())
 
-    # Map event_id → list of (spot_id, description) for eligible unfilled spots
-    # Only computed for the current page — this is the main perf win of pagination.
-    eligible_spot_map: dict[int, list[tuple[int, str | None]]] = {}
-    if current_user.has_permission("event.assign_own"):
-        user_assigned_spot_ids = set(db.session.scalars(
-            db.select(Assignment.spot_id).where(Assignment.user_id == current_user.id)
-        ).all())
-        fillable_ids = user_fillable_qual_ids(current_user)
-        for e in events:
-            if e.status != EventStatus.ASSIGNMENTS_OPEN:
-                continue
-            eligible = [
-                (s.id, s.description)
-                for s in e.spots
-                if s.assignment is None and s.id not in user_assigned_spot_ids
-                and s.is_eligible_for(fillable_ids)
-            ]
-            if eligible:
-                eligible_spot_map[e.id] = eligible
-
     return render_template(
         "events/index.html",
         events=events,
         pagination=pagination,
-        show_archived=show_archived,
-        active_statuses=active_statuses,
-        default_statuses=_default_statuses,
-        all_statuses=_all_statuses,
-        active_types=active_types,
-        all_event_types=_all_event_types,
-        sort_col=sort_col,
-        sort_dir=sort_dir,
-        active_me=active_me,
+        show_archived=f["show_archived"],
+        active_statuses=f["active_statuses"],
+        default_statuses=_DEFAULT_STATUSES,
+        all_statuses=_ALL_STATUSES,
+        active_types=f["active_types"],
+        all_event_types=_ALL_EVENT_TYPES,
+        sort_col=f["sort_col"],
+        sort_dir=f["sort_dir"],
+        active_me=f["active_me"],
         EventStatus=EventStatus,
         EventType=EventType,
         has_draft_perm=current_user.has_permission("event.view_draft"),
         event_templates=event_templates,
-        eligible_spot_map=eligible_spot_map,
+        eligible_spot_map=_build_eligible_spot_map(events),
         active_named_mes=active_named_mes,
     )
 
