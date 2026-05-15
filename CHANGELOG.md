@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DRY up duplicated guard/render/enqueue pattern in `mail.py` via `_guarded_send()` helper; −38 lines of boilerplate (closes #196) (#214)
 - Centralized timezone handling via `get_app_tz()` helper — all datetime conversions now read `AppSettings.timezone` from the database instead of hardcoding `Europe/Prague` (closes #197)
 - Split 180-line `generate_work_report()` in `work_report_generator.py` into 5 focused helpers; main function is now a 28-line orchestrator (closes #199)
+- Deduplicated `_make_user()` / `_login()` test helpers from 5 test files into `conftest.py`; −72 lines of copy-paste code (closes #200)
 
 ### Fixed
 - Reports CSV exports now convert UTC datetimes to the configured app timezone before formatting
