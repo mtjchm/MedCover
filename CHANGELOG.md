@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTML test report with per-test screenshots (`make e2e-report` to view)
 - Table Manager: client-side status and event type filter bars (same look as /events/ page); default hides Completed and Cancelled events
 
+### Fixed
+- Table Manager: "Reset barvy" button now correctly removes the colour from the server; previously the empty value was rejected by the generic validation guard before reaching the colour handler
+
 ### Changed
 - Consolidated email template CSS: standardized colour palette across `base.html` and `admin_digest.html` (`#c00` → `#c0392b`, `#222` → `#333333`, consistent grey tones); added canonical palette comment; no layout changes (closes #206)
 - Increased email queue drain rate from 6 s to 3 s per message (~20 emails/min instead of ~10)

@@ -88,7 +88,11 @@ class UserStats:
 
 
 def _compute_user_stats(pairs: list[tuple[Assignment, Event]], now: datetime) -> UserStats:
-    """Compute UserStats from a list of (assignment, event) pairs for a single user."""
+    """Compute UserStats from a list of (assignment, event) pairs for a single user.
+
+    Note: ``next_shift`` is NOT set here — call ``_resolve_next_shifts``
+    afterwards so the value reflects the true global next assignment.
+    """
     stats = UserStats()
     for _, ev in pairs:
         if ev.status == EventStatus.CANCELLED:
@@ -106,8 +110,6 @@ def _compute_user_stats(pairs: list[tuple[Assignment, Event]], now: datetime) ->
         elif ev.status in _FUTURE_STATUSES and ev.start_datetime > now:
             stats.shifts_planned += 1
             stats.hours_planned += planned_h
-            if stats.next_shift is None or ev.start_datetime < stats.next_shift:
-                stats.next_shift = ev.start_datetime
     return stats
 
 
@@ -124,8 +126,39 @@ def _build_user_stat_rows(
             users[uid] = asgn.user
         user_pairs[uid].append((asgn, ev))
     result = [(users[uid], _compute_user_stats(up, now)) for uid, up in user_pairs.items()]
+    _resolve_next_shifts(result, now)
     result.sort(key=lambda x: czech_sort_key(x[0].name))
     return result
+
+
+def _resolve_next_shifts(
+    rows: list[tuple[UserAccount, UserStats]], now: datetime
+) -> None:
+    """Set ``next_shift`` on each UserStats via a single global query.
+
+    ``next_shift`` always reflects the user's true next future assignment,
+    regardless of whatever date-range or ME filter the report applies.
+    Used by all three report types (user, ME, date-range).
+    """
+    user_ids = [u.id for u, _ in rows]
+    if not user_ids:
+        return
+
+    next_shifts: dict[uuid.UUID, datetime] = {
+        row[0]: row[1] for row in db.session.execute(
+            db.select(Assignment.user_id, func.min(Event.start_datetime))
+            .join(EventSpot, Assignment.spot_id == EventSpot.id)
+            .join(Event, EventSpot.event_id == Event.id)
+            .where(
+                Assignment.user_id.in_(user_ids),
+                Event.status.in_(_FUTURE_STATUSES),
+                Event.start_datetime > now,
+            )
+            .group_by(Assignment.user_id)
+        ).all()
+    }
+    for _user, stats in rows:
+        stats.next_shift = next_shifts.get(_user.id)
 
 
 # ── CSV helper ────────────────────────────────────────────────────────────────
@@ -277,6 +310,7 @@ def user_report(user_id: uuid.UUID) -> str | Response:
 
     pairs = [(a, a.spot.event) for a in assignments if a.spot and a.spot.event]
     stats = _compute_user_stats(pairs, now)
+    _resolve_next_shifts([(user, stats)], now)
 
     # Build per-event rows for the detail table
     rows = []
