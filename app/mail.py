@@ -4,7 +4,7 @@ Centralised email helper for MedCover.
 All public send_* functions enqueue a row into ``outbox_email`` instead of
 calling the SMTP server directly.  The scheduler's ``process_email_queue``
 job drains the queue at a controlled rate (MAIL_QUEUE_INTERVAL_SECONDS,
-default 6 s ≈ 10 emails/minute) which keeps the app safely inside the
+default 3 s ≈ 20 emails/minute) which keeps the app safely inside the
 rate limits of any standard SMTP relay (e.g. Microsoft 365: 30/min).
 
 Usage (inside a Flask app context):
