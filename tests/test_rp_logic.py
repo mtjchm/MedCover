@@ -11,6 +11,7 @@ from app.models.master_event import MasterEvent
 from app.models.qualification import Qualification
 from app.models.role import Role
 from app.models.user import UserAccount
+from tests.conftest import _make_user, _login
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -36,13 +37,9 @@ def _make_non_rp_qual(app) -> int:
 
 def _make_user_with_qual(app, email: str, qual_id: int) -> str:
     with app.app_context():
-        role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
         qual = db.session.get(Qualification, qual_id)
-        u = UserAccount(email=email, name="Test User", is_active=True)
-        u.set_password("testpass123")
-        u.roles = [role]
+        u = _make_user(email, "Test User", Role.MEMBER)
         u.qualifications = [qual]
-        db.session.add(u)
         db.session.commit()
         return str(u.id)
 
@@ -66,10 +63,6 @@ def _make_open_event(app) -> tuple[int, int]:
         db.session.add(spot)
         db.session.commit()
         return event.id, spot.id
-
-
-def _login(client, email: str) -> None:
-    client.post("/auth/login", data={"email": email, "password": "testpass123"}, follow_redirects=True)
 
 
 # ── is_rp_eligible ────────────────────────────────────────────────────────────

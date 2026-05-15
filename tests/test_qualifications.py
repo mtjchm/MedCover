@@ -6,6 +6,7 @@ from app.models.qualification import Qualification
 from app.models.audit import AuditLogEntry
 from app.models.role import Role
 from app.models.user import UserAccount
+from tests.conftest import _make_user
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -18,12 +19,8 @@ def _make_qual(name: str, description: str | None = None) -> Qualification:
 
 
 def _make_user_with_qual(app, qual: Qualification) -> UserAccount:
-    role = db.session.scalar(db.select(Role).where(Role.name == Role.MEMBER))
-    user = UserAccount(email="holder@test.com", name="Holder", is_active=True)
-    user.set_password("testpass")
-    user.roles = [role]
+    user = _make_user("holder@test.com", "Holder", Role.MEMBER)
     user.qualifications.append(qual)
-    db.session.add(user)
     db.session.commit()
     return user
 
