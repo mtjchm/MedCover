@@ -102,16 +102,27 @@ MedCover/
 │   └── …
 │
 ├── scripts/
-│   └── seed_dev.py             # Populates DB with realistic mock data for local dev
+│   ├── seed_dev.py             # Populates DB with realistic mock data for local dev
+│   └── e2e-entrypoint.sh       # Docker entrypoint for E2E web container
+│
+├── e2e_tests/                  # Playwright browser tests (NOT run by default pytest)
+│   ├── conftest.py             # Fixtures: base_url, logged_in_page
+│   ├── test_login_flow.py
+│   ├── test_create_event.py
+│   └── test_smoke_navigation.py
 │
 ├── Dockerfile                  # Single image for both web and scheduler containers
 ├── docker-compose.yml          # Local dev: web + scheduler + postgres (hot reload)
+├── docker-compose.e2e.yml      # E2E tests: db-e2e + web-e2e + playwright runner
 ├── render.yaml                 # Render.com Blueprint: all services as code
 ├── .env.example                # Template for required env vars — COMMIT THIS
 ├── .env                        # Actual secrets — NEVER COMMIT (in .gitignore)
 ├── .dockerignore
 ├── requirements.txt            # Production dependencies
 ├── requirements-dev.txt        # Dev/test extras: pytest, faker, pytest-cov
+├── requirements-e2e.txt        # E2E test deps: pytest-playwright
+├── Makefile                    # Shortcuts: make e2e, make test
+├── tox.ini                     # tox envs: py314 (unit), e2e (playwright)
 ├── architecture.md
 └── DEVOPS.md                   # This file
 ```
@@ -190,6 +201,52 @@ pytest
 # Via tox — same behaviour
 tox -e py314
 ```
+
+### Run E2E browser tests (Playwright)
+
+End-to-end tests use real browsers (Chromium, Firefox, WebKit) driven by
+[Playwright](https://playwright.dev/python/) to test rendered pages, JS
+validation, form submission, and navigation. Everything runs in Docker
+containers — nothing is installed on the host.
+
+**Architecture:** `docker-compose.e2e.yml` spins up three containers:
+
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `db-e2e` | `postgres:17-alpine` | Fresh Postgres on tmpfs (destroyed after each run) |
+| `web-e2e` | App Dockerfile | Runs migrations, seeds data (`seed_dev.py`), serves Flask |
+| `e2e` | `mcr.microsoft.com/playwright/python` | Runs Playwright tests against `http://web-e2e:5000` |
+
+**How to run:**
+
+```bash
+# Using Make (recommended)
+make e2e
+
+# Or using tox
+tox -e e2e
+
+# Or directly with Docker Compose
+docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from e2e
+docker compose -f docker-compose.e2e.yml down -v
+```
+
+**Cleanup after a failed run:**
+
+```bash
+make e2e-down
+# or: docker compose -f docker-compose.e2e.yml down -v
+```
+
+**Test files** live in `e2e_tests/` (separate from `tests/`) and are never
+included in the regular `pytest` or CI runs.
+
+**First run** pulls the Playwright Docker image (~1.5 GB) and builds the app
+image. Subsequent runs are faster thanks to Docker layer caching.
+
+**Adding new E2E tests:** create a `test_*.py` file in `e2e_tests/`. Use the
+`logged_in_page` fixture from `e2e_tests/conftest.py` for tests that need an
+authenticated session (logs in as the admin dev user automatically).
 
 ---
 
