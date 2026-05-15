@@ -60,8 +60,7 @@
               {% for entry in group.entries %}
               <li class="d-flex justify-content-between align-items-center gap-2">
                 <span>{{ entry.name_cs }}</span>
-                <button type="submit" form="test_form_{{ entry.code }}" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0"
-                        style="font-size:0.7rem">Zkušební</button>
+                <button type="submit" form="test_form_{{ entry.code }}" class="btn btn-outline-secondary btn-sm py-0 px-2 flex-shrink-0 notif-test-btn">Zkušební</button>
               </li>
               {% endfor %}
             </ul>
@@ -96,12 +95,12 @@
     <table class="table table-hover align-middle mb-0 small">
       <thead class="table-light">
         <tr>
-          <th style="width:20%">Název / kód</th>
-          <th style="width:28%">Popis</th>
-          <th style="width:20%">Spouštěč</th>
-          <th style="width:18%">Příjemci</th>
-          <th style="width:7%">Šablona</th>
-          <th class="text-center" style="width:7%">Stav</th>
+          <th class="notif-col-name">Název / kód</th>
+          <th class="notif-col-desc">Popis</th>
+          <th class="notif-col-trigger">Spouštěč</th>
+          <th class="notif-col-rcpt">Příjemci</th>
+          <th class="notif-col-tpl">Šablona</th>
+          <th class="text-center notif-col-status">Stav</th>
         </tr>
       </thead>
       <tbody>
@@ -109,14 +108,14 @@
         <tr>
           <td>
             <span class="fw-semibold">{{ entry.name_cs }}</span><br>
-            <span class="font-monospace text-muted" style="font-size:0.75rem">{{ entry.code }}</span>
+            <span class="font-monospace text-muted notif-code">{{ entry.code }}</span>
           </td>
           <td>{{ entry.description_cs }}</td>
           <td>{{ entry.trigger_cs }}</td>
           <td>{{ entry.recipient_cs }}</td>
           <td>
             {% for tpl in entry.templates %}
-            <div class="text-muted" style="font-size:0.72rem">{{ tpl }}</div>
+            <div class="text-muted notif-template">{{ tpl }}</div>
             {% endfor %}
           </td>
           <td class="text-center">
