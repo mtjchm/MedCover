@@ -5,15 +5,12 @@ import secrets
 import time as _time
 from datetime import timedelta
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 import click
 from flask import Flask, g, redirect, request, url_for
 from werkzeug.wrappers import Response as WerkzeugResponse
 from .extensions import db, migrate, login_manager, mail as _flask_mail, csrf
 from .config import config_by_name
-
-_PRAGUE_TZ = ZoneInfo("Europe/Prague")
 # Computed once at import/startup; used as a cache-busting version for static files.
 _STARTUP_TS: str = str(int(_time.time()))
 
@@ -75,12 +72,13 @@ def create_app(
 
     @app.template_filter("localdt")
     def localdt_filter(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
-        """Convert a UTC datetime to Europe/Prague local time and format it."""
+        """Convert a UTC datetime to app-configured local time and format it."""
         if dt is None:
             return "—"
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(_PRAGUE_TZ).strftime(fmt)
+        from .utils import get_app_tz  # noqa: PLC0415
+        return dt.astimezone(get_app_tz()).strftime(fmt)
 
     @app.template_filter("datetimelocal")
     def datetimelocal_filter(dt: datetime | None) -> str:
@@ -89,7 +87,8 @@ def create_app(
             return ""
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(_PRAGUE_TZ).strftime("%Y-%m-%dT%H:%M")
+        from .utils import get_app_tz  # noqa: PLC0415
+        return dt.astimezone(get_app_tz()).strftime("%Y-%m-%dT%H:%M")
 
     @app.template_filter("midpoint_iso")
     def midpoint_iso_filter(event: object) -> str:
@@ -105,7 +104,8 @@ def create_app(
         if end.tzinfo is None:
             end = end.replace(tzinfo=timezone.utc)
         mid = start + (end - start) / 2
-        return mid.astimezone(_PRAGUE_TZ).strftime("%Y-%m-%dT%H:%M")
+        from .utils import get_app_tz  # noqa: PLC0415
+        return mid.astimezone(get_app_tz()).strftime("%Y-%m-%dT%H:%M")
 
     _CZECH_DAY_ABBR = ["po", "út", "st", "čt", "pá", "so", "ne"]
 
@@ -116,7 +116,8 @@ def create_app(
             return ""
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-        return _CZECH_DAY_ABBR[dt.astimezone(_PRAGUE_TZ).weekday()]
+        from .utils import get_app_tz  # noqa: PLC0415
+        return _CZECH_DAY_ABBR[dt.astimezone(get_app_tz()).weekday()]
 
     @app.template_filter("cznum")
     def cznum_filter(value: object, decimals: int = 1, strip: bool = False) -> str:

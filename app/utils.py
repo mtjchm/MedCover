@@ -3,9 +3,31 @@ from __future__ import annotations
 
 from typing import TypeVar
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 T = TypeVar("T")
 E = TypeVar("E")
+
+# ── Timezone ──────────────────────────────────────────────────────────────────
+
+_DEFAULT_TZ = "Europe/Prague"
+
+
+def get_app_tz() -> ZoneInfo:
+    """Return the application timezone from AppSettings.
+
+    Falls back to Europe/Prague when settings are unavailable (e.g. during
+    initial setup before the DB is seeded, or in CLI commands).
+    """
+    try:
+        from app.models.settings import get_settings  # noqa: PLC0415
+        settings = get_settings()
+        if settings and settings.timezone:
+            return ZoneInfo(settings.timezone)
+    except Exception:  # noqa: BLE001
+        pass
+    return ZoneInfo(_DEFAULT_TZ)
+
 
 # ── Czech locale-aware sorting ────────────────────────────────────────────────
 

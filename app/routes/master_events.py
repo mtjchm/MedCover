@@ -19,7 +19,7 @@ import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
+
 
 from flask import Blueprint, Response, jsonify, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
@@ -29,7 +29,7 @@ from app.extensions import db
 from app.models.master_event import MasterEvent
 from app.constants import RECORD_MODIFIED_MSG
 from sqlalchemy import collate
-from app.utils import CS_COLLATION, czech_sort_key, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.utils import CS_COLLATION, czech_sort_key, audit, check_version_conflict, diff_changes, get_app_tz, get_or_404, require_permission
 from app.queries import active_users_list
 
 if TYPE_CHECKING:
@@ -223,7 +223,6 @@ _ROW_COLORS = [
     "#ffe5b4",
     "#c8e6fa",
 ]
-_PRAGUE = ZoneInfo("Europe/Prague")
 
 _TM_COLOR_RE = re.compile(r'\[color:(#[0-9A-Fa-f]{6})\]', re.IGNORECASE)
 _HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
@@ -274,7 +273,7 @@ def _build_table_rows(events: list) -> tuple[list[dict], int]:
             })
 
     rows.sort(key=lambda r: (
-        r["event"].start_datetime.astimezone(_PRAGUE).date(),
+        r["event"].start_datetime.astimezone(get_app_tz()).date(),
         r["event"].name,
         r["event"].start_datetime,
         r["qual_name"],
@@ -553,7 +552,7 @@ def _handle_shift_hour(event: Event, value: str) -> Response:
 def _handle_datetime_field(event: Event, field: str, value: str) -> Response:
     """Handle start_datetime / end_datetime inline edits."""
     try:
-        dt = datetime.fromisoformat(value).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
+        dt = datetime.fromisoformat(value).replace(tzinfo=get_app_tz()).astimezone(timezone.utc)
     except ValueError:
         return jsonify({"ok": False, "error": "Neplatný formát data a času."}), 400
 
@@ -576,10 +575,10 @@ def _handle_datetime_field(event: Event, field: str, value: str) -> Response:
           changes)
     db.session.commit()
 
-    display_time = dt.astimezone(_PRAGUE).strftime("%H:%M")
-    display_date = dt.astimezone(_PRAGUE).strftime("%d.%m.")
+    display_time = dt.astimezone(get_app_tz()).strftime("%H:%M")
+    display_date = dt.astimezone(get_app_tz()).strftime("%d.%m.")
     _CZECH_DAYS = ["po", "út", "st", "čt", "pá", "so", "ne"]
-    display_day = _CZECH_DAYS[dt.astimezone(_PRAGUE).weekday()]
+    display_day = _CZECH_DAYS[dt.astimezone(get_app_tz()).weekday()]
     from decimal import Decimal
     delta = event.end_datetime - event.start_datetime
     hours = Decimal(str(round(delta.total_seconds() / 3600, 1)))

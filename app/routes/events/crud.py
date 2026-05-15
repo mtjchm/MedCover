@@ -14,13 +14,12 @@ from app.models.equipment import EquipmentCategory, EquipmentItem, EquipmentItem
 from app.models.qualification import Qualification
 from app.models.assignment import Assignment
 from app.constants import RECORD_MODIFIED_MSG
-from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_or_404, require_permission
+from app.utils import CS_COLLATION, audit, check_version_conflict, diff_changes, get_app_tz, get_or_404, require_permission
 from app.queries import active_master_events_list, active_users_list, assignable_equipment_items, rp_eligible_users_list, user_fillable_qual_ids
 import app.mail as mailer
 
 from . import events_bp
 from ._helpers import (
-    PRAGUE_TZ,
     PER_PAGE,
     STATUS_COLORS,
     can_view,
@@ -270,8 +269,8 @@ def feed() -> Response:
                 "filled": e.mandatory_filled_spots,
                 "total": e.mandatory_total_spots,
                 "rp": e.responsible_person.name if e.responsible_person else None,
-                "start_local": e.start_datetime.astimezone(PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
-                "end_local": e.end_datetime.astimezone(PRAGUE_TZ).strftime("%d.%m.%Y %H:%M"),
+                "start_local": e.start_datetime.astimezone(get_app_tz()).strftime("%d.%m.%Y %H:%M"),
+                "end_local": e.end_datetime.astimezone(get_app_tz()).strftime("%d.%m.%Y %H:%M"),
                 "me_name": None if e.master_event.is_general else e.master_event.name,
                 "eligible": eligible,
             },

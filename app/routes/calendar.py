@@ -18,7 +18,7 @@ from app.extensions import db
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.user import UserAccount
-from app.utils import audit, external_url_for, require_permission
+from app.utils import audit, external_url_for, get_app_tz, require_permission
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def feed(token: str) -> Response:
     cal.add("version", "2.0")
     cal.add("x-wr-calname", f"MedCover – {user.name}")
     cal.add("x-wr-caldesc", "Vaše akce v systému MedCover")
-    cal.add("x-wr-timezone", "Europe/Prague")
+    cal.add("x-wr-timezone", str(get_app_tz()))
     cal.add("calscale", "GREGORIAN")
     cal.add("method", "PUBLISH")
     cal.add("refresh-interval;value=duration", "PT4H")

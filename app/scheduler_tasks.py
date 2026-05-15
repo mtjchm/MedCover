@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -118,7 +117,6 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
     Returns True if the digest was enqueued, False if skipped.
     """
     from app.models.digest import get_digest_schedule
-    from app.models.settings import get_settings
     from app.digest.renderer import render_digest
     from app.mail import send_admin_digest
     from app.models.user import UserAccount
@@ -128,7 +126,8 @@ def run_admin_digest(db_session: Any, now: datetime | None = None) -> bool:
         now = datetime.now(timezone.utc)
 
     schedule = get_digest_schedule()
-    local_tz = ZoneInfo(get_settings().timezone)
+    from app.utils import get_app_tz  # noqa: PLC0415
+    local_tz = get_app_tz()
 
     if not schedule.enabled:
         log.info("Admin digest: skipped — digest disabled.")
@@ -213,7 +212,8 @@ def run_scheduled_backup(db_session: Any, now: datetime | None = None) -> bool:
         log.debug("Scheduled backup: skipped — backup schedule disabled.")
         return False
 
-    local_tz = ZoneInfo(settings.timezone)
+    from app.utils import get_app_tz  # noqa: PLC0415
+    local_tz = get_app_tz()
     local_hour = now.astimezone(local_tz).hour
     if local_hour != settings.backup_schedule_hour:
         log.debug(
