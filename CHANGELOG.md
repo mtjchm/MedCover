@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split 180-line `generate_work_report()` in `work_report_generator.py` into 5 focused helpers; main function is now a 28-line orchestrator (closes #199)
 - Deduplicated `_make_user()` / `_login()` test helpers from 5 test files into `conftest.py`; −72 lines of copy-paste code (closes #200)
 - Replaced 34 inline `style=` attributes in `table_manager.html` and `notifications.html` with semantic CSS classes; added mobile-responsive overrides (closes #204)
+- Consolidated duplicated `.paid-toggle` / `.dark-toggle` CSS from 4 templates into `main.css` with CSS custom properties (closes #202)
+- Added live on-blur field validation to all forms — mandatory fields show errors immediately when tabbing away, and errors clear as you type
 
 ### Fixed
 - Reports CSV exports now convert UTC datetimes to the configured app timezone before formatting

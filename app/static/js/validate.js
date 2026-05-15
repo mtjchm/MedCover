@@ -178,6 +178,29 @@
     return ok;
   }
 
+  // ── Validate a single field (for live feedback) ───────────────────────────
+
+  function validateField(el) {
+    clearValidity(el);
+    if (!hasValidationRules(el)) return true;
+
+    var ok = true;
+    ok = validateRequired(el) && ok;
+    ok = validateMinLength(el) && ok;
+    ok = validateMaxLength(el) && ok;
+    ok = validateNumericRange(el) && ok;
+    if (ok && el.value.trim() && !el.checkValidity()) {
+      setInvalid(el, el.validationMessage || "Neplatná hodnota.");
+      ok = false;
+    }
+    // Only mark valid (green) if the field actually has content and passed.
+    // Empty optional fields stay neutral.
+    if (ok && el.value.trim()) {
+      setValid(el);
+    }
+    return ok;
+  }
+
   // ── Wire up all forms ─────────────────────────────────────────────────────
 
   document.addEventListener("DOMContentLoaded", function () {
@@ -192,6 +215,64 @@
         // turns ALL fields with any value green unconditionally via the native
         // :valid pseudo-class, regardless of our custom validation outcome.
       });
+
+      // Live validation: validate on blur, and re-validate on input if
+      // the field is already marked invalid (so errors clear as you type).
+      form.querySelectorAll("input, textarea, select").forEach(function (el) {
+        if (el.disabled || el.type === "hidden") return;
+        if (!hasValidationRules(el)) return;
+
+        el.addEventListener("blur", function () {
+          validateField(el);
+        });
+
+        el.addEventListener("input", function () {
+          if (el.classList.contains("is-invalid")) {
+            validateField(el);
+          }
+        });
+
+        // For <select> elements, validate on change (input doesn't fire reliably)
+        if (el.tagName === "SELECT") {
+          el.addEventListener("change", function () {
+            validateField(el);
+          });
+        }
+      });
+
+      // Live cross-field: date range (start/end datetime)
+      var startEl = form.querySelector("[name='start_datetime']");
+      var endEl   = form.querySelector("[name='end_datetime']");
+      if (startEl && endEl) {
+        function checkDateRange() {
+          // Only validate cross-field if both have values
+          if (startEl.value && endEl.value) {
+            clearValidity(endEl);
+            if (!validateDateRange(form) ) return;
+            // If range OK and field itself is valid, mark green
+            validateField(endEl);
+          }
+        }
+        startEl.addEventListener("change", checkDateRange);
+        endEl.addEventListener("change", checkDateRange);
+      }
+
+      // Live cross-field: password confirmation
+      var confEl = form.querySelector("[name='confirm_password']");
+      if (confEl) {
+        confEl.addEventListener("blur", function () {
+          clearValidity(confEl);
+          if (!validatePasswordConfirm(form)) return;
+          validateField(confEl);
+        });
+        confEl.addEventListener("input", function () {
+          if (confEl.classList.contains("is-invalid")) {
+            clearValidity(confEl);
+            if (!validatePasswordConfirm(form)) return;
+            validateField(confEl);
+          }
+        });
+      }
     });
   });
 })();

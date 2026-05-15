@@ -2,14 +2,6 @@
 {% from 'macros/help.html' import help_icon %}
 {% block title %}Upravit: {{ event.name }} — MedCover{% endblock %}
 
-{% block extra_head %}
-<style>
-  .paid-toggle { width: 3em; height: 1.5em; cursor: pointer; }
-  .paid-toggle:checked { background-color: #198754; border-color: #198754; }
-  .paid-label.is-paid { color: #198754; }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8">
