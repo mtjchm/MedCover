@@ -242,9 +242,15 @@ make e2e-down
 included in the regular `pytest` or CI runs.
 
 **HTML report:** After each run an HTML report with screenshots is saved to
-`e2e-report/report.html`. Open it in a browser to see pass/fail status,
-timing, and screenshots for every test (including failures). The `e2e-report/`
-directory is gitignored.
+`e2e-report/report.html`. To view it, run:
+
+```bash
+make e2e-report
+# Opens http://localhost:9323/report.html (Ctrl+C to stop)
+```
+
+> **Note:** Opening `report.html` directly as a `file://` URL will fail due to
+> browser security restrictions. Always use `make e2e-report` to serve it via HTTP.
 
 **First run** pulls the Playwright Docker image (~1.5 GB) and builds the app
 image. Subsequent runs are faster thanks to Docker layer caching.
