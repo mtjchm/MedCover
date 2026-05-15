@@ -249,30 +249,10 @@ def _fetch_events_for_month(
 
 # ── Core generator ────────────────────────────────────────────────────────────
 
-def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
-    """
-    Build the výkaz práce xlsx for *user* for the given *year*/*month*.
-
-    The file is written to  instance/work_report/<user_id>/<year>-<MM>.xlsx
-    and is overwritten if it already exists.  Returns the absolute Path.
-    """
-
-    month_name = CZ_MONTH_NAMES[month]
-    days_in_month = calendar.monthrange(year, month)[1]
-    cz_holidays: set[date] = set(holidays.CZ(years=year).keys())
-
-    events_by_day = _fetch_events_for_month(str(user.id), year, month)
-
-    # ── Create workbook ───────────────────────────────────────────────────────
-    wb = Workbook()
-    ws = wb.active
-    ws.title = month_name
-
-    # Column widths
+def _setup_worksheet(ws: Worksheet, month_name: str) -> None:
+    """Set column widths, page orientation, margins."""
     for col_letter, width in _COL_WIDTHS.items():
         ws.column_dimensions[col_letter].width = width
-
-    # Page setup: landscape, A4, fit to 1 page
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = 9  # A4
     ws.page_setup.fitToPage = True
@@ -285,11 +265,14 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     ws.page_margins.header = 0.0
     ws.page_margins.footer = 0.0
 
-    # ── Header block (rows 1-8) ───────────────────────────────────────────────
+
+def _build_header_block(
+    ws: Worksheet, user: UserAccount, month_name: str, year: int,
+) -> None:
+    """Write rows 1–8: title, worker info, month/year labels."""
     for r in range(1, 9):
         _apply_row_height(ws, r)
 
-    # Row 3: title (merged A3:E3) — medium border all round, cyan fill
     ws.merge_cells("A3:E3")
     _write_cell(ws, 3, 1, "Výkaz práce / odpracovaných hodin",
                 font=_BOLD_FONT, fill=_CYAN_FILL,
@@ -299,7 +282,6 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
         _write_cell(ws, 3, col, None, border=_INFO_TITLE_MID)
     _write_cell(ws, 3, 5, None, border=_INFO_TITLE_E)
 
-    # Rows 4-6: label (A, cyan) | B | C | value (D:E)
     for row_num, label, value in (
         (4, "Jméno pracovníka:", user.name),
         (5, "Pracovní úvazek:", "DPP"),
@@ -314,7 +296,6 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
         _write_cell(ws, row_num, 4, value, font=_STD_FONT, border=_INFO_VALUE_D)
         _write_cell(ws, row_num, 5, None, border=_INFO_VALUE_E)
 
-    # Row 7: empty spacer — D7:E7 merged so no interior line appears between them
     _write_cell(ws, 7, 1, None, border=_INFO_SPACER_A)
     _write_cell(ws, 7, 2, None, border=_INFO_SPACER_B)
     _write_cell(ws, 7, 3, None, border=_INFO_SPACER_C)
@@ -322,7 +303,6 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     _write_cell(ws, 7, 4, None, border=_INFO_SPACER_D)
     _write_cell(ws, 7, 5, None, border=_INFO_SPACER_E)
 
-    # Row 8: month + year — bottom=medium separator before column headers
     _write_cell(ws, 8, 1, "Měsíc:", font=_STD_FONT,
                 fill=_CYAN_FILL, border=_INFO_MONTH_A)
     _write_cell(ws, 8, 2, None, fill=_CYAN_FILL, border=_INFO_MONTH_B)
@@ -333,7 +313,9 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
     _write_cell(ws, 8, 5, year, font=_STD_FONT,
                 alignment=Alignment(horizontal="left"), border=_INFO_MONTH_E)
 
-    # ── Column headers (row 9) ────────────────────────────────────────────────
+
+def _build_column_headers(ws: Worksheet) -> None:
+    """Write the column-header row (row 9)."""
     _apply_row_height(ws, _HEADER_ROW)
     ws.merge_cells("D9:E9")
     _write_cell(ws, 9, 1, "Datum",
@@ -352,17 +334,25 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
                 font=_BOLD_FONT, fill=_BLUE_FILL,
                 alignment=Alignment(horizontal="center"),
                 border=_HDR_BORDER_D)
-    # Right edge of merged D9:E9
     _write_cell(ws, 9, 5, None, border=_HDR_BORDER_E)
 
-    # ── Day rows ──────────────────────────────────────────────────────────────
+
+def _build_day_rows(
+    ws: Worksheet,
+    year: int,
+    month: int,
+    days_in_month: int,
+    cz_holidays: set[date],
+    events_by_day: dict[int, tuple[Decimal, list[str]]],
+) -> None:
+    """Write one row per calendar day (rows 10 … 10+days_in_month-1)."""
     for day in range(1, days_in_month + 1):
         row = _FIRST_DATA_ROW + day - 1
         _apply_row_height(ws, row)
 
         d = date(year, month, day)
-        weekday = d.weekday()  # 0=Mon … 6=Sun
-        is_weekend = weekday >= 5  # Sat or Sun
+        weekday = d.weekday()
+        is_weekend = weekday >= 5
         is_holiday = d in cz_holidays
 
         fill = _YELLOW_FILL if is_holiday else _WHITE_FILL
@@ -373,27 +363,29 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
         description = ", ".join(names) if names else None
 
         ws.merge_cells(f"D{row}:E{row}")
-
-        _write_cell(ws, row, 1, day,
-                    font=_STD_FONT, fill=fill,
+        _write_cell(ws, row, 1, day, font=_STD_FONT, fill=fill,
                     alignment=Alignment(horizontal="center"),
                     border=_DAY_BORDER_A)
-        _write_cell(ws, row, 2, CZ_WEEKDAY_ABBR[weekday],
-                    font=day_font,
+        _write_cell(ws, row, 2, CZ_WEEKDAY_ABBR[weekday], font=day_font,
                     alignment=Alignment(horizontal="center"),
                     border=_DAY_BORDER_B)
-        _write_cell(ws, row, 3, hours_display,
-                    font=_STD_FONT,
+        _write_cell(ws, row, 3, hours_display, font=_STD_FONT,
                     alignment=Alignment(horizontal="center"),
                     border=_DAY_BORDER_C)
-        _write_cell(ws, row, 4, description,
-                    font=_STD_FONT,
+        _write_cell(ws, row, 4, description, font=_STD_FONT,
                     alignment=Alignment(horizontal="left"),
                     border=_DAY_BORDER_D)
-        # Right edge of merged D:E
         _write_cell(ws, row, 5, None, border=_DAY_BORDER_E)
 
-    # ── Totals row ────────────────────────────────────────────────────────────
+
+def _build_totals_and_signatures(
+    ws: Worksheet,
+    year: int,
+    month: int,
+    days_in_month: int,
+    events_by_day: dict[int, tuple[Decimal, list[str]]],
+) -> None:
+    """Write the totals row and signature rows below the day grid."""
     total_row = _FIRST_DATA_ROW + days_in_month
     _apply_row_height(ws, total_row)
     total_hours = float(sum(h for h, _ in events_by_day.values())) if events_by_day else 0.0
@@ -402,15 +394,12 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
                 font=_BOLD_FONT, border=_TOTAL_BORDER_A)
     _write_cell(ws, total_row, 2, None, font=_BOLD_FONT,
                 border=_TOTAL_BORDER_B)
-    _write_cell(ws, total_row, 3, total_hours,
-                font=_BOLD_FONT,
+    _write_cell(ws, total_row, 3, total_hours, font=_BOLD_FONT,
                 alignment=Alignment(horizontal="center"),
                 border=_TOTAL_BORDER_C)
     _write_cell(ws, total_row, 4, None, border=_TOTAL_BORDER_D)
-    # Right edge of merged D:E
     _write_cell(ws, total_row, 5, None, border=_TOTAL_BORDER_E)
 
-    # ── Signature rows ────────────────────────────────────────────────────────
     sig_worker = total_row + 4
     sig_boss = total_row + 7
     for r in (sig_worker, sig_boss):
@@ -423,11 +412,34 @@ def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
                 number_format="DD.MM.YYYY")
     _write_cell(ws, sig_boss, 1, "Datum a podpis nadřízeného pracovníka:", font=_BOLD_FONT)
 
-    # ── Save ──────────────────────────────────────────────────────────────────
+
+# ── Core generator ────────────────────────────────────────────────────────────
+
+def generate_work_report(user: UserAccount, year: int, month: int) -> Path:
+    """
+    Build the výkaz práce xlsx for *user* for the given *year*/*month*.
+
+    The file is written to  instance/work_report/<user_id>/<year>-<MM>.xlsx
+    and is overwritten if it already exists.  Returns the absolute Path.
+    """
+    month_name = CZ_MONTH_NAMES[month]
+    days_in_month = calendar.monthrange(year, month)[1]
+    cz_holidays: set[date] = set(holidays.CZ(years=year).keys())
+    events_by_day = _fetch_events_for_month(str(user.id), year, month)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = month_name
+
+    _setup_worksheet(ws, month_name)
+    _build_header_block(ws, user, month_name, year)
+    _build_column_headers(ws)
+    _build_day_rows(ws, year, month, days_in_month, cz_holidays, events_by_day)
+    _build_totals_and_signatures(ws, year, month, days_in_month, events_by_day)
+
     instance_path = Path(current_app.instance_path)
     out_dir = instance_path / "work_report" / str(user.id)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{year}-{month:02d}.xlsx"
-
     wb.save(str(out_path))
     return out_path
