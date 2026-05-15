@@ -46,9 +46,10 @@ services:
     volumes:
       - ./e2e_tests:/e2e
       - ./requirements-e2e.txt:/requirements-e2e.txt:ro
+      - ./e2e-report:/e2e-report
     environment:
       BASE_URL: http://web-e2e:5000
-    entrypoint: ["sh", "-c", "pip install --quiet -r /requirements-e2e.txt && pytest /e2e --browser chromium --browser firefox --browser webkit -v"]
+    entrypoint: ["sh", "-c", "pip install --quiet -r /requirements-e2e.txt && pytest /e2e --browser chromium --browser firefox --browser webkit -v --screenshot on --output /e2e-report/traces --html=/e2e-report/report.html --self-contained-html"]
     depends_on:
       web-e2e:
         condition: service_healthy

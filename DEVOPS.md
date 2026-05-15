@@ -241,6 +241,11 @@ make e2e-down
 **Test files** live in `e2e_tests/` (separate from `tests/`) and are never
 included in the regular `pytest` or CI runs.
 
+**HTML report:** After each run an HTML report with screenshots is saved to
+`e2e-report/report.html`. Open it in a browser to see pass/fail status,
+timing, and screenshots for every test (including failures). The `e2e-report/`
+directory is gitignored.
+
 **First run** pulls the Playwright Docker image (~1.5 GB) and builds the app
 image. Subsequent runs are faster thanks to Docker layer caching.
 
