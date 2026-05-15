@@ -378,10 +378,10 @@ def _format_event_change_value(field: str, raw: object) -> str:
     # Format ISO datetime strings to Czech local time.
     if "datetime" in field:
         try:
-            import zoneinfo
+            from app.utils import get_app_tz  # noqa: PLC0415
             from datetime import datetime as _dt
             parsed = _dt.fromisoformat(val)
-            local = parsed.astimezone(zoneinfo.ZoneInfo("Europe/Prague"))
+            local = parsed.astimezone(get_app_tz())
             return local.strftime("%d.%m.%Y %H:%M")
         except Exception:
             return val

@@ -20,7 +20,7 @@ from flask_login import current_user, login_required
 
 from app.extensions import db
 from sqlalchemy import collate
-from app.utils import CS_COLLATION, audit, require_permission
+from app.utils import CS_COLLATION, audit, get_app_tz, require_permission
 from app.models.assignment import Assignment, DebriefingRecord
 from app.models.event import Event, EventSpot, EventStatus, EventType
 from app.models.master_event import MasterEvent
@@ -29,8 +29,6 @@ from app.models.role import Role
 from app.models.user import UserAccount
 
 import_bp = Blueprint("import_events", __name__, url_prefix="/import")
-
-_PRAGUE_TZ = ZoneInfo("Europe/Prague")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -629,9 +627,9 @@ def events_confirm() -> Response:
             else:
                 responsible_person_id = rp_id_str or None
 
-            start_dt = _parse_datetime(date_str, start_time_str, _PRAGUE_TZ)
+            start_dt = _parse_datetime(date_str, start_time_str, get_app_tz())
             if end_time_str:
-                end_dt = _parse_datetime(date_str, end_time_str, _PRAGUE_TZ)
+                end_dt = _parse_datetime(date_str, end_time_str, get_app_tz())
                 if end_dt <= start_dt:
                     end_dt += timedelta(days=1)
             else:

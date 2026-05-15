@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from flask import url_for
 from flask_login import current_user
@@ -18,8 +17,7 @@ from app.models.equipment import (
 from app.models.qualification import Qualification
 from app.models.role import Role
 from app.models.user import UserAccount
-
-PRAGUE_TZ = ZoneInfo("Europe/Prague")
+from app.utils import get_app_tz
 
 # Valid manual lifecycle transitions: (from_status, to_status, required_permission)
 TRANSITIONS: list[tuple[EventStatus, EventStatus, str]] = [
@@ -91,10 +89,8 @@ def _validate_event_fields(fields: dict) -> tuple[str | None, EventType, int | N
 
     On error, only the first element is non-None.
     """
-    _PRAGUE = ZoneInfo("Europe/Prague")
-
     def _local_to_utc(s: str) -> datetime:
-        return datetime.fromisoformat(s).replace(tzinfo=_PRAGUE).astimezone(timezone.utc)
+        return datetime.fromisoformat(s).replace(tzinfo=get_app_tz()).astimezone(timezone.utc)
 
     event_type_str = fields["event_type_str"]
     event_type = EventType[event_type_str] if event_type_str in EventType.__members__ else EventType.MEDICAL_COVER
@@ -148,8 +144,8 @@ def _validate_event_fields(fields: dict) -> tuple[str | None, EventType, int | N
 def parse_event_form(form: dict, existing: Event | None = None) -> tuple[Event | None, str | None]:
     """Parse the event form and return (event, error_message).
 
-    All datetime inputs are interpreted as Europe/Prague local time and stored
-    as UTC in the database.
+    All datetime inputs are interpreted as the app-configured local time
+    (AppSettings.timezone) and stored as UTC in the database.
     """
     fields = _parse_form_fields(form)
     error, event_type, planned_participants_count, start_dt, end_dt, assignments_open_dt = _validate_event_fields(fields)

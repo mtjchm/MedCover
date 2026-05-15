@@ -25,7 +25,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.event import Event, EventStatus, EventType
 from app.models.assignment import Assignment, DebriefingRecord
-from app.utils import audit, diff_changes, get_or_404, require_permission
+from app.utils import audit, diff_changes, get_app_tz, get_or_404, require_permission
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 
@@ -54,12 +54,7 @@ def _parse_rp_actuals(
 
     Returns (actual_start_utc, actual_end_utc, post_event_count, errors).
     """
-    from zoneinfo import ZoneInfo
-    from app.models.settings import get_settings
-
-    settings = get_settings()
-    tz_name = settings.timezone if settings else "Europe/Prague"
-    tz = ZoneInfo(tz_name)
+    tz = get_app_tz()
 
     errors: list[str] = []
     actual_start: datetime | None = None

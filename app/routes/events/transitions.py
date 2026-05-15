@@ -152,9 +152,8 @@ def split_event(event_id: int) -> Response:
         return redirect(url_for("events.detail", event_id=event_id))
 
     try:
-        from app.models.settings import get_settings
-        from zoneinfo import ZoneInfo as _ZI
-        tz = _ZI(get_settings().timezone)
+        from app.utils import get_app_tz  # noqa: PLC0415
+        tz = get_app_tz()
         split_dt = datetime.fromisoformat(f"{raw_date}T{raw_time}").replace(tzinfo=tz)
     except ValueError:
         flash("Neplatný formát data nebo času rozdělení.", "danger")

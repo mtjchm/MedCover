@@ -29,7 +29,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.utils import czech_sort_key, require_permission
+from app.utils import czech_sort_key, get_app_tz, require_permission
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
@@ -226,8 +226,8 @@ def _user_stat_csv_rows(user_stat_rows: list[tuple[UserAccount, UserStats]]) -> 
             f"{s.hours_planned:.1f}",
             f"{s.hours_total:.1f}",
             f"{s.hours_free:.1f}",
-            s.last_shift.strftime("%Y-%m-%d") if s.last_shift else "",
-            s.next_shift.strftime("%Y-%m-%d") if s.next_shift else "",
+            s.last_shift.astimezone(get_app_tz()).strftime("%Y-%m-%d") if s.last_shift else "",
+            s.next_shift.astimezone(get_app_tz()).strftime("%Y-%m-%d") if s.next_shift else "",
         ])
     return rows
 
@@ -297,8 +297,8 @@ def user_report(user_id: uuid.UUID) -> str | Response:
             ["Hodiny plánované", f"{stats.hours_planned:.1f}"],
             ["Hodiny celkem", f"{stats.hours_total:.1f}"],
             ["Hodiny celkem zdarma", f"{stats.hours_free:.1f}"],
-            ["Poslední směna", stats.last_shift.strftime("%Y-%m-%d") if stats.last_shift else ""],
-            ["Příští směna", stats.next_shift.strftime("%Y-%m-%d") if stats.next_shift else ""],
+            ["Poslední směna", stats.last_shift.astimezone(get_app_tz()).strftime("%Y-%m-%d") if stats.last_shift else ""],
+            ["Příští směna", stats.next_shift.astimezone(get_app_tz()).strftime("%Y-%m-%d") if stats.next_shift else ""],
             [],
             ["Akce", "Začátek", "Konec", "Stav", "Plán (h)", "Skutečnost (h)"],
         ]
@@ -306,8 +306,8 @@ def user_report(user_id: uuid.UUID) -> str | Response:
             ev = r["event"]
             csv_rows.append([
                 ev.name,
-                ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
-                ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+                ev.start_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
+                ev.end_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
                 ev.status.value,
                 f"{r['planned_hours']:.1f}",
                 f"{r['actual_hours']:.1f}" if r["actual_hours"] is not None else "",
@@ -360,8 +360,8 @@ def me_report(me_id: int) -> str | Response:
             csv_ev = cast(Event, r["event"])
             csv_rows.append([
                 csv_ev.name,
-                csv_ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
-                csv_ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+                csv_ev.start_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
+                csv_ev.end_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
                 csv_ev.status.value,
                 str(r["total_spots"]),
                 str(r["filled_spots"]),
@@ -447,8 +447,8 @@ def _date_range_csv(
         t_s, f_s = spot_map.get(ev.id, (0, 0))
         rows.append([
             me_name, ev.name,
-            ev.start_datetime.strftime("%Y-%m-%d %H:%M"),
-            ev.end_datetime.strftime("%Y-%m-%d %H:%M"),
+            ev.start_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
+            ev.end_datetime.astimezone(get_app_tz()).strftime("%Y-%m-%d %H:%M"),
             ev.status.value, str(t_s), str(f_s),
             f"{ev.actual_hours or Decimal('0'):.1f}",
             str(ev.post_event_count or 0),
