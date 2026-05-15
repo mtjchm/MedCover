@@ -42,9 +42,9 @@
   <table class="table table-sm table-bordered align-middle tm-table" id="tm-table">
     <thead class="table-dark">
       <tr>
-        <th class="border-0" style="width:1px"></th>
+        <th class="border-0 tm-action-col"></th>
         <th class="text-nowrap">Datum</th>
-        <th style="min-width:300px">Akce</th>
+        <th class="tm-event-col">Akce</th>
         <th class="text-nowrap">Kvalifikace</th>
         <th>Popis</th>
         <th class="text-nowrap">Od</th>
@@ -73,28 +73,28 @@
       {% set ns.prev_date = row_date %}
       <tr data-event-id="{{ event.id }}" class="{{ row_class }}">
         {% if loop.first or rows[loop.index0 - 1].event.id != event.id %}
-        <td class="border-0 align-middle text-center" rowspan="{{ event_row_spans[event.id] }}" style="white-space:nowrap; padding: 2px 4px;">
+        <td class="border-0 align-middle text-center tm-action-cell" rowspan="{{ event_row_spans[event.id] }}">
           {% if can_create_event %}
           <button class="btn btn-link btn-sm p-0 tm-clone-btn text-secondary"
                   data-event-id="{{ event.id }}"
-                  title="Klonovat akci" style="font-size:1rem; line-height:1;">👥</button>
+                  title="Klonovat akci" class="tm-icon-btn">👥</button>
           {% endif %}
           {% if can_delete_draft and event.status.name == 'DRAFT' %}
           <button class="btn btn-link btn-sm p-0 ms-1 tm-delete-btn text-danger"
                   data-event-id="{{ event.id }}"
                   data-event-name="{{ event.name | e }}"
-                  title="Smazat akci" style="font-size:1rem; line-height:1;">🗑</button>
+                  title="Smazat akci" class="tm-icon-btn">🗑</button>
           {% endif %}
           <button class="btn btn-link btn-sm p-0 ms-1 tm-color-btn"
                   data-event-id="{{ event.id }}"
-                  title="Barva akce" style="font-size:1rem; line-height:1;">🌈</button>
+                  title="Barva akce" class="tm-icon-btn">🌈</button>
           <span class="ms-1">{{ badge_status(event.status.value, status_colors) }}</span>
           {% if (event.status.name == 'DRAFT' and can_publish) or (event.status.name == 'PUBLISHED' and can_open_assignments) %}
           <button class="btn btn-link btn-sm p-0 ms-1 tm-advance-btn text-success"
                   data-event-id="{{ event.id }}"
                   data-event-name="{{ event.name | e }}"
                   data-next-status="{% if event.status.name == 'DRAFT' %}Zveřejněná{% else %}Přihlášky otevřeny{% endif %}"
-                  title="Posunout do dalšího stavu" style="font-size:1rem; line-height:1;">⏩</button>
+                  title="Posunout do dalšího stavu" class="tm-icon-btn">⏩</button>
           {% endif %}
         </td>
         {% endif %}
@@ -106,9 +106,9 @@
             {% if ec %}style="background-color:{{ ec }}"{% endif %}>
           {% if can_edit_event %}
           <div class="d-flex align-items-center justify-content-center gap-1">
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den" style="font-size:.75rem">−</button>
-            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den" style="font-size:.75rem">+</button>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn tm-sm-btn" data-event-id="{{ event.id }}" data-delta="-1" title="−1 den">−</button>
+            <span class="tm-time-display tm-clickable" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-day-shift-btn tm-sm-btn" data-event-id="{{ event.id }}" data-delta="1" title="+1 den">+</button>
           </div>
           {% else %}
           {{ event.start_datetime | localdt('%d.%m.') }} {{ event.start_datetime | czechday }}
@@ -122,7 +122,7 @@
           <button class="btn btn-link btn-sm p-0 ms-1 text-muted tm-name-edit-btn"
                   data-event-id="{{ event.id }}"
                   data-value="{{ event.name }}"
-                  title="Upravit název" style="font-size:.8rem; vertical-align:baseline;">✎</button>
+                  title="Upravit název" class="tm-edit-name">✎</button>
           {% endif %}
         </td>
         <td class="text-nowrap small tm-row-cell"{% if ec %} style="background-color:{{ ec }}"{% endif %}>
@@ -138,9 +138,9 @@
             {% if ec %}style="background-color:{{ ec }}" {% endif %}>
           {% if can_edit_event %}
           <div class="d-flex align-items-center justify-content-center gap-1">
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="-1" title="−1 hod" style="font-size:.75rem">−</button>
-            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%H:%M') }}</span>
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="1" title="+1 hod" style="font-size:.75rem">+</button>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="-1" title="−1 hod" class="tm-sm-btn">−</button>
+            <span class="tm-time-display tm-clickable" title="Kliknutím upravit datum a čas">{{ event.start_datetime | localdt('%H:%M') }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="start" data-delta="1" title="+1 hod" class="tm-sm-btn">+</button>
           </div>
           {% else %}
           <span class="tm-time-display">{{ event.start_datetime | localdt('%H:%M') }}</span>
@@ -155,9 +155,9 @@
             {% if ec %}style="background-color:{{ ec }}" {% endif %}>
           {% if can_edit_event %}
           <div class="d-flex align-items-center justify-content-center gap-1">
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="-1" title="−1 hod" style="font-size:.75rem">−</button>
-            <span class="tm-time-display" style="cursor:pointer" title="Kliknutím upravit datum a čas">{{ event.end_datetime | localdt('%H:%M') }}</span>
-            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="1" title="+1 hod" style="font-size:.75rem">+</button>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="-1" title="−1 hod" class="tm-sm-btn">−</button>
+            <span class="tm-time-display tm-clickable" title="Kliknutím upravit datum a čas">{{ event.end_datetime | localdt('%H:%M') }}</span>
+            <button class="btn btn-outline-secondary btn-sm py-1 px-1 lh-1 tm-hour-shift-btn" data-event-id="{{ event.id }}" data-which="end" data-delta="1" title="+1 hod" class="tm-sm-btn">+</button>
           </div>
           {% else %}
           <span class="tm-time-display">{{ event.end_datetime | localdt('%H:%M') }}</span>
@@ -181,13 +181,13 @@
                     data-event-id="{{ event.id }}"
                     data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
                     data-count="{{ row.spots | length }}"
-                    style="font-size:.75rem">−</button>
+                    class="tm-sm-btn">−</button>
             <span class="tm-spots-display">{{ row.spots | length }}</span>
             <button class="btn btn-outline-secondary btn-sm tm-spots-plus py-1 px-1 lh-1"
                     data-event-id="{{ event.id }}"
                     data-qual-ids-json="{{ row.qual_ids | list | tojson }}"
                     data-count="{{ row.spots | length }}"
-                    style="font-size:.75rem">+</button>
+                    class="tm-sm-btn">+</button>
           </div>
           {% else %}
           {{ row.spots | length }}
@@ -196,7 +196,7 @@
 
         {# ── Spot cells ── #}
         {% for spot in row.spots %}
-        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="min-width: 140px; background-color: {{ row.color }}">
+        <td class="tm-spot-cell text-nowrap small" data-spot-id="{{ spot.id }}" style="background-color: {{ row.color }}">
           {% if spot.assignment %}
             <span class="tm-assigned-name">{{ spot.assignment.user.name }}</span>
             {% if can_assign %}
@@ -208,7 +208,7 @@
           {% elif can_assign %}
             <select class="form-select form-select-sm tm-assign-select"
                     data-spot-id="{{ spot.id }}"
-                    style="min-width: 130px; font-size: 0.75rem;">
+                    id="assign_spot_{{ spot.id }}">
               <option value="">— přiřadit —</option>
               {% for user in row.eligible_users %}
               <option value="{{ user.id }}">{{ user.name }}</option>
@@ -229,32 +229,32 @@
 </div>
 
 {# ── Inline time-edit popover (shared, moved into DOM as needed) ── #}
-<div id="tm-time-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:280px;">
+<div id="tm-time-edit-popup" class="card shadow-sm p-2 tm-popup tm-popup-time" style="display:none">
   <div class="d-flex align-items-center gap-2 flex-wrap">
-    <input type="date" id="tm-time-date-input" class="form-control form-control-sm" style="width:130px;">
+    <input type="date" id="tm-time-date-input" class="form-control form-control-sm tm-date-input">
     <input type="text" id="tm-time-time-input" class="form-control form-control-sm font-monospace"
-           placeholder="HH:MM" maxlength="5" pattern="\d{2}:\d{2}" style="width:70px;">
+           placeholder="HH:MM" maxlength="5" pattern="\d{2}:\d{2}" class="tm-time-input">
     <button id="tm-time-save" class="btn btn-success btn-sm">Uložit</button>
     <button id="tm-time-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
-  <div id="tm-time-error" class="text-danger small mt-1" style="display:none;"></div>
+  <div id="tm-time-error" class="text-danger small mt-1 tm-error-msg" style="display:none"></div>
 </div>
 
 {# ── Color picker popover ── #}
-<div id="tm-color-popup" style="display:none; position:absolute; z-index:1060; background:#fff; border:1px solid #dee2e6; border-radius:6px; padding:8px; box-shadow:0 4px 12px rgba(0,0,0,.15);">
-  <div style="display:grid; grid-template-columns:repeat(3,28px); gap:4px;">
+<div id="tm-color-popup" class="tm-popup tm-popup-color" style="display:none">
+  <div class="tm-color-grid">
     {% set _palette = ['#FFCCCC','#FFE0B2','#FFF9C4','#C8F5C8','#B2EBF2','#BBDEFB','#E1BEE7','#F8BBD0','#F5F5F5'] %}
     {% for c in _palette %}
     <div class="tm-color-swatch" data-color="{{ c }}"
-         style="width:28px;height:28px;background:{{ c }};border-radius:4px;cursor:pointer;border:2px solid transparent;"
+         style="background:{{ c }}"
          title="{{ c }}"></div>
     {% endfor %}
   </div>
-  <button id="tm-color-reset" class="btn btn-link btn-sm p-0 mt-2 text-danger d-block w-100 text-center" style="font-size:.75rem;">✕ Reset barvy</button>
+  <button id="tm-color-reset" class="btn btn-link btn-sm p-0 mt-2 text-danger d-block w-100 text-center tm-sm-btn">✕ Reset barvy</button>
 </div>
 
 {# ── Advance-status confirmation popup ── #}
-<div id="tm-advance-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1070; min-width:200px;">
+<div id="tm-advance-popup" class="card shadow-sm p-2 tm-popup tm-popup-advance" style="display:none">
   <div class="small mb-2">Posunout <strong id="tm-advance-event-name"></strong> do stavu <strong id="tm-advance-next-status" class="text-success"></strong>?</div>
   <div class="d-flex gap-2">
     <button id="tm-advance-confirm" class="btn btn-success btn-sm"></button>
@@ -263,17 +263,17 @@
 </div>
 
 {# ── Inline name-edit popover ── #}
-<div id="tm-name-edit-popup" class="card shadow-sm p-2" style="display:none; position:absolute; z-index:1050; min-width:320px;">
+<div id="tm-name-edit-popup" class="card shadow-sm p-2 tm-popup tm-popup-name" style="display:none">
   <div class="d-flex align-items-center gap-2">
-    <input type="text" id="tm-name-input" class="form-control form-control-sm" maxlength="200" style="width:220px;">
+    <input type="text" id="tm-name-input" class="form-control form-control-sm tm-name-input" maxlength="200">
     <button id="tm-name-save" class="btn btn-success btn-sm">Uložit</button>
     <button id="tm-name-cancel" class="btn btn-outline-secondary btn-sm">Zrušit</button>
   </div>
-  <div id="tm-name-error" class="text-danger small mt-1" style="display:none;"></div>
+  <div id="tm-name-error" class="text-danger small mt-1 tm-error-msg" style="display:none"></div>
 </div>
 
 {# ── Inline spots-count error toast ── #}
-<div id="tm-spots-error-toast" class="alert alert-danger alert-dismissible position-fixed bottom-0 end-0 m-3" style="display:none; z-index:1060;">
+<div id="tm-spots-error-toast" class="alert alert-danger alert-dismissible position-fixed bottom-0 end-0 m-3 tm-error-toast" style="display:none">
   <span id="tm-spots-error-msg"></span>
   <button type="button" class="btn-close" onclick="this.closest('.alert').style.display='none'"></button>
 </div>

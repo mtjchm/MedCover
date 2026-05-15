@@ -294,3 +294,48 @@
 [data-bs-theme="dark"] .tm-row-cell[style*="background"] .tm-edit-icon {
   color: #495057 !important;
 }
+
+/* ── Table Manager — layout & sizing ──────────────────────────────────────── */
+.tm-action-col  { width: 1px; }
+.tm-event-col   { min-width: 300px; }
+.tm-action-cell { white-space: nowrap; padding: 2px 4px; }
+.tm-icon-btn    { font-size: 1rem; line-height: 1; }
+.tm-sm-btn      { font-size: 0.75rem; }
+.tm-edit-name   { font-size: 0.8rem; vertical-align: baseline; }
+.tm-clickable   { cursor: pointer; }
+
+.tm-spot-cell   { min-width: 140px; }
+.tm-assign-select { min-width: 130px; font-size: 0.75rem; }
+
+/* Popups (shared base — positioning only; display is toggled by JS inline) */
+.tm-popup       { position: absolute; }
+.tm-popup-time  { z-index: 1050; min-width: 280px; }
+.tm-popup-color { z-index: 1060; background: #fff; border: 1px solid #dee2e6;
+                  border-radius: 6px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.tm-popup-advance { z-index: 1070; min-width: 200px; }
+.tm-popup-name  { z-index: 1050; min-width: 320px; }
+
+.tm-color-grid  { display: grid; grid-template-columns: repeat(3, 28px); gap: 4px; }
+.tm-color-swatch { width: 28px; height: 28px; border-radius: 4px;
+                   cursor: pointer; border: 2px solid transparent; }
+
+.tm-date-input  { width: 130px; }
+.tm-time-input  { width: 70px; }
+.tm-name-input  { width: 220px; }
+.tm-error-toast { z-index: 1060; }
+
+@media (max-width: 767.98px) {
+  .tm-icon-btn  { font-size: 0.8rem; }
+  .tm-sm-btn    { font-size: 0.65rem; }
+}
+
+/* ── Notifications table — column widths ──────────────────────────────────── */
+.notif-col-name     { width: 20%; }
+.notif-col-desc     { width: 28%; }
+.notif-col-trigger  { width: 20%; }
+.notif-col-rcpt     { width: 18%; }
+.notif-col-tpl      { width: 7%; }
+.notif-col-status   { width: 7%; }
+.notif-test-btn     { font-size: 0.7rem; }
+.notif-code         { font-size: 0.75rem; }
+.notif-template     { font-size: 0.72rem; }
