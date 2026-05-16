@@ -11,10 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Playwright E2E browser tests in Docker: 111 tests across Chromium, Firefox and WebKit covering login, navigation, event CRUD, form validation, CSRF, label accessibility, profile, and JS interactions; run via `make e2e`
 - HTML test report with per-test screenshots (`make e2e-report` to view)
 - Table Manager: client-side status and event type filter bars (same look as /events/ page); default hides Completed and Cancelled events
+- Debriefing manage: date-range filter with quick-fill buttons (same as date-range report); record count shown next to buttons
+- Date inputs on debriefing manage and date-range report now use Flatpickr with Czech date format (dd.mm.YYYY)
 
 ### Fixed
 - Table Manager: "Reset barvy" button now correctly removes the colour from the server; previously the empty value was rejected by the generic validation guard before reaching the colour handler
 - Reports: "Příští směna" column now shows the user's true next future assignment globally; previously it was empty when the report date range didn't include future events
+- CSV exports now include UTF-8 BOM so Excel on Windows auto-detects Czech characters correctly
 
 ### Changed
 - Consolidated email template CSS: standardized colour palette across `base.html` and `admin_digest.html` (`#c00` → `#c0392b`, `#222` → `#333333`, consistent grey tones); added canonical palette comment; no layout changes (closes #206)

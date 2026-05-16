@@ -14,12 +14,12 @@
     <form method="GET" action="{{ url_for('reports.date_range_report') }}" class="row g-3 align-items-end">
       <div class="col-md-4">
         <label for="from_date" class="form-label">Od data</label>
-        <input type="date" class="form-control" id="from_date" name="from_date"
+        <input type="text" class="form-control flatpickr-date" id="from_date" name="from_date"
                value="{{ from_date }}">
       </div>
       <div class="col-md-4">
         <label for="to_date" class="form-label">Do data</label>
-        <input type="date" class="form-control" id="to_date" name="to_date"
+        <input type="text" class="form-control flatpickr-date" id="to_date" name="to_date"
                value="{{ to_date }}">
       </div>
       <div class="col-md-4">

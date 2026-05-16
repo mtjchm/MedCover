@@ -207,3 +207,30 @@ def parse_enum(enum_class: type[E], value: object, default: E | None = None) -> 
         return enum_class(value)  # type: ignore[call-arg]
     except (ValueError, KeyError):
         return default
+
+
+# ── Date-range quick-fill buttons ─────────────────────────────────────────────
+
+
+def quick_date_ranges() -> list[tuple[str, str, str]]:
+    """Return (label, from_date_iso, to_date_iso) tuples for quick-fill buttons.
+
+    Used by the date-range report and debriefing manage page.
+    """
+    from calendar import monthrange
+    from datetime import date
+
+    today = date.today()
+    tm_from = today.replace(day=1)
+    tm_to = today.replace(day=monthrange(today.year, today.month)[1])
+    lm_year, lm_month = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
+    lm_from = date(lm_year, lm_month, 1)
+    lm_to = date(lm_year, lm_month, monthrange(lm_year, lm_month)[1])
+    ty_from = date(today.year, 1, 1)
+    ty_to = date(today.year, 12, 31)
+    return [
+        ("Tento měsíc", tm_from.isoformat(), tm_to.isoformat()),
+        ("Minulý měsíc", lm_from.isoformat(), lm_to.isoformat()),
+        ("Od začátku roku", ty_from.isoformat(), today.isoformat()),
+        ("Celý rok", ty_from.isoformat(), ty_to.isoformat()),
+    ]

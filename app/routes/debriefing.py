@@ -25,7 +25,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.event import Event, EventStatus, EventType
 from app.models.assignment import Assignment, DebriefingRecord
-from app.utils import audit, diff_changes, get_app_tz, get_or_404, require_permission
+from app.utils import audit, diff_changes, get_app_tz, get_or_404, quick_date_ranges, require_permission
 
 debriefing_bp = Blueprint("debriefing", __name__, url_prefix="/debriefing")
 
@@ -212,16 +212,38 @@ def submit(assignment_id: int) -> str | Response:
 def manage() -> str:
     require_permission("debriefing.view_all")
 
-    # Load all completed events that have at least one assignment
-    events_with_debriefings = db.session.scalars(
+    from_date_str = request.args.get("from_date", "").strip()
+    to_date_str = request.args.get("to_date", "").strip()
+
+    query = (
         db.select(Event)
         .where(Event.status == EventStatus.COMPLETED)
         .order_by(Event.start_datetime.desc())
-    ).all()
+    )
+
+    if from_date_str:
+        try:
+            from_dt = datetime.strptime(from_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.where(Event.start_datetime >= from_dt)
+        except ValueError:
+            from_date_str = ""
+
+    if to_date_str:
+        try:
+            from datetime import timedelta
+            to_dt = datetime.strptime(to_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            query = query.where(Event.start_datetime < to_dt)
+        except ValueError:
+            to_date_str = ""
+
+    events_with_debriefings = db.session.scalars(query).all()
 
     return render_template(
         "debriefing/manage.html",
         events=events_with_debriefings,
+        from_date=from_date_str,
+        to_date=to_date_str,
+        quick_ranges=quick_date_ranges(),
     )
 
 

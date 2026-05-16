@@ -18,6 +18,14 @@ document.addEventListener("DOMContentLoaded", function () {
     locale: "cs",
     allowInput: true,
   });
+  // Flatpickr date-only inputs
+  flatpickr(".flatpickr-date", {
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d.m.Y",
+    locale: "cs",
+    allowInput: true,
+  });
 
   // data-confirm on forms (submit) and buttons (click)
   document.querySelectorAll("form[data-confirm]").forEach(function (form) {
