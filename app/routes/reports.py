@@ -17,7 +17,6 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -29,7 +28,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.utils import czech_sort_key, get_app_tz, require_permission
+from app.utils import czech_sort_key, get_app_tz, quick_date_ranges, require_permission
 from app.models.assignment import Assignment
 from app.models.event import Event, EventSpot, EventStatus
 from app.models.master_event import MasterEvent
@@ -39,22 +38,8 @@ reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
 
 def _quick_ranges() -> list[tuple[str, str, str]]:
-    """Return (label, from_date_iso, to_date_iso) tuples for the quick-fill buttons."""
-    from datetime import date
-    today = date.today()
-    tm_from = today.replace(day=1)
-    tm_to = today.replace(day=monthrange(today.year, today.month)[1])
-    lm_year, lm_month = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
-    lm_from = date(lm_year, lm_month, 1)
-    lm_to = date(lm_year, lm_month, monthrange(lm_year, lm_month)[1])
-    ty_from = date(today.year, 1, 1)
-    ty_to = date(today.year, 12, 31)
-    return [
-        ("Tento měsíc", tm_from.isoformat(), tm_to.isoformat()),
-        ("Minulý měsíc", lm_from.isoformat(), lm_to.isoformat()),
-        ("Od začátku roku", ty_from.isoformat(), today.isoformat()),
-        ("Celý rok", ty_from.isoformat(), ty_to.isoformat()),
-    ]
+    """Delegate to the shared helper in app.utils."""
+    return quick_date_ranges()
 
 
 # ── Statistics helpers ────────────────────────────────────────────────────────

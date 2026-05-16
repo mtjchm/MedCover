@@ -10,7 +10,40 @@
   </h2>
 </div>
 
-{% if not events %}
+{# Date-range filter #}
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="GET" action="{{ url_for('debriefing.manage') }}" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label for="from_date" class="form-label">Od data</label>
+        <input type="text" class="form-control flatpickr-date" id="from_date" name="from_date"
+               value="{{ from_date }}">
+      </div>
+      <div class="col-md-4">
+        <label for="to_date" class="form-label">Do data</label>
+        <input type="text" class="form-control flatpickr-date" id="to_date" name="to_date"
+               value="{{ to_date }}">
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button type="submit" class="btn btn-danger flex-grow-1">Filtrovat</button>
+        {% if from_date or to_date %}
+        <a href="{{ url_for('debriefing.manage') }}" class="btn btn-outline-secondary">Zrušit</a>
+        {% endif %}
+      </div>
+    </form>
+    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+      {% for label, fd, td in quick_ranges %}
+      <a href="{{ url_for('debriefing.manage', from_date=fd, to_date=td) }}"
+         class="btn btn-outline-secondary btn-sm">{{ label }}</a>
+      {% endfor %}
+      <span class="text-muted small ms-auto">Zobrazeno {{ events | length }} záznamů</span>
+    </div>
+  </div>
+</div>
+
+{% if not events and (from_date or to_date) %}
+<div class="text-muted">Žádné záznamy neodpovídají zvolenému období.</div>
+{% elif not events %}
 <div class="text-muted">Žádné dokončené akce.</div>
 {% else %}
 {% for event in events %}
