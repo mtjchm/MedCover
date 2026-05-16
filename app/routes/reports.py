@@ -165,12 +165,13 @@ def _resolve_next_shifts(
 
 
 def _csv_response(rows: list[list[str]], filename: str) -> Response:
-    """Return rows as a downloadable CSV file."""
+    """Return rows as a downloadable CSV file (UTF-8 with BOM for Excel)."""
     buf = io.StringIO()
+    buf.write("\ufeff")  # UTF-8 BOM so Excel auto-detects encoding
     writer = csv.writer(buf)
     writer.writerows(rows)
     response = make_response(buf.getvalue())
-    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Type"] = "text/csv; charset=utf-8-sig"
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
