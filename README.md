@@ -25,7 +25,7 @@ It manages events, spot assignments, user roles, equipment, and reporting — al
 | Frontend | Jinja2 · Bootstrap 5.3 · FullCalendar |
 | Infrastructure | Docker Compose (web + scheduler + db) |
 | CI | GitHub Actions (lint + test) |
-| Hosting (target) | Render.com |
+| Hosting (target) | TBD — major cloud provider (GCP / Azure / AWS) |
 
 ---
 

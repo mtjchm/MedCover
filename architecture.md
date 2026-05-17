@@ -324,9 +324,9 @@ When in doubt about the correct Czech UI label or English code name for a concep
 ### Security Requirements
 
 **Transport security**
-- All traffic between end users and the application must be encrypted with TLS (HTTPS). Render.com handles TLS termination at the edge; no additional configuration is needed in the app itself.
+- All traffic between end users and the application must be encrypted with TLS (HTTPS). The hosting platform's reverse proxy / load balancer handles TLS termination at the edge; no additional configuration is needed in the app itself.
 - The connection between the application and PostgreSQL must use TLS (`sslmode=require`) in production. This is enforced via the `DATABASE_URL` environment variable in the production config.
-- Container-to-container traffic within the same Render private network is isolated from the public internet (private service network, non-routable externally). We rely on Render's network isolation as the primary protection for intra-service traffic; DB SSL provides defence in depth. This is considered an acceptable risk for a non-critical internal application. If the deployment platform changes, this assumption must be re-evaluated.
+- Container-to-container traffic within the same Docker network is isolated from the public internet. We rely on the hosting platform's network isolation as the primary protection for intra-service traffic; DB SSL provides defence in depth. This is considered an acceptable risk for a non-critical internal application. If the deployment platform changes, this assumption must be re-evaluated.
 - The web ↔ scheduler pair communicates only through the shared database (no HTTP calls between them), so no inter-service TLS is needed.
 - We do **not** plan a multi-server / distributed deployment for MVP. If this changes, intra-cluster mTLS must be re-evaluated.
 
@@ -411,7 +411,7 @@ When in doubt about the correct Czech UI label or English code name for a concep
         - PostgreSQL provides robustness and production-grade reliability without significant operational overhead
         - Jinja2 server-rendered templates eliminate the need for a separate frontend build pipeline or SPA framework
         - Vanilla JS / jQuery is sufficient for the required interactivity (form enhancements, dynamic notifications); calendar views are handled by FullCalendar (see AD08)
-        - This stack is well-supported on all considered hosting platforms (VPS, PythonAnywhere, Render, etc.)
+        - This stack is well-supported on all considered hosting platforms (VPS, PythonAnywhere, cloud container services, etc.)
     - Implications
         - REST API: can be added later using Flask blueprints without major architectural changes (auth mechanism TBD when REST API is scoped)
         - ORM: SQLAlchemy (standard Flask ORM for PostgreSQL)
@@ -476,19 +476,18 @@ When in doubt about the correct Czech UI label or English code name for a concep
     - Options
         - **Platform-specific deployment** (e.g. PythonAnywhere, Heroku buildpacks) — simple setup but tightly coupled to the platform; migration is painful.
         - **Container-first deployment** (Docker) — application packaged as a container image; deployable to any container-capable platform with no code changes.
-    - Decision - **Container-first (Docker) deployment on Render.com for MVP; targeting a hyperscaler with NGO credits long-term**
+    - Decision - **Container-first (Docker) deployment; production platform TBD — targeting a major cloud provider with NGO credits**
     - Justification
-        - A `Dockerfile` decouples the application from the hosting platform — migrating from Render to Azure or Google Cloud requires no application changes.
+        - A `Dockerfile` decouples the application from the hosting platform — migrating between cloud providers requires no application changes.
         - Docker Compose provides a consistent local development environment for all contributors, reducing "works on my machine" issues.
-        - Render.com supports Docker natively (push to GitHub → auto-deploy), has a free tier covering MVP needs, and includes managed PostgreSQL.
+        - Render.com was evaluated but rejected: its free tier does not support background workers (required for the scheduler container — see AD10). A paid Render tier is not justified given the availability of NGO cloud credits.
         - Czech Red Cross qualifies as an NGO for cloud credit programmes (Azure for Nonprofits ~$3,500/year; Google Cloud for Nonprofits ~$10,000/year); applying after MVP launch unlocks production-grade infrastructure at zero cost.
         - Container-first is the industry standard and familiar to most developers, making it easier for future volunteers to contribute.
     - Notes
-        - **MVP target**: Render.com free tier (Flask container + managed PostgreSQL 256 MB). Free tier apps sleep after 15 minutes of inactivity — acceptable given the usage pattern (event-driven, not 24/7).
-        - **Long-term target**: Azure Container Apps or Google Cloud Run using NGO credits; same `Dockerfile` applies.
+        - **Production target**: A major cloud provider (GCP Cloud Run, Azure Container Apps, or AWS ECS) using NGO non-profit credits. Same `Dockerfile` applies to all candidates.
         - **Local development**: Docker Compose with Flask app + PostgreSQL containers; `.env` file for secrets (not committed).
-        - **CI/CD**: GitHub Actions builds and pushes the image; Render or the target platform pulls and deploys automatically.
-        - The Deployment Model section should be updated once the NGO credit application is approved and a hyperscaler is chosen.
+        - **CI/CD**: GitHub Actions runs lint, test, and dependency audit on every PR. A deployment workflow will be added once the production platform is chosen.
+        - The Deployment Model section should be updated once the NGO credit application is approved and a cloud provider is chosen.
 
 - AD10 Background Task / Scheduler Architecture
     - Problem statement - The application requires background processing: scheduled email reminders, automatic Event lifecycle transitions (Published → Assignments Open, Assignments Closed → Completed). How should this be implemented?
@@ -501,13 +500,12 @@ When in doubt about the correct Czech UI label or English code name for a concep
     - Justification
         - Clean separation: Flask serves web requests; scheduler handles background work independently.
         - `schedule` library is actively maintained (2024), has no external dependencies, and is trivially simple for volunteers to understand and extend.
-        - Render.com background workers are free-tier eligible and deploy from the same repo.
         - Avoids Redis (no 3rd container, no extra cost, no extra ops).
         - Same `Dockerfile` base image; scheduler container just runs a different command.
     - Notes
         - Scheduler tasks implemented: (1) drain the email outbox (`process_email_queue`) — runs every `MAIL_QUEUE_INTERVAL_SECONDS` (default 6 s); (2) auto-open assignments at `assignments_open_at` datetime; (3) send unfilled-spot reminder emails per `reminder_schedule`; (4) auto-complete Events after `end_datetime`; (5) send admin digest emails; (6) run scheduled DB backups; (7) delete expired work-report xlsx files from `instance/work_report/` (runs hourly).
         - Scheduler polls the DB every 60 seconds; no message broker needed at this volume.
-        - See DEVOPS.md for container layout and `render.yaml` Blueprint.
+        - See DEVOPS.md for container layout.
 
 - AD11 Application Configuration Storage
     - Problem statement - The application requires runtime configuration (SMTP qualifications, organisation name, timezone). Where should these be stored, and how should the app behave on first install?
@@ -548,10 +546,10 @@ When in doubt about the correct Czech UI label or English code name for a concep
     - **Status:** Decided
     - **Context:** The application is deployed as multiple containers (web, scheduler, database). The question is: what encryption and isolation is needed for traffic between containers, and is TLS between containers necessary?
     - **Decision:**
-        1. **External traffic (user ↔ web):** TLS is terminated at Render's edge proxy. No in-app TLS configuration needed.
+        1. **External traffic (user ↔ web):** TLS is terminated at the hosting platform's reverse proxy / load balancer. No in-app TLS configuration needed.
         2. **Web ↔ PostgreSQL:** TLS (`sslmode=require`) is enforced via `DATABASE_URL` in production. The `ProductionConfig` asserts this. Dev/test use plaintext (acceptable; no real data).
         3. **Web ↔ Scheduler:** These containers communicate exclusively through the shared database. No HTTP calls exist between them. No inter-service TLS is needed.
-        4. **Container-to-container isolation:** Render's private service network (`.internal` hostnames) is non-routable from the public internet. We rely on this network isolation as the primary protection for intra-service traffic. We do **not** implement mTLS between containers — it is not justified for a single-region, non-distributed, non-critical internal app of this scale.
+        4. **Container-to-container isolation:** The hosting platform's private network (Docker bridge / VPC / private subnet) is non-routable from the public internet. We rely on this network isolation as the primary protection for intra-service traffic. We do **not** implement mTLS between containers — it is not justified for a single-region, non-distributed, non-critical internal app of this scale.
         5. **If deployment platform changes:** The transport security assumptions must be re-evaluated. A cloud platform with a true VPC and private subnets (AWS, Azure, GCP) provides equivalent or stronger isolation.
     - **Consequences:** Simple deployment with no certificate management overhead inside the cluster. DB SSL adds a small handshake overhead (negligible). If a future requirement demands zero-trust networking, mTLS (e.g. via a service mesh) can be added without application code changes.
 
@@ -958,14 +956,13 @@ Both containers connect to the same PostgreSQL database. See AD10 for the schedu
 |---|---|---|---|
 | **Local dev** | Developer playground; rapid iteration | Generated mock/seed data (`scripts/seed_dev.py`) | Docker Compose on developer laptop |
 | **Zerver (home lab)** | Integration testing; mirrors production config | Seeded dev data | Self-hosted server (LAN); synced via `zerver_scp.sh` after each commit |
-| **Production** | Live system serving real users | Real data | Render.com free tier (MVP); hyperscaler with NGO credits long-term — see AD09 |
+| **Production** | Live system serving real users | Real data | TBD — major cloud provider (GCP / Azure / AWS) with NGO credits — see AD09 |
 
 No permanent staging environment for MVP. The zerver home-lab server fulfils this role during active development.
 
 ### Hosting Platform
-- **MVP**: Render.com — native Docker support, free tier (web service + background worker + managed PostgreSQL), auto-deploy from GitHub via `render.yaml` Blueprint. See AD09.
-- **Long-term**: Azure Container Apps or Google Cloud Run using NGO non-profit credits (Czech Red Cross qualifies). Same `Dockerfile` used — no application changes required to migrate.
-- **CI/CD**: GitHub Actions runs tests on every PR; Render auto-deploys to production on merge to `main`.
+- **Production target**: A major cloud provider (GCP Cloud Run, Azure Container Apps, or AWS ECS) using NGO non-profit credits. Czech Red Cross qualifies for cloud credit programmes (Azure for Nonprofits, Google Cloud for Nonprofits). The final platform will be chosen after applying for credits. See AD09.
+- **CI/CD**: GitHub Actions runs lint, test, and dependency audit (`pip-audit`) on every PR. Dependabot submits weekly PRs for dependency and Actions updates. A deployment workflow will be added once the production platform is chosen.
 
 ### HA / DR Topology
 - No high-availability redundancy planned for MVP (single-server deployment acceptable given the non-critical nature and low cost constraint)
