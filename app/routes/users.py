@@ -168,6 +168,14 @@ def _change_password(user: UserAccount) -> Response:
     return redirect(url_for("users.profile"))
 
 
+# ── iCal guides ──────────────────────────────────────────────────────────────
+
+@users_bp.route("/profile/ical-guide/google")
+@login_required
+def ical_guide_google() -> str:
+    return render_template("users/ical_guide_google.html")
+
+
 # ── Admin: user list ──────────────────────────────────────────────────────────
 
 @users_bp.route("/")
