@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- iCal profile page: step-by-step guide for adding the MedCover calendar feed to Google Calendar, linked from the profile iCal card
 - Playwright E2E browser tests in Docker: 111 tests across Chromium, Firefox and WebKit covering login, navigation, event CRUD, form validation, CSRF, label accessibility, profile, and JS interactions; run via `make e2e`
 - HTML test report with per-test screenshots (`make e2e-report` to view)
 - Table Manager: client-side status and event type filter bars (same look as /events/ page); default hides Completed and Cancelled events
