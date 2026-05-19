@@ -11,9 +11,9 @@ For architectural decisions behind these choices, see `architecture.md` (AD09, A
 ```
 MedCover/
 ├── .github/
+│   ├── dependabot.yml          # Weekly dependency update PRs (pip + GitHub Actions)
 │   └── workflows/
-│       ├── ci.yml              # Run lint + tests + pip-audit on every PR and push
-│       └── dependabot.yml      # Weekly dependency update PRs (pip + GitHub Actions)
+│       └── ci.yml              # Run lint + tests + pip-audit on every PR and push
 │
 ├── app/
 │   ├── __init__.py             # Flask app factory: create_app(); CSP headers; custom filters
