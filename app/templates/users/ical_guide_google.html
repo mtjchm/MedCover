@@ -25,79 +25,33 @@
       </span>
     </div>
 
-    <ol class="list-group list-group-flush mb-4">
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">1</span>
-        <div>
-          Ze svého profilu v MedCover zkopírujte kalendářový odkaz kliknutím na tlačítko
+    <ol class="mb-4" style="line-height:2">
+      <li>Ze svého profilu v MedCover zkopírujte kalendářový odkaz kliknutím na tlačítko
           <strong><i class="bi bi-clipboard me-1"></i>Kopírovat</strong>.
-          <div class="mt-2">
+          <div class="mt-1 mb-2">
             <a href="{{ url_for('users.profile') }}#ical" class="btn btn-sm btn-outline-primary">
               <i class="bi bi-person-circle me-1"></i>Přejít na profil
             </a>
           </div>
-        </div>
       </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">2</span>
-        <div>
-          Otevřete <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer">
+      <li>Otevřete <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer">
             calendar.google.com <i class="bi bi-box-arrow-up-right small"></i></a>
-          a přihlaste se ke svému Google účtu.
-        </div>
-      </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">3</span>
-        <div>
-          <p class="mb-2">
-            V levém panelu klikněte na <strong>+</strong> vedle nápisu
-            <strong>Jiné kalendáře</strong> a pak na <strong>Pomocí adresy URL</strong>.
-          </p>
-          <p class="mb-0 small text-muted">
+          a přihlaste se ke svému Google účtu.</li>
+      <li>V levém panelu klikněte na <strong>+</strong> vedle nápisu
+          <strong>Jiné kalendáře</strong> a pak na <strong>Pomocí adresy URL</strong>.
+          <div class="small text-muted mt-1 mb-2">
             <i class="bi bi-info-circle me-1"></i>
-            Alternativně: klikněte na ozubené kolo
-            <i class="bi bi-gear"></i> vpravo nahoře → <strong>Nastavení</strong> →
-            v levém panelu <strong>Přidat kalendář</strong> → <strong>Pomocí adresy URL</strong>.
-          </p>
-        </div>
+            Alternativně: ozubené kolo <i class="bi bi-gear"></i> vpravo nahoře →
+            <strong>Nastavení</strong> → <strong>Přidat kalendář</strong> → <strong>Pomocí adresy URL</strong>.
+          </div>
       </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">4</span>
-        <div>
-          Do políčka <strong>URL kalendáře</strong> vložte zkopírovaný odkaz
-          (<kbd>Ctrl</kbd>+<kbd>V</kbd>) a klikněte na <strong>Přidat kalendář</strong>.
-        </div>
-      </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">5</span>
-        <div>
-          Nově přidaný kalendář najdete v levém panelu v sekci
-          <strong>Nastavení jiných kalendářů</strong>.
-          Tam ho můžete přejmenovat, nastavit oznámení atd.
-        </div>
-      </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">6</span>
-        <div>
-          Pro návrat do kalendáře klikněte na šipku
-          <i class="bi bi-arrow-left"></i> v levém horním rohu.
-        </div>
-      </li>
-
-      <li class="list-group-item px-0 py-3 d-flex gap-3">
-        <span class="badge bg-primary rounded-pill fs-6 flex-shrink-0" style="height:1.75rem;min-width:1.75rem;line-height:1.35">7</span>
-        <div>
-          Váš MedCover kalendář uvidíte v levém panelu v sekci <strong>Jiné kalendáře</strong>.
-          Kliknutím na barevný čtvereček vedle názvu si můžete zvolit barvu zobrazení událostí.
-        </div>
-      </li>
-
+      <li>Do políčka <strong>URL kalendáře</strong> vložte zkopírovaný odkaz
+          (<kbd>Ctrl</kbd>+<kbd>V</kbd>) a klikněte na <strong>Přidat kalendář</strong>.</li>
+      <li>Nově přidaný kalendář najdete v levém panelu v sekci
+          <strong>Nastavení jiných kalendářů</strong> — tam ho můžete přejmenovat, nastavit oznámení atd.</li>
+      <li>Pro návrat do kalendáře klikněte na šipku <i class="bi bi-arrow-left"></i> v levém horním rohu.</li>
+      <li>Váš MedCover kalendář uvidíte v sekci <strong>Jiné kalendáře</strong>.
+          Kliknutím na barevný čtvereček si můžete zvolit barvu zobrazení událostí.</li>
     </ol>
 
     <div class="alert alert-warning d-flex gap-2 align-items-start" role="alert">
