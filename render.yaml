@@ -1,0 +1,52 @@
+services:
+  - name: medcover-web
+    type: web
+    region: frankfurt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: gunicorn -w 2 -b 0.0.0.0:$PORT "app:create_app()"
+    branch: main
+    autoDeploy: true
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medcover-db
+          property: connectionString
+      # No MAIL_* vars needed — SMTP is configured via the setup wizard and stored
+      # encrypted in the DB. Configure SMTP credentials through the web UI after
+      # the first deploy.
+
+  - name: medcover-scheduler
+    type: worker
+    region: frankfurt
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python scheduler/main.py
+    branch: main
+    autoDeploy: true
+    plan: free
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        fromService:
+          name: medcover-web
+          type: web
+          envVarKey: SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medcover-db
+          property: connectionString
+
+databases:
+  - name: medcover-db
+    databaseName: medcover
+    user: medcover
+    plan: free
+    region: frankfurt
