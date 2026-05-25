@@ -415,7 +415,7 @@
                 <input type="text" class="form-control form-control-sm" name="description"
                        value="{{ spot.description or '' }}" placeholder="Popis pozice">
               </div>
-              <div class="form-check mb-2">
+              <div class="form-check mb-2 text-start">
                 <input class="form-check-input" type="checkbox" name="is_optional" value="1"
                        id="edit_optional_{{ spot.id }}" {{ 'checked' if spot.is_optional }}>
                 <label class="form-check-label small text-muted" for="edit_optional_{{ spot.id }}">Volitelná pozice</label>
