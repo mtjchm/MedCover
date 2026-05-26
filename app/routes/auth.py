@@ -6,6 +6,7 @@ from typing import Any
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app.constants import MIN_PASSWORD_LENGTH
 from app.extensions import db
 from app.models.invite import RegistrationInvite
 from app.models.role import Role
@@ -13,7 +14,6 @@ from app.models.user import UserAccount
 from app.models.audit import AuditLogEntry
 from app.utils import external_url_for, safe_next
 from app.config import LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES
-from app.constants import MIN_PASSWORD_LENGTH
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -164,7 +164,7 @@ def reset_password(token: str) -> str | Response:
         password = request.form.get("password", "")
         password2 = request.form.get("password2", "")
         if len(password) < MIN_PASSWORD_LENGTH:
-            flash("Heslo musí mít alespoň 8 znaků.", "warning")
+            flash(f"Heslo musí mít alespoň {MIN_PASSWORD_LENGTH} znaků.", "warning")
         elif password != password2:
             flash("Hesla se neshodují.", "warning")
         else:
@@ -182,7 +182,7 @@ def reset_password(token: str) -> str | Response:
             flash("Heslo bylo změněno. Přihlaste se.", "success")
             return redirect(url_for("auth.login"))
 
-    return render_template("auth/reset_password.html")
+    return render_template("auth/reset_password.html", min_password_length=MIN_PASSWORD_LENGTH)
 
 
 @auth_bp.route("/register/<token>", methods=["GET", "POST"])
@@ -212,7 +212,8 @@ def register(token: str) -> str | Response:
         if not full_name:
             flash("Zadejte celé jméno.", "warning")
         elif len(password) < MIN_PASSWORD_LENGTH:
-            flash("Heslo musí mít alespoň 8 znaků.", "warning")
+            flash(f"Heslo musí mít alespoň {MIN_PASSWORD_LENGTH} znaků.", "warning")
+
         elif password != password2:
             flash("Hesla se neshodují.", "warning")
         elif db.session.scalar(db.select(UserAccount).where(UserAccount.email == invite.email)):
@@ -240,4 +241,4 @@ def register(token: str) -> str | Response:
             flash("Registrace dokončena. Nyní se můžete přihlásit.", "success")
             return redirect(url_for("auth.login"))
 
-    return render_template("auth/register.html", invite=invite)
+    return render_template("auth/register.html", invite=invite, min_password_length=MIN_PASSWORD_LENGTH)
